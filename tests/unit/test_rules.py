@@ -217,3 +217,22 @@ def test_module_exporting_an_api_does_not_count_as_using_it(tmp_path: Path) -> N
     assert engine.scan(data, report)
     report.exports = ["VirtualAllocEx"]
     assert engine.scan(data, report) == []
+
+
+def test_parse_and_rules_on_10mb_pe_under_two_seconds() -> None:
+    import os
+    import time
+
+    from octov.core.static.analysis import analyze
+
+    blob = os.urandom(10 * 1024 * 1024)
+    data = build_pe(
+        PESpec(
+            sections=[SectionSpec(".text", b"\xc3", TEXT), SectionSpec(".rsrc", blob, DATA)],
+            imports={"kernel32.dll": ["ExitProcess"]},
+        )
+    )
+    analyze(build_pe())  # load + compile catalogs once
+    start = time.perf_counter()
+    analyze(data)
+    assert time.perf_counter() - start < 2.0
