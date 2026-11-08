@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import struct
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -181,6 +182,9 @@ class PEReport:
     overlay_size: int
     signature: SignatureInfo
     indicators: list[Indicator] = field(default_factory=list)
+    import_addresses: dict[int, str] = field(default_factory=dict)  # IAT slot RVA -> dll!func
+    export_rvas: dict[str, int] = field(default_factory=dict)
+    function_starts: list[int] = field(default_factory=list)  # from x64 .pdata
 
     @property
     def compile_time(self) -> datetime:
@@ -195,6 +199,10 @@ class PEReport:
         data = asdict(self)
         for sec, raw in zip(self.sections, data["sections"], strict=True):
             raw.update(readable=sec.readable, writable=sec.writable, executable=sec.executable)
+        # Portable for msgpack/JSON consumers that require string map keys.
+        data["import_addresses"] = sorted(
+            [rva, name] for rva, name in self.import_addresses.items()
+        )
         return data
 
 
@@ -219,13 +227,13 @@ def _decode(raw: bytes | str | None) -> str:
     return raw.rstrip(b"\x00").decode("latin-1")
 
 
-def _api_base(name: str) -> str:
+def normalize_api(name: str) -> str:
     """Drop the ANSI/Unicode suffix: ``LoadLibraryExW`` -> ``LoadLibraryEx``."""
     return name[:-1] if len(name) > 1 and name[-1] in "AW" and name[-2].islower() else name
 
 
 def _matches(names: Iterable[str], catalog: frozenset[str]) -> list[str]:
-    return sorted({n for n in names if n in catalog or _api_base(n) in catalog})
+    return sorted({n for n in names if n in catalog or normalize_api(n) in catalog})
 
 
 def _read_input(source: str | Path | bytes) -> tuple[bytes, str | None]:
@@ -246,6 +254,8 @@ def _signature_info(pe: pefile.PE, data: bytes) -> SignatureInfo:
         return SignatureInfo(present=False)
     try:
         import lief
+
+        lief.logging.disable()
 
         binary = lief.PE.parse(io.BytesIO(data))
         if binary is None or not binary.has_signatures:
@@ -294,18 +304,24 @@ def _build_report(pe: pefile.PE, data: bytes, path: str | None) -> PEReport:
     ]
 
     imports: dict[str, list[str]] = {}
+    import_addresses: dict[int, str] = {}
     for entry in getattr(pe, "DIRECTORY_ENTRY_IMPORT", []):
         dll = _decode(entry.dll).lower()
         funcs = imports.setdefault(dll, [])
         for imp in entry.imports:
-            funcs.append(_decode(imp.name) if imp.name else f"ord_{imp.ordinal}")
+            name = _decode(imp.name) if imp.name else f"ord_{imp.ordinal}"
+            funcs.append(name)
+            if imp.address:
+                import_addresses[imp.address - oh.ImageBase] = f"{dll}!{name}"
 
     exports: list[str] = []
+    export_rvas: dict[str, int] = {}
     if hasattr(pe, "DIRECTORY_ENTRY_EXPORT"):
-        exports = [
-            _decode(sym.name) if sym.name else f"ord_{sym.ordinal}"
-            for sym in pe.DIRECTORY_ENTRY_EXPORT.symbols
-        ]
+        for sym in pe.DIRECTORY_ENTRY_EXPORT.symbols:
+            name = _decode(sym.name) if sym.name else f"ord_{sym.ordinal}"
+            exports.append(name)
+            if sym.address and not sym.forwarder:
+                export_rvas[name] = sym.address
 
     overlay_offset = pe.get_overlay_data_start_offset()
     overlay_size = len(data) - overlay_offset if overlay_offset is not None else 0
@@ -339,9 +355,31 @@ def _build_report(pe: pefile.PE, data: bytes, path: str | None) -> PEReport:
         overlay_offset=overlay_offset,
         overlay_size=overlay_size,
         signature=_signature_info(pe, data),
+        import_addresses=import_addresses,
+        export_rvas=export_rvas,
+        function_starts=_pdata_function_starts(pe, fh.Machine),
     )
     report.indicators = list(_indicators(report, data))
     return report
+
+
+def _pdata_function_starts(pe: pefile.PE, machine: int) -> list[int]:
+    """Function begin RVAs from the x64 exception directory (RUNTIME_FUNCTION entries)."""
+    if machine != 0x8664:
+        return []
+    entry = pe.OPTIONAL_HEADER.DATA_DIRECTORY[
+        pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_EXCEPTION"]
+    ]
+    if not entry.VirtualAddress or not entry.Size:
+        return []
+    try:
+        raw = pe.get_data(entry.VirtualAddress, entry.Size)
+    except pefile.PEFormatError:
+        return []
+    usable = len(raw) - len(raw) % 12
+    return sorted(
+        {begin for begin, _end, _unwind in struct.iter_unpack("<III", raw[:usable]) if begin}
+    )
 
 
 def _indicators(r: PEReport, data: bytes) -> Iterable[Indicator]:
@@ -428,7 +466,7 @@ def _indicators(r: PEReport, data: bytes) -> Iterable[Indicator]:
     if _matches(injection, _INJECTION_WRITE) and _matches(injection, _INJECTION_EXEC):
         yield Indicator(
             "process_injection_apis",
-            "high",
+            "medium",
             "Imports a cross-process memory write primitive together with a remote "
             "execution primitive (process injection capability).",
             ["T1055"],

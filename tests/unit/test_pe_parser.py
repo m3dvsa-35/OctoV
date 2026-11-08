@@ -186,7 +186,7 @@ def test_flags_process_injection_apis_with_mitre(tmp_path: Path) -> None:
     ind = next(
         i for i in parse_pe(_write(tmp_path, spec)).indicators if i.id == "process_injection_apis"
     )
-    assert ind.severity == "high"
+    assert ind.severity == "medium"  # capability via dual-use APIs, not intent
     assert "T1055" in ind.mitre
     assert set(ind.evidence["apis"]) >= {
         "VirtualAllocEx",
