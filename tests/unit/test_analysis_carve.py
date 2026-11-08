@@ -71,6 +71,5 @@ def test_images_in_resources_are_not_reported() -> None:
     data = SHELL32.read_bytes()
     payloads = carve_payloads(data, parse_pe(data))
     assert all(
-        p.kind != "high_entropy" or not data[p.offset : p.offset + 4] == b"\x89PNG"
-        for p in payloads
+        p.kind != "high_entropy" or data[p.offset : p.offset + 4] != b"\x89PNG" for p in payloads
     )
