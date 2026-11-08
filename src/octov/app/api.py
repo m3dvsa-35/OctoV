@@ -4,6 +4,12 @@ Every public method takes and returns JSON-serialisable values. The same object
 is exposed to the desktop window through pywebview's JS bridge (no network) and,
 for development, through the token-protected loopback server in ``devserver``.
 Methods may be called from several threads; shared state is guarded by a lock.
+
+Analysis runs through the analyzer pipeline: fast analyzers finish inside
+``open_sample``, slow ones (functions, xrefs, naming, ranking) stream in and are
+reported by ``job_status``. Analyst annotations (names, comments, bookmarks,
+verdicts) persist in the open session or, if none is open, in a per-sample
+workspace session under ``workspace_dir``.
 """
 
 from __future__ import annotations
@@ -15,11 +21,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from octov.core.analysis.analyzers import default_analyzers
+from octov.core.analysis.carve import payload_zip
+from octov.core.analysis.facts import Fact, facts_from_findings
+from octov.core.analysis.iocs import iocs_csv, iocs_json
+from octov.core.analysis.pipeline import AnalysisContext, Pipeline
+from octov.core.analysis.report import build_triage
+from octov.core.analysis.scoring import IGNORED_VERDICTS
 from octov.core.config import THEMES, Config
 from octov.core.export.sigma_gen import generate_sigma
 from octov.core.export.yara_gen import generate_yara
 from octov.core.i18n import LANGUAGES
-from octov.core.mitre import technique_name, technique_tactic
+from octov.core.mitre import technique_name
 from octov.core.session.session import Session, SessionError
 from octov.core.static.analysis import (
     RawAnalysis,
@@ -30,13 +43,15 @@ from octov.core.static.analysis import (
     default_rules,
     rule_set,
 )
-from octov.core.static.cfg import Function, FunctionIndex, discover_from, discover_functions
+from octov.core.static.cfg import Function
 from octov.core.static.disasm import Disassembler, ImageView, RawView
 from octov.core.static.pe_parser import Hashes, PEParseError, PEReport
-from octov.core.static.rules import Finding, Rule, RuleError
+from octov.core.static.rules import Rule, RuleError
 
 _SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2, "info": 3}
 MAX_READ = 1 << 20  # largest hex chunk a single call may return
+MAX_STRINGS_PAGE = 2000
+VERDICTS = ("false_positive", "benign", "confirmed")
 
 
 class ApiError(Exception):
@@ -48,14 +63,10 @@ class _Sample:
     path: Path
     data: bytes
     analysis: StaticAnalysis | RawAnalysis
-    status: str = "running"
-    error: str | None = None
-    functions: dict[int, Function] = field(default_factory=dict)
-    index: FunctionIndex | None = None
-
-    @property
-    def sha(self) -> str:
-        return self.hashes.sha256
+    ctx: AnalysisContext
+    pipeline: Pipeline
+    parent: str | None = None
+    store: Session | None = field(default=None, repr=False)  # workspace session, if any
 
     @property
     def hashes(self) -> Hashes:
@@ -64,12 +75,20 @@ class _Sample:
         return self.analysis.sample.hashes
 
     @property
+    def sha(self) -> str:
+        return self.hashes.sha256
+
+    @property
     def report(self) -> PEReport | None:
         return self.analysis.report if isinstance(self.analysis, StaticAnalysis) else None
 
     @property
     def raw(self) -> RawSample | None:
         return self.analysis.sample if isinstance(self.analysis, RawAnalysis) else None
+
+    @property
+    def functions(self) -> dict[int, Function]:
+        return self.ctx.functions
 
     def view(self) -> ImageView | RawView:
         if self.report is not None:
@@ -83,9 +102,15 @@ def _perm(readable: bool, writable: bool, executable: bool) -> str:
 
 
 class WorkbenchApi:
-    def __init__(self, config: Config | None = None, settings_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        config: Config | None = None,
+        settings_path: Path | None = None,
+        workspace_dir: Path | None = None,
+    ) -> None:
         self._config = config or Config()
         self._settings_path = settings_path or Path.home() / ".octov" / "ui.json"
+        self._workspace_dir = workspace_dir or Path.home() / ".octov" / "workspaces"
         self._lock = threading.RLock()
         self._samples: dict[str, _Sample] = {}
         self._session: Session | None = None
@@ -157,6 +182,11 @@ class WorkbenchApi:
             data = file.read_bytes()
         except OSError as exc:
             raise ApiError(f"cannot read {path}: {exc.strerror or exc}") from exc
+        return self._open_bytes(data, file, raw=raw, bits=bits)
+
+    def _open_bytes(
+        self, data: bytes, file: Path, raw: bool = False, bits: int = 64, parent: str | None = None
+    ) -> dict[str, Any]:
         limit = self._config.static.max_file_size_mb * 1024 * 1024
         if len(data) > limit:
             raise ApiError(f"file exceeds {self._config.static.max_file_size_mb} MB limit")
@@ -166,44 +196,50 @@ class WorkbenchApi:
                 raw_result = analyze_raw(data, self._rules, bits=bits)
                 raw_result.sample.path = str(file)
                 analysis = raw_result
+                ctx = AnalysisContext(data, None, bits, raw_result.findings)
             else:
                 pe_result = analyze(data, self._rules)
                 pe_result.report.path = str(file)
                 analysis = pe_result
+                ctx = AnalysisContext(
+                    data,
+                    pe_result.report,
+                    64 if pe_result.report.is_64bit else 32,
+                    pe_result.findings,
+                )
         except PEParseError as exc:
             raise ApiError(f"{exc} - open it as a raw code blob instead") from exc
         except ValueError as exc:
             raise ApiError(str(exc)) from exc
 
-        sample = _Sample(file, data, analysis)
+        sha = analysis.to_dict()["hashes"]["sha256"]
         with self._lock:
-            existing = self._samples.get(sample.sha)
-            if existing is not None and existing.status != "failed":
+            existing = self._samples.get(sha)
+            if existing is not None:
                 return self._summary(existing)
-            self._samples[sample.sha] = sample
+        pipeline = Pipeline(default_analyzers())
+        pipeline.run_fast(ctx)
+        sample = _Sample(file, data, analysis, ctx, pipeline, parent=parent)
+        with self._lock:
+            self._samples[sha] = sample
             if self._session is not None:
-                try:
-                    self._session.add_sample(analysis)
-                    self._session.commit()
-                except SessionError as exc:
-                    raise ApiError(str(exc)) from exc
-        threading.Thread(target=self._discover, args=(sample,), daemon=True).start()
+                self._persist(self._session, sample)
+            else:
+                ws = self._workspace_dir / f"{sha}.octov"
+                if ws.is_file():
+                    try:
+                        sample.store = Session.open(ws)
+                    except SessionError:
+                        sample.store = None
+        pipeline.start_slow(ctx)
         return self._summary(sample)
 
-    def _discover(self, sample: _Sample) -> None:
+    def _persist(self, session: Session, sample: _Sample) -> None:
         try:
-            dis = Disassembler(sample.view())
-            if sample.report is not None:
-                functions = discover_functions(dis, sample.report)
-            else:
-                functions = discover_from(dis, [0])
-            index = FunctionIndex(functions)
-        except Exception as exc:  # surfaced through discovery_status
-            with self._lock:
-                sample.status, sample.error = "failed", str(exc)
-            return
-        with self._lock:
-            sample.functions, sample.index, sample.status = functions, index, "done"
+            session.add_sample(sample.analysis)
+            session.commit()
+        except SessionError as exc:
+            raise ApiError(str(exc)) from exc
 
     def _get(self, sha: str) -> _Sample:
         with self._lock:
@@ -214,8 +250,10 @@ class WorkbenchApi:
 
     def _summary(self, s: _Sample) -> dict[str, Any]:
         counts = {k: 0 for k in _SEVERITY_ORDER}
-        for row in self._finding_rows(s):
-            counts[row["severity"]] += 1
+        verdicts = self._verdicts(s)
+        for fact in s.ctx.facts:
+            if verdicts.get(fact.id) not in IGNORED_VERDICTS:
+                counts[fact.severity] += 1
         return {
             "sha256": s.sha,
             "name": s.path.name,
@@ -223,6 +261,7 @@ class WorkbenchApi:
             "format": "pe" if s.report is not None else "raw",
             "size": len(s.data),
             "counts": counts,
+            "parent": s.parent,
         }
 
     def list_samples(self) -> list[dict[str, Any]]:
@@ -232,7 +271,10 @@ class WorkbenchApi:
 
     def close_sample(self, sha: str) -> None:
         with self._lock:
-            self._samples.pop(sha, None)
+            sample = self._samples.pop(sha, None)
+        if sample is not None and sample.store is not None:
+            sample.store.commit()
+            sample.store.close()
 
     def get_overview(self, sha: str) -> dict[str, Any]:
         s = self._get(sha)
@@ -276,111 +318,234 @@ class WorkbenchApi:
             "export_count": len(r.exports),
         }
 
-    # -- findings --------------------------------------------------------------------
+    # -- annotations ---------------------------------------------------------------
 
-    def _finding_rows(self, s: _Sample) -> list[dict[str, Any]]:
-        rows: list[dict[str, Any]] = []
-        if s.report is not None:
-            for ind in s.report.indicators:
-                rows.append(
-                    {
-                        "id": ind.id,
-                        "kind": "indicator",
-                        "name": ind.id.replace("_", " "),
-                        "severity": ind.severity,
-                        "mitre": ind.mitre,
-                        "description": ind.description,
-                        "rva": None,
-                        "offset": ind.evidence.get("offset") or ind.evidence.get("raw_offset"),
-                        "evidence": [{"detail": json.dumps(ind.evidence, default=str)}],
-                    }
-                )
-        for f in s.analysis.findings:
-            rows.append(self._rule_row(f))
-        for row in rows:
-            row["mitre_names"] = {t: technique_name(t) for t in row["mitre"]}
-        rows.sort(key=lambda r: (_SEVERITY_ORDER[r["severity"]], r["id"]))
-        return rows
+    def _store(self, s: _Sample, create: bool) -> Session | None:
+        """Explicit session if open, else the sample's workspace session (created on demand)."""
+        if self._session is not None:
+            return self._session
+        if s.store is None and create:
+            self._workspace_dir.mkdir(parents=True, exist_ok=True)
+            path = self._workspace_dir / f"{s.sha}.octov"
+            try:
+                s.store = Session.open(path) if path.is_file() else Session.create(path)
+                if s.store.get_sample(s.sha) is None:
+                    self._persist(s.store, s)
+            except SessionError as exc:
+                raise ApiError(str(exc)) from exc
+        return s.store
+
+    def _annotations(self, s: _Sample, kind: str | None = None) -> list[Any]:
+        store = self._store(s, create=False)
+        return store.annotations(s.sha, kind) if store is not None else []
+
+    def _verdicts(self, s: _Sample) -> dict[str, str]:
+        return {a.target: a.value for a in self._annotations(s, "verdict") if a.target}
+
+    def _names(self, s: _Sample) -> tuple[dict[int, str], dict[int, str]]:
+        """(analyst names, suggested names) by function start."""
+        own = {a.address: a.value for a in self._annotations(s, "name") if a.address is not None}
+        return own, dict(s.ctx.results.get("names", {}))
+
+    def annotate(
+        self,
+        sha: str,
+        kind: str,
+        value: str,
+        address: int | None = None,
+        target: str | None = None,
+    ) -> dict[str, Any]:
+        s = self._get(sha)
+        store = self._store(s, create=True)
+        assert store is not None
+        try:
+            ann_id = store.add_annotation(sha, kind, value, address=address, target=target)
+            store.commit()
+        except SessionError as exc:
+            raise ApiError(str(exc)) from exc
+        return {"id": ann_id, "kind": kind, "value": value, "address": address, "target": target}
+
+    def delete_annotation(self, sha: str, annotation_id: int) -> None:
+        store = self._store(self._get(sha), create=False)
+        if store is not None:
+            store.delete_annotation(annotation_id)
+            store.commit()
+
+    def list_annotations(self, sha: str) -> list[dict[str, Any]]:
+        return [
+            {"id": a.id, "kind": a.kind, "address": a.address, "target": a.target, "value": a.value}
+            for a in self._annotations(self._get(sha))
+        ]
+
+    def set_verdict(self, sha: str, fact_id: str, verdict: str | None) -> None:
+        s = self._get(sha)
+        if verdict is None:
+            for a in self._annotations(s, "verdict"):
+                if a.target == fact_id:
+                    self.delete_annotation(sha, a.id)
+            return
+        if verdict not in VERDICTS:
+            raise ApiError(f"invalid verdict {verdict!r}")
+        self.annotate(sha, "verdict", verdict, target=fact_id)
+
+    # -- findings & triage -------------------------------------------------------------
 
     @staticmethod
-    def _rule_row(f: Finding) -> dict[str, Any]:
-        located = next((m for m in f.matches if m.rva is not None or m.offset is not None), None)
-        return {
-            "id": f.rule_id,
-            "kind": "rule",
-            "name": f.name,
-            "severity": f.severity,
-            "mitre": f.mitre,
-            "description": f.description,
+    def _fact_row(fact: Fact, verdict: str | None) -> dict[str, Any]:
+        located = next((e for e in fact.evidence if e.rva is not None), None) or next(
+            (e for e in fact.evidence if e.offset is not None), None
+        )
+        return fact.to_dict() | {
+            "name": fact.title,
+            "description": fact.title,
+            "mitre_names": {t: technique_name(t) for t in fact.mitre},
             "rva": located.rva if located else None,
             "offset": located.offset if located else None,
-            "evidence": [
-                {
-                    "type": m.type,
-                    "value": m.value,
-                    "detail": m.detail,
-                    "offset": m.offset,
-                    "rva": m.rva,
-                }
-                for m in f.matches
-            ],
+            "verdict": verdict,
         }
 
     def get_findings(self, sha: str) -> list[dict[str, Any]]:
-        return self._finding_rows(self._get(sha))
+        s = self._get(sha)
+        verdicts = self._verdicts(s)
+        rows = [self._fact_row(f, verdicts.get(f.id)) for f in list(s.ctx.facts)]
+        rows.sort(key=lambda r: (_SEVERITY_ORDER[r["severity"]], r["kind"], r["source_id"]))
+        return rows
 
     def get_mitre(self, sha: str) -> list[dict[str, Any]]:
-        agg: dict[str, dict[str, Any]] = {}
-        for row in self.get_findings(sha):
-            for t in row["mitre"]:
-                entry = agg.setdefault(
-                    t,
-                    {
-                        "technique": t,
-                        "name": technique_name(t),
-                        "tactic": technique_tactic(t),
-                        "severity": "info",
-                        "sources": [],
-                    },
-                )
-                if _SEVERITY_ORDER[row["severity"]] < _SEVERITY_ORDER[entry["severity"]]:
-                    entry["severity"] = row["severity"]
-                if row["id"] not in entry["sources"]:
-                    entry["sources"].append(row["id"])
-        for entry in agg.values():
-            entry["hits"] = len(entry["sources"])
-        return sorted(
-            agg.values(),
-            key=lambda e: (_SEVERITY_ORDER[e["severity"]], -e["hits"], e["technique"]),
-        )
+        return list(self.get_triage(sha)["attack"])
 
-    # -- code ------------------------------------------------------------------------
+    def get_triage(self, sha: str) -> dict[str, Any]:
+        s = self._get(sha)
+        own, suggested = self._names(s)
+        return build_triage(s.ctx, self._verdicts(s), suggested | own, s.pipeline.status())
+
+    def job_status(self, sha: str) -> dict[str, dict[str, Any]]:
+        return self._get(sha).pipeline.status()
 
     def discovery_status(self, sha: str) -> dict[str, Any]:
+        """Function discovery state (kept for the code views)."""
         s = self._get(sha)
-        with self._lock:
-            return {"state": s.status, "functions": len(s.functions), "error": s.error}
+        job = s.pipeline.status().get("functions", {"state": "done", "error": None})
+        state = {"queued": "running", "running": "running", "done": "done"}.get(
+            job["state"], "failed"
+        )
+        return {"state": state, "functions": len(s.functions), "error": job["error"]}
 
-    def _function_name(self, s: _Sample, start: int) -> str:
-        if s.report is not None:
-            for name, rva in s.report.export_rvas.items():
-                if rva == start:
-                    return name
-        return f"sub_{start:x}"
+    def get_strings(
+        self,
+        sha: str,
+        category: str | None = None,
+        query: str = "",
+        offset: int = 0,
+        limit: int = 500,
+    ) -> dict[str, Any]:
+        s = self._get(sha)
+        items = list(s.ctx.results.get("strings", []))
+        if category:
+            items = [x for x in items if x.category == category]
+        if query:
+            q = query.lower()
+            items = [x for x in items if q in x.value.lower()]
+        xrefs = s.ctx.results.get("xrefs")
+        page = items[max(0, offset) : max(0, offset) + max(0, min(limit, MAX_STRINGS_PAGE))]
+        return {
+            "total": len(items),
+            "items": [
+                {
+                    "value": x.value,
+                    "encoding": x.encoding,
+                    "offset": x.offset,
+                    "rva": x.rva,
+                    "section": x.section,
+                    "category": x.category,
+                    "xrefs": len(xrefs.to(x.rva))
+                    if xrefs is not None and x.rva is not None
+                    else None,
+                }
+                for x in page
+            ],
+        }
+
+    def get_iocs(self, sha: str) -> list[dict[str, Any]]:
+        return list(self.get_triage(sha)["iocs"])
+
+    def export_iocs(self, sha: str, fmt: str = "csv") -> str:
+        iocs = self._get(sha).ctx.results.get("iocs", [])
+        if fmt == "json":
+            return iocs_json(iocs)
+        if fmt == "csv":
+            return iocs_csv(iocs)
+        raise ApiError(f"unsupported IOC format {fmt!r}")
+
+    def xrefs_to(self, sha: str, rva: int) -> list[dict[str, Any]]:
+        s = self._get(sha)
+        xrefs = s.ctx.results.get("xrefs")
+        if xrefs is None:
+            return []
+        own, suggested = self._names(s)
+        names = suggested | own
+        return [
+            {
+                "src": x.src,
+                "kind": x.kind,
+                "func": x.func,
+                "func_name": names.get(x.func, f"sub_{x.func:x}") if x.func is not None else None,
+            }
+            for x in xrefs.to(rva)
+        ]
+
+    # -- payloads ------------------------------------------------------------------
+
+    def list_payloads(self, sha: str) -> list[dict[str, Any]]:
+        return list(self.get_triage(sha)["payloads"])
+
+    def _payload_bytes(self, sha: str, payload_sha: str) -> tuple[bytes, Any]:
+        s = self._get(sha)
+        for p in s.ctx.results.get("payloads", []):
+            if p.sha256 == payload_sha:
+                return s.data[p.offset : p.offset + p.size], p
+        raise ApiError(f"no payload {payload_sha[:12]} in this sample")
+
+    def open_payload(self, sha: str, payload_sha: str) -> dict[str, Any]:
+        data, p = self._payload_bytes(sha, payload_sha)
+        parent = self._get(sha)
+        label = Path(f"{parent.path.name}@{p.offset:#x}")
+        store = self._store(parent, create=False)
+        if store is not None:
+            store.add_payload(sha, p, data)
+            store.commit()
+        return self._open_bytes(data, label, raw=p.kind != "pe", parent=sha)
+
+    def export_payload(self, sha: str, payload_sha: str, path: str) -> None:
+        if not path.lower().endswith(".zip"):
+            raise ApiError("payloads are only exported as encrypted .zip (password: infected)")
+        data, p = self._payload_bytes(sha, payload_sha)
+        try:
+            Path(path).write_bytes(payload_zip(data, f"{p.sha256}.bin"))
+        except OSError as exc:
+            raise ApiError(f"cannot save {path}: {exc.strerror or exc}") from exc
+
+    # -- code ------------------------------------------------------------------------
 
     def list_functions(self, sha: str) -> list[dict[str, Any]]:
         s = self._get(sha)
         entry = s.report.entry_point if s.report is not None else 0
-        return [
-            {
-                "start": start,
-                "name": self._function_name(s, start),
-                "blocks": len(fn.blocks),
-                "size": fn.size,
-                "is_entry": start == entry,
-            }
-            for start, fn in sorted(s.functions.items())
-        ]
+        exports = {rva: n for n, rva in s.report.export_rvas.items()} if s.report else {}
+        own, suggested = self._names(s)
+        out = []
+        for start, fn in sorted(s.functions.items()):
+            name = own.get(start) or exports.get(start) or suggested.get(start) or f"sub_{start:x}"
+            out.append(
+                {
+                    "start": start,
+                    "name": name,
+                    "suggested": start not in own and start not in exports and start in suggested,
+                    "blocks": len(fn.blocks),
+                    "size": fn.size,
+                    "is_entry": start == entry,
+                }
+            )
+        return out
 
     def get_function(self, sha: str, start: int) -> dict[str, Any]:
         s = self._get(sha)
@@ -396,7 +561,9 @@ class WorkbenchApi:
                 out["comment"] = insn.comment
                 out["mnemonic"] = insn.mnemonic
                 out["operands"] = insn.op_str
-        data["name"] = self._function_name(s, start)
+                out["data_ref"] = insn.data_ref
+        name = next(f["name"] for f in self.list_functions(sha) if f["start"] == start)
+        data["name"] = name
         return data
 
     def _offset_of(self, s: _Sample, rva: int) -> int | None:
@@ -409,13 +576,12 @@ class WorkbenchApi:
 
     def locate(self, sha: str, rva: int) -> dict[str, Any]:
         s = self._get(sha)
-        fn = s.index.lookup(rva) if s.index is not None else None
+        fn = s.ctx.index.lookup(rva) if s.ctx.index is not None else None
         return {"rva": rva, "offset": self._offset_of(s, rva), "function": fn.start if fn else None}
 
     def disassemble(self, sha: str, rva: int, count: int = 64) -> list[dict[str, Any]]:
         """Linear listing at ``rva`` (for addresses outside discovered functions)."""
         s = self._get(sha)
-        view = s.view()
         return [
             {
                 "address": i.address,
@@ -425,8 +591,9 @@ class WorkbenchApi:
                 "operands": i.op_str,
                 "target": i.target,
                 "comment": i.comment,
+                "data_ref": i.data_ref,
             }
-            for i in Disassembler(view).linear(rva, min(count, 512))
+            for i in Disassembler(s.view()).linear(rva, min(count, 512))
         ]
 
     def read_bytes(self, sha: str, offset: int, length: int) -> dict[str, Any]:
@@ -437,17 +604,26 @@ class WorkbenchApi:
 
     # -- exports ---------------------------------------------------------------------
 
+    def _kept_findings(self, s: _Sample) -> list[Any]:
+        """Rule findings minus those the analyst marked false positive / benign."""
+        verdicts = self._verdicts(s)
+        return [
+            f
+            for f in s.analysis.findings
+            if verdicts.get(facts_from_findings([f])[0].id) not in IGNORED_VERDICTS
+        ]
+
     def export_yara(self, sha: str) -> str:
         s = self._get(sha)
         target: PEReport | RawSample | None = s.report if s.report is not None else s.raw
         assert target is not None
-        return generate_yara(target, s.analysis.findings)
+        return generate_yara(target, self._kept_findings(s))
 
     def export_sigma(self, sha: str) -> str | None:
         s = self._get(sha)
         if s.report is None:
             return None
-        return generate_sigma(s.report, s.analysis.findings)
+        return generate_sigma(s.report, self._kept_findings(s))
 
     # -- sessions --------------------------------------------------------------------
 
@@ -459,8 +635,7 @@ class WorkbenchApi:
         self._attach(session)
         with self._lock:
             for s in self._samples.values():
-                session.add_sample(s.analysis)
-            session.commit()
+                self._persist(session, s)
         return {"path": str(session.path)}
 
     def open_session(self, path: str) -> list[dict[str, Any]]:

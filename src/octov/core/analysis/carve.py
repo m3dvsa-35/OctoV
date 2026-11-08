@@ -53,7 +53,7 @@ def _embedded_pe_size(data: bytes, pos: int) -> int | None:
         raw_size, raw_ptr = struct.unpack_from("<II", data, table + 40 * i + 16)
         if raw_size:
             end = max(end, raw_ptr + raw_size)
-    return min(end, len(data) - pos)
+    return int(min(end, len(data) - pos))
 
 
 def _where(report: PEReport | None, offset: int) -> str:
