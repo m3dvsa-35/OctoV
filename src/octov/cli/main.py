@@ -20,6 +20,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from octov import __version__
+from octov.cli import triage as triage_cli
 from octov.core.config import ConfigError, load_config
 from octov.core.export.sigma_gen import generate_sigma
 from octov.core.export.yara_gen import generate_yara
@@ -65,6 +66,7 @@ def _build_parser() -> argparse.ArgumentParser:
     serve.add_argument(
         "--config", type=Path, help="config file (default: ./config.yaml if present)"
     )
+    triage_cli.add_parser(sub)
     return parser
 
 
@@ -191,6 +193,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     if args.command == "analyze":
         return _analyze(args)
+    if args.command == "triage":
+        return triage_cli.run(args)
     if args.command == "serve":
         return _serve(args)
     return EXIT_ERROR  # pragma: no cover - argparse enforces choices
