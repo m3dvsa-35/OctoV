@@ -157,9 +157,9 @@ Plan: `docs/superpowers/plans/2026-11-08-assisted-triage-phase1.md` (14 tasks).
 | 8 | Function ranking + risk score | done | `core/analysis/scoring.py` |
 | 9 | Session schema v2 (annotations, payloads, migration) | done | `core/session/session.py` |
 | 10 | Analyzers + API integration + triage report | done | `core/analysis/analyzers.py`, `report.py`, `app/api.py` |
-| 11 | CLI `octov triage` | **NEXT** | `cli/main.py` |
-| 12 | Explanations EN/AZ for fact kinds | todo | `core/i18n/{en,az}.py` |
-| 13 | Web UI: Triage, Strings, xrefs, annotations, compact | todo | `web/src/...` |
+| 11 | CLI `octov triage` | done (`cli/triage.py`) | `cli/main.py` |
+| 12 | Explanations EN/AZ for fact kinds | done | `core/i18n/{en,az}.py` |
+| 13 | Web UI: Triage, Strings, xrefs, annotations, compact | **NEXT** | `web/src/...` |
 | 14 | Baseline/perf tests + docs | todo | tests, CLAUDE.md, README |
 
 Key interfaces already built (use these exact names in Tasks 8-14):
@@ -194,7 +194,26 @@ Key interfaces already built (use these exact names in Tasks 8-14):
   description, mitre_names, rva, offset, verdict; display `source_id`, not `id`);
   `list_functions` items have `suggested`. Frontend not yet updated for these (Task 13).
 
-Rulings made so far (also in the ledger): indicator evidence uses real locations (IAT slot
+### Notes for Task 13 (web UI) — read before starting
+- Backend is complete; the frontend still speaks the *old* findings shape. Breaking change:
+  `get_findings` rows now have `id` = fact id (`rule:EVA-001:0x2000`), `source_id` (show this in
+  the ID column), `kind` (`rule|indicator|crypto_constant|embedded_payload|packer|ioc`), `title`,
+  `name`, `description`, `severity`, `mitre`, `mitre_names`, `rva`, `offset`, `evidence[]`,
+  `explain_key`, `verdict`. Update `web/src/api/types.ts` (`FindingRow`) + `FindingsView.tsx`
+  (React key must be `id`; show `source_id`).
+- Add to `web/src/api/client.ts`: `triage(sha)`, `jobStatus(sha)`, `strings(sha, category, query,
+  offset, limit)` (NOTE: name clash with existing `strings(lang)` UI-text call — call the new one
+  `getStrings`), `iocs`, `exportIocs(sha, fmt)`, `xrefsTo(sha, rva)`, `annotate(sha, kind, value,
+  address, target)`, `deleteAnnotation`, `listAnnotations`, `setVerdict(sha, factId, verdict|null)`,
+  `listPayloads`, `openPayload(sha, payloadSha)`, `exportPayload(sha, payloadSha, path)`.
+  Bridge calls pass params positionally in Python signature order.
+- Explanations: `t(explain_key + ".explain")`, and `t("fact." + kind + ".next")`.
+- Add `compact: bool` to `get_settings/set_settings` (Python + test) for the Compact toggle.
+- Every new UI string -> both `en.py` and `az.py` (`test_web_strings.py` enforces).
+- Verify visually in the desktop window (`.venv/Scripts/python -m octov.app.desktop <file>`,
+  screenshot via PrintWindow) in both languages and both display modes; rebuild web first.
+
+Rulings made so far (also in the ledger; tasks 8-12 rulings are only in the ledger): indicator evidence uses real locations (IAT slot
 RVAs for API indicators, section VA/raw offset, entry RVA); header-level facts and
 import-only rule matches anchor at offset 0/rva 0; extra crypto signatures (AES inverse
 S-box, SHA-1 init, TEA delta); image resources (PNG/JPEG/GIF/BMP/RIFF/ICO) are never
