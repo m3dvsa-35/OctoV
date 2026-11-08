@@ -154,9 +154,9 @@ Plan: `docs/superpowers/plans/2026-11-08-assisted-triage-phase1.md` (14 tasks).
 | 5 | Crypto constants | done | `core/analysis/crypto.py` |
 | 6 | Embedded payload carving + AES ZIP | done | `core/analysis/carve.py` (dep `pyzipper`) |
 | 7 | Packer verdict + suggested names | done | `core/analysis/packer.py`, `naming.py` |
-| 8 | Function ranking + risk score | **NEXT** | `core/analysis/scoring.py` |
-| 9 | Session schema v2 (annotations, payloads, migration) | todo | `core/session/session.py` |
-| 10 | Analyzers + API integration + triage report | todo | `core/analysis/analyzers.py`, `report.py`, `app/api.py` |
+| 8 | Function ranking + risk score | done | `core/analysis/scoring.py` |
+| 9 | Session schema v2 (annotations, payloads, migration) | done | `core/session/session.py` |
+| 10 | Analyzers + API integration + triage report | **NEXT** | `core/analysis/analyzers.py`, `report.py`, `app/api.py` |
 | 11 | CLI `octov triage` | todo | `cli/main.py` |
 | 12 | Explanations EN/AZ for fact kinds | todo | `core/i18n/{en,az}.py` |
 | 13 | Web UI: Triage, Strings, xrefs, annotations, compact | todo | `web/src/...` |
@@ -181,6 +181,11 @@ Key interfaces already built (use these exact names in Tasks 8-14):
   `payload_facts(payloads)`, `payload_zip(data, name)` (AES, password `infected`).
 - `packer.PackerVerdict`, `packer_verdict(report)`, `packer_fact(report, verdict)`.
 - `naming.API_FAMILIES`, `suggest_name(start, imports_called)`.
+- `scoring.risk_score(facts, verdicts)` → `RiskScore(score, band, contributions)`;
+  `rank_functions(functions, xrefs, facts, strings, names)` → `[RankedFunction(start, name, score, reasons)]`.
+- `Session.add_annotation(sha, kind, value, address=None, target=None)`, `.annotations(sha, kind=None)`,
+  `.delete_annotation(id)`, `.add_payload(parent, payload, data)`, `.payload_bytes(sha)`, `.payloads(parent)`;
+  schema v2 (`annotations`, `payloads`), v1 auto-migrates.
 
 Rulings made so far (also in the ledger): indicator evidence uses real locations (IAT slot
 RVAs for API indicators, section VA/raw offset, entry RVA); header-level facts and
