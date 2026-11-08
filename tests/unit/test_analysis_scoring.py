@@ -76,3 +76,33 @@ def test_ranking_skips_zero_score_and_caps_at_20() -> None:
     ranked = rank_functions(functions, XrefIndex([], {}), facts, [], {})
     assert len(ranked) == 20 and all(r.score > 0 for r in ranked)
     assert ranked[0].name.startswith("sub_")
+
+
+def test_repeated_detector_counts_once_but_every_fact_is_listed() -> None:
+    blobs = [
+        Fact("embedded_payload", "high_entropy", "low", f"blob {i}", (Evidence("b", offset=i),))
+        for i in range(20)
+    ]
+    score = risk_score(blobs, {})
+    assert score.score == 4
+    assert len(score.contributions) == 20
+    assert sorted(p for _, p in score.contributions) == [0] * 19 + [4]
+
+
+def test_crypto_constants_count_as_one_signal() -> None:
+    tables = [
+        Fact("crypto_constant", name, "low", name, (Evidence("t", rva=0x2000 + i),))
+        for i, name in enumerate(("AES Te0", "CRC32 table", "SHA-1 init"))
+    ]
+    assert risk_score(tables, {}).score == 4
+
+
+def test_false_positive_on_counted_duplicate_lets_the_next_one_count() -> None:
+    a = Fact("indicator", "virtual_size_inflated", "low", "a", (Evidence("a", rva=0x1000),))
+    b = Fact("indicator", "virtual_size_inflated", "low", "b", (Evidence("b", rva=0x2000),))
+    assert risk_score([a, b], {a.id: "false_positive"}).score == 4
+    assert risk_score([a, b], {a.id: "false_positive", b.id: "benign"}).score == 0
+
+
+def test_distinct_detectors_still_add_up() -> None:
+    assert risk_score([_fact("medium", 1), _fact("medium", 2), _fact("low", 3)], {}).score == 28

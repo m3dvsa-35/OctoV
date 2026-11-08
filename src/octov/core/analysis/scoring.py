@@ -44,12 +44,25 @@ class RankedFunction:
     reasons: tuple[str, ...]
 
 
+def _signal(fact: Fact) -> tuple[str, ...]:
+    """Facts with the same signal are one piece of evidence (crypto tables are one signal)."""
+    return (fact.kind,) if fact.kind == "crypto_constant" else (fact.kind, fact.source_id)
+
+
 def risk_score(facts: Sequence[Fact], verdicts: Mapping[str, str]) -> RiskScore:
+    """Additive score; each signal counts once (its strongest fact), repeats are listed at 0.
+
+    Calibrated on the System32 sweep: an asset DLL with 20 compressed blobs or a kernel with
+    7 inflated sections is one weak signal, not 20 or 7.
+    """
     contributions: list[tuple[str, int]] = []
-    for fact in facts:
+    counted: set[tuple[str, ...]] = set()
+    weighted = sorted(facts, key=lambda f: -round(SEVERITY_WEIGHT[f.severity] * f.confidence))
+    for fact in weighted:
         points = 0
-        if verdicts.get(fact.id) not in IGNORED_VERDICTS:
+        if verdicts.get(fact.id) not in IGNORED_VERDICTS and _signal(fact) not in counted:
             points = round(SEVERITY_WEIGHT[fact.severity] * fact.confidence)
+            counted.add(_signal(fact))
         contributions.append((fact.id, points))
     contributions.sort(key=lambda c: -c[1])
     score = min(100, sum(p for _, p in contributions))
