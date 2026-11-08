@@ -8,6 +8,7 @@ milestones.
 
 from __future__ import annotations
 
+import bisect
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -36,10 +37,11 @@ from octov import __version__
 from octov.core.config import Config
 from octov.core.i18n import LANGUAGES, tr
 from octov.core.session.session import Session, SessionError
-from octov.core.static.analysis import StaticAnalysis, analyze
+from octov.core.static.analysis import StaticAnalysis, analyze, default_rules, rule_set
 from octov.core.static.cfg import Function
 from octov.core.static.disasm import Disassembler, ImageView
 from octov.core.static.pe_parser import PEParseError, PEReport
+from octov.core.static.rules import Rule, RuleError
 from octov.gui.analysis_worker import DiscoveryJob
 from octov.gui.theme import SEVERITY_COLORS, stylesheet
 from octov.gui.widgets.disasm_view import DisassemblyView
@@ -77,6 +79,36 @@ _DOCKS: tuple[_DockSpec, ...] = (
 DOCK_IDS: tuple[str, ...] = tuple(d.id for d in _DOCKS)
 
 _INDICATOR_COLUMNS = ("severity", "id", "mitre", "description")
+_MITRE_COLUMNS = ("technique", "name", "tactic", "severity", "hits", "sources")
+MAX_LOADED_SAMPLES = 8  # samples whose bytes/CFGs stay in memory; older ones reload on demand
+
+
+@dataclass(frozen=True)
+class _BlockIndex:
+    """Sorted basic-block ranges of one sample, for O(log n) address -> function lookup."""
+
+    starts: list[int]
+    entries: list[tuple[int, int, Function]]
+
+    @classmethod
+    def build(cls, functions: dict[int, Function]) -> _BlockIndex:
+        entries = sorted(
+            ((b.start, b.end, fn) for fn in functions.values() for b in fn.blocks.values()),
+            key=lambda e: e[0],
+        )
+        return cls([e[0] for e in entries], entries)
+
+    def lookup(self, rva: int) -> Function | None:
+        # Blocks never partially overlap; a block shared by several functions
+        # (tail-jump targets) appears with identical ranges, so any match is valid.
+        idx = bisect.bisect_right(self.starts, rva) - 1
+        if idx >= 0:
+            start, end, fn = self.entries[idx]
+            if start <= rva < end:
+                return fn
+        return None
+
+
 _SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2, "info": 3}
 
 
@@ -94,6 +126,9 @@ class MainWindow(QMainWindow):
         self._data: dict[str, bytes] = {}
         self._analyses: dict[str, StaticAnalysis] = {}
         self._functions: dict[str, dict[int, Function]] = {}
+        self._block_index: dict[str, _BlockIndex] = {}
+        self._pending_log: str | None = None
+        self._paths: dict[str, Path] = {}
         self._jobs: dict[str, DiscoveryJob] = {}
         self._current_sha: str | None = None
         self.current_rva: int | None = None
@@ -101,6 +136,7 @@ class MainWindow(QMainWindow):
         self._placeholders: dict[str, QLabel] = {}
         self._actions: dict[str, QAction] = {}
 
+        self._rules = self._load_rules()
         self.setDockNestingEnabled(True)
         # Side panels (samples, AI chat) take full height; top/bottom sit between them.
         self.setCorner(Qt.Corner.TopLeftCorner, _LEFT)
@@ -115,6 +151,8 @@ class MainWindow(QMainWindow):
         self.set_theme(self.current_theme)
         self.retranslate()
         self.statusBar().showMessage(self._tr("status.ready"))
+        if self._pending_log:
+            self._log(self._pending_log)
 
     # -- construction ----------------------------------------------------
 
@@ -291,6 +329,8 @@ class MainWindow(QMainWindow):
         self.indicator_table.setHorizontalHeaderLabels(
             [self._tr(f"indicators.column.{c}") for c in _INDICATOR_COLUMNS]
         )
+        self.mitre_view.set_headers([self._tr(f"mitre.column.{c}") for c in _MITRE_COLUMNS])
+        self.graph_view.too_large_text = self._tr("graph.too_large")
         if not self._reports:
             self.overview_text.setPlainText(self._tr("overview.empty"))
 
@@ -307,9 +347,18 @@ class MainWindow(QMainWindow):
         self.session = session
         if session is not None:
             self.sample_list.clear()
-            self._reports.clear()
-            self._analyses.clear()
+            for cache in (
+                self._reports,
+                self._analyses,
+                self._data,
+                self._functions,
+                self._block_index,
+                self._jobs,
+                self._paths,
+            ):
+                cache.clear()
             self._current_sha = None
+            self._clear_code_views()
             for row in session.list_samples():
                 data = session.get_sample(row.sha256)
                 if data is not None:
@@ -324,7 +373,7 @@ class MainWindow(QMainWindow):
             if size > self.config.static.max_file_size_mb * 1024 * 1024:
                 raise PEParseError(f"file exceeds {self.config.static.max_file_size_mb} MB limit")
             data = path.read_bytes()
-            result = analyze(data)
+            result = analyze(data, self._rules)
             report = result.report
             report.path = str(path)
             if self.session is not None:
@@ -340,7 +389,9 @@ class MainWindow(QMainWindow):
         self._reports[sha] = report
         self._data[sha] = data
         self._analyses[sha] = result
+        self._paths[sha] = path
         self._current_sha = sha
+        self._evict_old_samples()
         existing = self._find_sample_item(sha)
         if existing is None:
             self._add_sample_item(path.name, sha)
@@ -371,7 +422,8 @@ class MainWindow(QMainWindow):
         else:
             view = ImageView(self._data[sha], self._reports[sha])
             self.disasm_view.set_instructions(
-                [(rva, Disassembler(view).linear(rva, 48))], title=f"raw @ {rva:x}"
+                [(rva, Disassembler(view).linear(rva, 48))],
+                title=self._tr("disasm.raw", rva=f"{rva:x}"),
             )
         self.disasm_view.highlight(rva)
         offset = _rva_to_offset(self._reports[sha], rva)
@@ -386,11 +438,41 @@ class MainWindow(QMainWindow):
 
     # -- internals ---------------------------------------------------------
 
+    def _load_rules(self) -> tuple[Rule, ...]:
+        try:
+            return rule_set(self.config.rules.paths)
+        except RuleError as exc:
+            self._pending_log = f"rule load failed, using shipped catalogs: {exc}"
+            return default_rules()
+
+    def _clear_code_views(self) -> None:
+        """Drop function/disassembly/graph state that belongs to a previous sample."""
+        self.function_list.clear()
+        self.disasm_view.set_instructions([])
+        self.graph_view.clear()
+        self.current_rva = None
+
+    def _evict_old_samples(self) -> None:
+        for sha in list(self._data):
+            if len(self._data) <= MAX_LOADED_SAMPLES:
+                break
+            if sha == self._current_sha:
+                continue
+            for cache in (
+                self._data,
+                self._functions,
+                self._block_index,
+                self._analyses,
+                self._reports,
+                self._jobs,
+            ):
+                cache.pop(sha, None)
+
     def _start_discovery(self, sha: str) -> None:
         if sha in self._functions:
             self._populate_functions(sha)
             return
-        self.function_list.clear()
+        self._clear_code_views()
         if sha in self._jobs:
             return
         job = DiscoveryJob(self._data[sha], self._reports[sha])
@@ -405,7 +487,10 @@ class MainWindow(QMainWindow):
 
     def _on_discovery_finished(self, sha: str, functions: dict[int, Function]) -> None:
         self._jobs.pop(sha, None)
+        if sha not in self._reports:  # sample was evicted or the session changed
+            return
         self._functions[sha] = functions
+        self._block_index[sha] = _BlockIndex.build(functions)
         self._log(f"functions discovered: {len(functions)} ({sha[:12]})")
         if sha == self._current_sha:
             self._populate_functions(sha)
@@ -417,7 +502,9 @@ class MainWindow(QMainWindow):
         self.function_list.blockSignals(True)
         self.function_list.clear()
         for start in sorted(functions):
-            label = names.get(start) or ("entry" if start == report.entry_point else "")
+            label = names.get(start) or (
+                self._tr("functions.entry") if start == report.entry_point else ""
+            )
             item = QListWidgetItem(f"sub_{start:x}" + (f"  {label}" if label else ""))
             item.setData(Qt.ItemDataRole.UserRole, start)
             self.function_list.addItem(item)
@@ -429,11 +516,8 @@ class MainWindow(QMainWindow):
         functions = self._functions.get(sha, {})
         if rva in functions:
             return functions[rva]
-        for fn in functions.values():
-            for block in fn.blocks.values():
-                if block.start <= rva < block.end:
-                    return fn
-        return None
+        index = self._block_index.get(sha)
+        return index.lookup(rva) if index is not None else None
 
     def _on_function_selected(self, current: QListWidgetItem | None, _prev: object) -> None:
         if current is not None:
@@ -461,7 +545,15 @@ class MainWindow(QMainWindow):
             return
         sha = current.data(Qt.ItemDataRole.UserRole)
         analysis = self._analyses.get(sha)
+        if analysis is None and sha in self._paths:
+            self.load_sample(self._paths[sha])  # evicted from memory: reload
+            return
         if analysis is None and self.session is not None:
+            # Session-only sample: no bytes loaded, so code views must not show
+            # (or navigate inside) whichever sample was active before.
+            self._current_sha = None
+            self._clear_code_views()
+            self.hex_view.set_data(b"")
             data = self.session.get_sample(sha)
             if data is not None:
                 self.overview_text.setPlainText(_format_dict_overview(data))
@@ -515,7 +607,7 @@ class MainWindow(QMainWindow):
                     item.setForeground(QColor(SEVERITY_COLORS.get(value, "#888888")))
                 if col == 1 and isinstance(rva, int):
                     item.setData(Qt.ItemDataRole.UserRole, rva)
-                    item.setToolTip(f"rva {rva:#x} - double-click to navigate")
+                    item.setToolTip(self._tr("indicators.navigate_tip", rva=f"{rva:#x}"))
                 self.indicator_table.setItem(row, col, item)
         self.indicator_table.resizeColumnsToContents()
 

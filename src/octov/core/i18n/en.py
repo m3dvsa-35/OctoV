@@ -43,4 +43,16 @@ STRINGS: dict[str, str] = {
         "OctoV {version}\nDefensive Windows binary analysis workbench.\n"
         "All analysis is local; samples are never uploaded."
     ),
+    "mitre.column.technique": "Technique",
+    "mitre.column.name": "Name",
+    "mitre.column.tactic": "Tactic",
+    "mitre.column.severity": "Severity",
+    "mitre.column.hits": "Hits",
+    "mitre.column.sources": "Sources",
+    "graph.too_large": (
+        "sub_{start}: {count} blocks - too large to draw; use the disassembly listing."
+    ),
+    "disasm.raw": "raw @ {rva}",
+    "indicators.navigate_tip": "rva {rva} - double-click to navigate",
+    "functions.entry": "entry",
 }

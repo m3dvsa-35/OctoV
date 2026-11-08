@@ -16,7 +16,7 @@ and turn findings into defender artifacts (YARA, Sigma, STIX 2.1, IOCs).
 | Milestone | Scope | State |
 |-----------|-------|-------|
 | **M1** | Skeleton, PE parser + packing indicators, `.octov` sessions, GUI shell, i18n (EN/AZ), CLI `analyze`, CI | ✅ |
-| M2 | Static rule engine (evasion/PIC catalogs), Capstone disassembly, CFG, MITRE heatmap, YARA/Sigma export | planned |
+| **M2** | Static rule engine (evasion/PIC catalogs), Capstone disassembly, CFG graph, hex, MITRE table, YARA/Sigma export | ✅ (raw shellcode mode pending) |
 | M3 | Dynamic analysis: Frida 16.x agent, ETW, Job Object + AppContainer sandbox, VAD/memory forensics, network IOCs | planned |
 | M4 | MIL (SSA IL) decompiler MVP → pseudo-C, synced asm/pseudo/graph views | planned |
 | M5 | AI assistant (OpenRouter / OpenAI-compatible fallback), evidence-cited reports, guided workflows | planned |
@@ -34,6 +34,7 @@ and turn findings into defender artifacts (YARA, Sigma, STIX 2.1, IOCs).
 uv sync
 uv run octov analyze path\to\sample.exe
 uv run octov analyze sample.exe --json --session case.octov
+uv run octov analyze sample.exe --yara sample.yar --sigma sample.yml
 uv run octov-gui
 ```
 
@@ -60,8 +61,19 @@ environment:
 | `suspicious_timestamp` | low | T1070.006 |
 
 Every indicator carries structured `evidence` (section, offsets, API names) so later AI reports
-can cite it precisely. The technique catalogs in `rules/` (24 evasion + 6 PIC detection rules)
-are consumed by the M2 rule engine.
+can cite it precisely.
+
+## Technique rules (M2)
+
+`rules/evasion_patterns.yaml` (24 rules) and `rules/pic_patterns.yaml` (6 rules) describe
+observable artifacts of adversary techniques: byte patterns with nibble wildcards,
+ASCII/UTF-16 strings, imports, exports and section names, combined with `any`/`all`/N
+conditions and optional `unless` suppressions. Severity guide: **high** = rare evasion
+artifact, **medium** = capability via dual-use APIs, **low/info** = weak signal.
+Baseline: 0 high-severity hits across the 4370 binaries of a Windows 11 System32.
+
+Findings carry file offset + RVA evidence and feed the generated YARA (compiled and
+verified against the sample) and Sigma (pySigma-valid) rules.
 
 ## Layout
 

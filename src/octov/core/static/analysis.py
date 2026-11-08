@@ -25,8 +25,17 @@ class StaticAnalysis:
 
 
 @cache
+def _cached_rule_set(paths: tuple[Path, ...]) -> tuple[Rule, ...]:
+    return tuple(load_rules(paths))
+
+
+def rule_set(paths: Sequence[str | Path]) -> tuple[Rule, ...]:
+    """Load (and cache) the rules from ``paths`` as one set, so IDs must be unique across files."""
+    return _cached_rule_set(tuple(Path(p).resolve() for p in paths))
+
+
 def default_rules() -> tuple[Rule, ...]:
-    return tuple(load_rules(RulesConfig().paths))
+    return rule_set(RulesConfig().paths)
 
 
 def analyze(source: str | Path | bytes, rules: Sequence[Rule] | None = None) -> StaticAnalysis:

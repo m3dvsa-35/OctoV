@@ -116,19 +116,20 @@ class Disassembler:
     ) -> Instruction:
         # Strip prefixes such as "bnd jmp" / "notrack jmp".
         base = mnemonic.rsplit(" ", 1)[-1]
-        is_call = base == "call"
+        is_call = base in ("call", "lcall")
         is_ret = base in _RETURNS
-        is_jump = (
-            base == "jmp" or (base.startswith("j") and base != "jmp") or base.startswith("loop")
-        )
-        is_conditional = is_jump and base != "jmp"
+        is_jump = base == "ljmp" or base.startswith(("j", "loop"))
+        is_conditional = is_jump and base not in ("jmp", "ljmp")
 
         target: int | None = None
         comment: str | None = None
         if is_jump or is_call:
-            if op_str.startswith("0x") and " " not in op_str:
-                target = int(op_str, 16)
-            else:
+            if op_str and not any(c in op_str for c in " [:"):
+                try:  # Capstone prints small immediates in decimal, others as 0x...
+                    target = int(op_str, 0)
+                except ValueError:  # register operand: indirect
+                    target = None
+            if target is None:
                 slot = self._memory_slot(address, size, op_str)
                 if slot is not None:
                     comment = self._imports.get(slot)

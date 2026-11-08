@@ -30,6 +30,9 @@ class MitreHeatmap(QTableWidget):
             len(COLUMNS) - 1, QHeaderView.ResizeMode.Stretch
         )
 
+    def set_headers(self, labels: list[str]) -> None:
+        self.setHorizontalHeaderLabels(labels)
+
     def set_hits(self, hits: Iterable[tuple[str, str, str]]) -> None:
         """``hits`` = (technique id, severity, source id) triples."""
         agg: dict[str, dict[str, object]] = {}

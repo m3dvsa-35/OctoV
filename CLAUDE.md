@@ -69,9 +69,16 @@ src/octov/
   core/i18n/{en,az}.py      UI strings (same key set enforced by test)
   core/static/pe_parser.py  PEReport, hashes, sections, imports/exports, entropy, indicators
   core/static/rules.py      YAML rule engine (bytes/string/import/export/section, any/all/N, unless)
+  core/static/analysis.py   analyze() = parse + rules; rule_set(paths) cached
+  core/static/disasm.py     ImageView (RVA reads) + Disassembler (Capstone lite, IAT comments)
+  core/static/cfg.py        build_function / discover_functions (basic blocks, edges)
+  core/export/              yara_gen.py, sigma_gen.py
+  core/mitre.py             offline technique name/tactic table (test enforces coverage)
   core/session/session.py   .octov = SQLite + msgpack (samples, artifacts, notes, meta)
   gui/main_window.py        dock shell; DOCK_IDS; load_sample(); attach_session()
   gui/theme.py              QSS palettes + severity colours
+  gui/widgets/              disasm_view, graph_view (CFG), hex_view, mitre_view
+  gui/analysis_worker.py    QRunnable for background function discovery
   cli/main.py               `octov analyze`
 rules/                      evasion_patterns.yaml (EVA-xxx), pic_patterns.yaml (PIC-xxx)
 tests/samples/builder.py    synthetic PE32+ builder (sections, imports, overlay, dll flag)
@@ -98,14 +105,26 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 
 **M1 — done** (commit 965d7c2 on `main`, CI green).
 
-**M2 — in progress** on branch `feat/m2-static-engine` (Issue #2):
-- [x] Rule engine `core/static/rules.py` + tests (`tests/unit/test_rules.py`); every catalog rule
-      detects its synthetic sample (100%) and respects its threshold.
-- [x] Catalog tuned against System32 (export suppression, severity re-grading, longer patterns).
-- [ ] Verify full System32 scan has 0 high hits (rules + parser indicators).
-- [ ] Capstone disassembly + function discovery + CFG (`core/static/disasm.py`, `cfg.py`).
-- [ ] Raw shellcode (non-PE) input mode.
-- [ ] Exporters: YARA (+ compile check with yara-python), Sigma (+ pySigma validation).
-- [ ] GUI panels: Disassembly, Graph (Cytoscape.js in QWebEngineView), Hex, MITRE heatmap; synced nav.
-- [ ] Wire findings into CLI output, GUI indicators table and sessions.
-- [ ] Code review, update this file, push branch, open PR, close #2 after merge.
+**M2 — implemented on branch `feat/m2-static-engine`, PR open against `main`** (Issue #2):
+- [x] Rule engine `core/static/rules.py` (bytes/string/import/export/section, any/all/N,
+      `unless`; exporters of an API never count as its consumer).
+- [x] Catalog tuned on System32: 0 high hits across 4370 binaries (full sweep:
+      `OCTOV_FULL_BASELINE=1 pytest tests/unit/test_baseline_fp.py`, ~2 min).
+- [x] Every catalog rule detects its synthetic sample (30/30) and respects its threshold.
+- [x] Disassembler (`disasm.py`, Capstone `disasm_lite`, IAT annotation) + CFG (`cfg.py`,
+      recursive descent, block splitting, seeds: EP/exports/.pdata).
+      Timing: notepad 0.36 s, kernel32 1.5 s, shell32 13 s (20k-function cap).
+- [x] Exporters `core/export/yara_gen.py` (compiles + matches sample, misses benign) and
+      `sigma_gen.py` (pySigma-valid). CLI: `--yara`, `--sigma`, `--rules`, `--config`.
+- [x] Pipeline `core/static/analysis.py` (`analyze`, `rule_set` cached; config `rules.paths`
+      honoured by GUI and CLI).
+- [x] GUI: Disassembly (+function list), native CFG graph (QGraphicsView — chosen over
+      Cytoscape.js to stay offline/no bundled JS), Hex, MITRE heat table; background
+      discovery (QThreadPool); synced navigation; LRU of 8 loaded samples.
+- [x] Code review (9 findings) fixed with regression tests (`tests/unit/test_review_fixes.py`).
+- [ ] **Not done, carried over:** raw shellcode (non-PE) input mode — engine already
+      supports `scan(data, report=None)`; needs CLI/GUI entry + YARA without PEReport.
+- [ ] After PR merge: close #2, open M3 issue (dynamic analysis).
+
+Known limitation: tail jumps (`jmp` to another function) are followed as intra-function
+edges, so CRT entry functions absorb their tail-called body.

@@ -1,7 +1,11 @@
 """Headless OctoV CLI.
 
-    octov analyze sample.exe [--json] [--session case.octov]
+    octov analyze sample.exe [--json] [--session case.octov] [--config config.yaml]
                              [--yara out.yar] [--sigma out.yml] [--rules extra.yaml ...]
+
+Rule catalogs come from ``rules.paths`` in the config (``config.yaml`` in the
+current directory is used when present) plus any ``--rules`` files; rule IDs
+must be unique across all of them.
 
 ``triage`` and ``compare`` arrive in later milestones.
 """
@@ -15,12 +19,13 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from octov import __version__
+from octov.core.config import ConfigError, load_config
 from octov.core.export.sigma_gen import generate_sigma
 from octov.core.export.yara_gen import generate_yara
 from octov.core.session.session import Session, SessionError
-from octov.core.static.analysis import StaticAnalysis, analyze, default_rules
+from octov.core.static.analysis import StaticAnalysis, analyze, rule_set
 from octov.core.static.pe_parser import PEParseError
-from octov.core.static.rules import RuleError, load_rules
+from octov.core.static.rules import RuleError
 
 EXIT_OK = 0
 EXIT_ERROR = 2
@@ -35,6 +40,7 @@ def _build_parser() -> argparse.ArgumentParser:
     cmd.add_argument("file", type=Path)
     cmd.add_argument("--json", action="store_true", help="print the full report as JSON")
     cmd.add_argument("--session", type=Path, help="store the report in a .octov session")
+    cmd.add_argument("--config", type=Path, help="config file (default: ./config.yaml if present)")
     cmd.add_argument("--yara", type=Path, help="write a generated YARA rule to this file")
     cmd.add_argument("--sigma", type=Path, help="write a generated Sigma rule to this file")
     cmd.add_argument("--rules", type=Path, action="append", help="extra rule catalog (repeatable)")
@@ -67,11 +73,13 @@ def _summary(a: StaticAnalysis) -> str:
 
 def _analyze(args: argparse.Namespace) -> int:
     try:
-        rules = list(default_rules())
-        if args.rules:
-            rules += load_rules(args.rules)
+        config_path = args.config
+        if config_path is None and Path("config.yaml").is_file():
+            config_path = Path("config.yaml")
+        config = load_config(config_path)
+        rules = rule_set([*config.rules.paths, *(args.rules or [])])
         result = analyze(args.file, rules)
-    except (PEParseError, RuleError) as exc:
+    except (PEParseError, RuleError, ConfigError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_ERROR
 

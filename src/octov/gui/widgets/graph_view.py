@@ -143,6 +143,15 @@ class CFGGraphView(QGraphicsView):
         self._font = QFont("Cascadia Mono")
         self._font.setStyleHint(QFont.StyleHint.Monospace)
         self._font.setPointSizeF(8.5)
+        self.too_large_text = (
+            "sub_{start}: {count} blocks - too large to draw; use the disassembly listing."
+        )
+
+    def clear(self) -> None:
+        self.scene().clear()
+        self.block_items.clear()
+        self.highlighted_block = None
+        self.function = None
 
     def set_theme(self, theme: str) -> None:
         self.theme = theme
@@ -163,8 +172,7 @@ class CFGGraphView(QGraphicsView):
         palette = PALETTES[self.theme]
         if len(fn.blocks) > MAX_GRAPH_BLOCKS:
             msg = scene.addSimpleText(
-                f"sub_{fn.start:x}: {len(fn.blocks)} blocks - too large to draw; "
-                "use the disassembly listing."
+                self.too_large_text.format(start=f"{fn.start:x}", count=len(fn.blocks))
             )
             msg.setBrush(QBrush(QColor(palette["fg"])))
             return

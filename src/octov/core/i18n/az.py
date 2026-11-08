@@ -44,4 +44,17 @@ STRINGS: dict[str, str] = {
         "OctoV {version}\nMüdafiə yönümlü Windows binar analiz iş masası.\n"
         "Bütün analiz lokaldır; nümunələr heç vaxt yüklənmir."
     ),
+    "mitre.column.technique": "Texnika",
+    "mitre.column.name": "Ad",
+    "mitre.column.tactic": "Taktika",
+    "mitre.column.severity": "Ciddilik",
+    "mitre.column.hits": "Say",
+    "mitre.column.sources": "Mənbələr",
+    "graph.too_large": (
+        "sub_{start}: {count} blok - çəkmək üçün çox böyükdür; "
+        "disassembler siyahısından istifadə edin."
+    ),
+    "disasm.raw": "xam @ {rva}",
+    "indicators.navigate_tip": "rva {rva} - keçmək üçün iki dəfə klikləyin",
+    "functions.entry": "giriş",
 }
