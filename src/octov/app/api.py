@@ -125,6 +125,25 @@ class WorkbenchApi:
             raise ApiError(f"cannot save settings: {exc}") from exc
         return self.get_settings()
 
+    # -- host integration (overridden by the desktop shell) -------------------------
+
+    def capabilities(self) -> dict[str, bool]:
+        return {"native_dialogs": False}
+
+    def choose_file(self) -> str | None:
+        """Native open-file dialog; ``None`` in browser mode (the UI asks for a path)."""
+        return None
+
+    def choose_save_path(self, suggested: str) -> str | None:
+        """Native save dialog; ``None`` in browser mode."""
+        return None
+
+    def save_text(self, path: str, text: str) -> None:
+        try:
+            Path(path).write_text(text, encoding="utf-8")
+        except OSError as exc:
+            raise ApiError(f"cannot save {path}: {exc.strerror or exc}") from exc
+
     def strings(self, lang: str) -> dict[str, str]:
         base = dict(LANGUAGES["en"])
         base.update(LANGUAGES.get(lang, {}))

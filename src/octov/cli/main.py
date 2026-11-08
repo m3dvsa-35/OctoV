@@ -57,7 +57,43 @@ def _build_parser() -> argparse.ArgumentParser:
     cmd.add_argument(
         "--bits", type=int, choices=(32, 64), default=64, help="architecture for --raw (default 64)"
     )
+
+    serve = sub.add_parser(
+        "serve", help="serve the web UI in a browser (loopback, token protected)"
+    )
+    serve.add_argument("--port", type=int, default=8765)
+    serve.add_argument(
+        "--config", type=Path, help="config file (default: ./config.yaml if present)"
+    )
     return parser
+
+
+def _serve(args: argparse.Namespace) -> int:
+    from octov.app.api import WorkbenchApi
+    from octov.app.desktop import BUILD_HINT, DIST
+    from octov.app.devserver import make_server
+
+    if not (DIST / "index.html").is_file():
+        print(BUILD_HINT, file=sys.stderr)
+        return EXIT_ERROR
+    try:
+        config_path = args.config
+        if config_path is None and Path("config.yaml").is_file():
+            config_path = Path("config.yaml")
+        api = WorkbenchApi(load_config(config_path))
+    except ConfigError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+    server, token = make_server(api, DIST, port=args.port)
+    port = server.server_address[1]
+    print(f"OctoV UI: http://127.0.0.1:{port}/?token={token}  (Ctrl+C to stop)", flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+    return EXIT_OK
 
 
 def _summary(a: StaticAnalysis) -> str:
@@ -155,6 +191,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     if args.command == "analyze":
         return _analyze(args)
+    if args.command == "serve":
+        return _serve(args)
     return EXIT_ERROR  # pragma: no cover - argparse enforces choices
 
 

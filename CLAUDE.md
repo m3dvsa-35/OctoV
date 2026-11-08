@@ -20,7 +20,7 @@ ever receives extracted evidence, never the binary.
 | Topic | Decision |
 |-------|----------|
 | Python / packaging | 3.12 via uv (`requires-python >=3.11`), hatchling build |
-| GUI | PySide6, dockable panels, dark/light themes, EN/AZ i18n |
+| GUI | **Web UI** (React + TypeScript + Vite, Tailwind v4) in a pywebview / Edge WebView2 desktop window. Replaced PySide6 at the owner's request ("modern design, works well"). Two languages (EN/AZ) and two display modes (Night = neutral black like Claude Code, Normal = light), both as visible segmented switches |
 | Dynamic (M3) | Frida 16.x pinned + frida-compile TS agent; Job Object + AppContainer (no admin) |
 | Symbols | Microsoft Symbol Server + local PDB cache (`~/.octov/symbols`) |
 | AI (M5) | OpenRouter `nvidia/nemotron-3-ultra-550b-a55b:free`; fallback any OpenAI-compatible endpoint (Ollama/LM Studio) |
@@ -49,6 +49,11 @@ ever receives extracted evidence, never the binary.
 - GUI screenshots: `QT_QPA_PLATFORM=offscreen` renders no fonts (boxes). Use the `windows`
   platform + `QTimer.singleShot(800, grab)` for visual checks.
 - `git config core.autocrlf false` is set locally.
+- No system Node.js: `nodejs-wheel-binaries` (dev dep) provides it; always run npm as
+  `.venv/Scripts/python scripts/npm.py <args>` (cwd is switched to `web/`).
+- Built UI goes to `src/octov/webui/dist/` (git-ignored). Rebuild after any `web/` change.
+- Browser-pane screenshots can lag one frame or time out; verify DOM state with JS, and
+  capture the desktop window with Win32 `PrintWindow(hwnd, hdc, 2)` (see session notes).
 
 ## Commands
 
@@ -57,9 +62,15 @@ ever receives extracted evidence, never the binary.
 <short-path python> -m mypy                      # strict, see quirk above
 .venv/Scripts/python -m pytest -q                # QT offscreen is set in tests/conftest.py
 .venv/Scripts/python -m octov.cli.main analyze C:\Windows\System32\notepad.exe
+.venv/Scripts/python scripts/npm.py run typecheck   # web: tsc
+.venv/Scripts/python scripts/npm.py test            # web: vitest
+.venv/Scripts/python scripts/npm.py run build       # web -> src/octov/webui/dist
+.venv/Scripts/python -m octov.cli.main serve        # UI in a browser (prints token URL)
+.venv/Scripts/python -m octov.app.desktop [file]    # desktop window (octov-gui)
 ```
 
-CI: `.github/workflows/ci.yml` — windows-latest, Python 3.11 + 3.12, ruff + mypy + pytest.
+CI: `.github/workflows/ci.yml` — windows-latest; `python` job (3.11/3.12: ruff, mypy, pytest)
+and `web` job (npm ci via nodejs-wheel, tsc, vitest, vite build).
 
 ## Layout
 
@@ -75,10 +86,13 @@ src/octov/
   core/export/              yara_gen.py, sigma_gen.py
   core/mitre.py             offline technique name/tactic table (test enforces coverage)
   core/session/session.py   .octov = SQLite + msgpack (samples, artifacts, notes, meta)
-  gui/main_window.py        dock shell; DOCK_IDS; load_sample(); attach_session()
-  gui/theme.py              QSS palettes + severity colours
-  gui/widgets/              disasm_view, graph_view (CFG), hex_view, mitre_view
-  gui/analysis_worker.py    QRunnable for background function discovery
+  app/api.py                WorkbenchApi: the ONLY UI<->core contract (JSON in/out)
+  app/devserver.py          loopback RPC + static server (token, allowlist, no CORS)
+  app/desktop.py            pywebview window; DesktopApi adds native file dialogs
+  webui/dist/               built frontend (git-ignored)
+web/src/                    React UI: api/client.ts (bridge or /rpc), state/store.ts,
+                            components/* (Overview, Findings, Mitre, Disasm, Graph, Hex,
+                            CommandPalette, Dialogs), lib/format.ts, lib/cfgLayout.ts
   cli/main.py               `octov analyze`
 rules/                      evasion_patterns.yaml (EVA-xxx), pic_patterns.yaml (PIC-xxx)
 tests/samples/builder.py    synthetic PE32+ builder (sections, imports, overlay, dll flag)
@@ -95,7 +109,12 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
   callback names); `medium` = capability via dual-use APIs; `low`/`info` = common/weak signal.
   Baseline: **0 high-severity hits on C:\Windows\System32** (re-check after rule changes).
 - Import/string indicators never match a module that *exports* that API (kernel32, ntdll...).
-- New UI text: add the key to both `en.py` and `az.py`.
+- New UI text: add the key to both `en.py` and `az.py`; the web UI fetches them via
+  `strings(lang)`. `tests/unit/test_web_strings.py` fails if a `t("key")` used in
+  `web/src` is missing in either language.
+- UI performance rules: virtualise long lists (`@tanstack/react-virtual`), fetch bytes in
+  chunks, run ELK graph layout in its worker, keep store selectors shallow-stable.
+- Never show meaning by colour alone (severity text, edge T/F labels + dash style).
 - Commits: Conventional Commits, `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
   Milestone work goes on a branch (`feat/m2-static-engine`) and lands through a PR.
 - Installed plugins the user wants used: superpowers (TDD, verification, code review),
@@ -126,6 +145,14 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
       YARA without MZ anchor; CLI `--raw [--bits 32|64]` (Sigma refused for raw).
       GUI raw mode not done (the GUI is being replaced, see below).
 - [ ] After PR merge: close #2, open M3 issue (dynamic analysis).
+
+**GUI rewrite — branch `feat/web-ui` (stacked on `feat/m2-static-engine`), PR open:**
+- [x] WorkbenchApi + dev server (tests: `test_app_api.py`), desktop shell (`octov-gui`).
+- [x] React UI: samples/functions sidebar, Overview, Disassembly, CFG graph (React Flow + ELK
+      worker, orthogonal edges), Hex (virtual, chunked), Findings, MITRE tiles, Ctrl+K palette,
+      export dialog (YARA/Sigma), sessions, back/forward history, EN/AZ + Night/Normal.
+- [x] Qt GUI and PySide6 removed.
+- Next ideas: drag-and-drop open in desktop shell, AI panel (M5), dynamic views (M3).
 
 Known limitation: tail jumps (`jmp` to another function) are followed as intra-function
 edges, so CRT entry functions absorb their tail-called body.

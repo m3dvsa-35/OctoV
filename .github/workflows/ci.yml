@@ -9,14 +9,12 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  python:
     runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
         python: ["3.11", "3.12"]
-    env:
-      QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -32,3 +30,20 @@ jobs:
         run: uv run mypy
       - name: Tests
         run: uv run pytest --cov=octov --cov-report=term-missing
+
+  web:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install (Node.js comes from the nodejs-wheel dev dependency)
+        run: |
+          uv sync
+          uv run python scripts/npm.py ci --no-fund --no-audit
+      - name: Typecheck, unit tests, build
+        run: |
+          uv run python scripts/npm.py run typecheck
+          uv run python scripts/npm.py test
+          uv run python scripts/npm.py run build

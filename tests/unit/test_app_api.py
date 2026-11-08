@@ -224,3 +224,38 @@ def test_devserver_serves_static_and_blocks_traversal(server: tuple[str, str]) -
     with pytest.raises(urllib.error.HTTPError) as exc:
         urllib.request.urlopen(f"{base}/..%2F..%2Fpyproject.toml", timeout=5)
     assert exc.value.code == 404
+
+
+def test_browser_mode_has_no_native_dialogs(api: WorkbenchApi) -> None:
+    assert api.capabilities() == {"native_dialogs": False}
+    assert api.choose_file() is None
+    assert api.choose_save_path("x.yar") is None
+
+
+def test_save_text_writes_utf8(api: WorkbenchApi, tmp_path: Path) -> None:
+    out = tmp_path / "rule.yar"
+    api.save_text(str(out), "rule a { condition: true } // ə")
+    assert out.read_text(encoding="utf-8").endswith("ə")
+    with pytest.raises(ApiError):
+        api.save_text(str(tmp_path / "missing-dir" / "x.yar"), "x")
+
+
+def test_api_honours_configured_rule_paths(tmp_path: Path) -> None:
+    import yaml
+
+    custom = tmp_path / "custom.yaml"
+    rule = {
+        "id": "CUST-1",
+        "name": "custom marker",
+        "description": "d",
+        "severity": "low",
+        "mitre": ["T1027"],
+        "indicators": [{"type": "string", "value": "octov-test-marker"}],
+    }
+    custom.write_text(yaml.safe_dump({"version": 1, "rules": [rule]}), encoding="utf-8")
+    cfg = Config()
+    cfg.rules.paths = [*cfg.rules.paths, custom]
+    api = WorkbenchApi(cfg, settings_path=tmp_path / "ui.json")
+    sha = api.open_sample(str(_sample(tmp_path, tag=b"octov-test-marker")))["sha256"]
+    ids = {r["id"] for r in api.get_findings(sha)}
+    assert {"CUST-1", "EVA-001"} <= ids
