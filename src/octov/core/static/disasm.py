@@ -1,10 +1,15 @@
-"""Capstone-based x86/x64 disassembly over a mapped PE image (RVA addressing)."""
+"""Capstone-based x86/x64 disassembly over a code view.
+
+A view is either a mapped PE image (:class:`ImageView`, RVA addressing) or a
+raw blob such as shellcode (:class:`RawView`, offset addressing).
+"""
 
 from __future__ import annotations
 
 import bisect
 import re
 from dataclasses import dataclass
+from typing import Protocol
 
 import capstone
 
@@ -41,12 +46,46 @@ class Instruction:
         return f"{line}  ; {self.comment}" if self.comment else line
 
 
+class CodeView(Protocol):
+    is_64bit: bool
+    image_base: int
+    import_addresses: dict[int, str]
+
+    def read(self, rva: int, size: int) -> bytes: ...
+
+    def is_executable(self, rva: int) -> bool: ...
+
+
+class RawView:
+    """A raw code blob (e.g. extracted shellcode) addressed by offset from ``base``."""
+
+    def __init__(self, data: bytes, bits: int = 64, base: int = 0) -> None:
+        if bits not in (32, 64):
+            raise ValueError("bits must be 32 or 64")
+        self.data = data
+        self.is_64bit = bits == 64
+        self.image_base = base
+        self.import_addresses: dict[int, str] = {}
+
+    def is_executable(self, rva: int) -> bool:
+        return 0 <= rva - self.image_base < len(self.data)
+
+    def read(self, rva: int, size: int) -> bytes:
+        off = rva - self.image_base
+        if not 0 <= off < len(self.data):
+            return b""
+        return self.data[off : off + size]
+
+
 class ImageView:
     """Read a PE file's bytes by RVA, as the loader would map them (no execution)."""
 
     def __init__(self, data: bytes, report: PEReport) -> None:
         self.data = data
         self.report = report
+        self.is_64bit = report.is_64bit
+        self.image_base = report.image_base
+        self.import_addresses = report.import_addresses
         self._sections = sorted(report.sections, key=lambda s: s.virtual_address)
         self._starts = [s.virtual_address for s in self._sections]
 
@@ -88,12 +127,12 @@ class Disassembler:
     several times faster than Capstone's detail mode from Python.
     """
 
-    def __init__(self, view: ImageView) -> None:
+    def __init__(self, view: CodeView) -> None:
         self.view = view
-        mode = capstone.CS_MODE_64 if view.report.is_64bit else capstone.CS_MODE_32
+        mode = capstone.CS_MODE_64 if view.is_64bit else capstone.CS_MODE_32
         self._cs = capstone.Cs(capstone.CS_ARCH_X86, mode)
-        self._imports = view.report.import_addresses
-        self._image_base = view.report.image_base
+        self._imports = view.import_addresses
+        self._image_base = view.image_base
 
     def decode(self, rva: int) -> Instruction | None:
         code = self.view.read(rva, MAX_INSN_SIZE)

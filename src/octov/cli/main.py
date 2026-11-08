@@ -1,6 +1,7 @@
 """Headless OctoV CLI.
 
     octov analyze sample.exe [--json] [--session case.octov] [--config config.yaml]
+                             [--raw [--bits 32|64]]
                              [--yara out.yar] [--sigma out.yml] [--rules extra.yaml ...]
 
 Rule catalogs come from ``rules.paths`` in the config (``config.yaml`` in the
@@ -23,9 +24,15 @@ from octov.core.config import ConfigError, load_config
 from octov.core.export.sigma_gen import generate_sigma
 from octov.core.export.yara_gen import generate_yara
 from octov.core.session.session import Session, SessionError
-from octov.core.static.analysis import StaticAnalysis, analyze, rule_set
+from octov.core.static.analysis import (
+    RawAnalysis,
+    StaticAnalysis,
+    analyze,
+    analyze_raw,
+    rule_set,
+)
 from octov.core.static.pe_parser import PEParseError
-from octov.core.static.rules import RuleError
+from octov.core.static.rules import Finding, RuleError
 
 EXIT_OK = 0
 EXIT_ERROR = 2
@@ -44,6 +51,12 @@ def _build_parser() -> argparse.ArgumentParser:
     cmd.add_argument("--yara", type=Path, help="write a generated YARA rule to this file")
     cmd.add_argument("--sigma", type=Path, help="write a generated Sigma rule to this file")
     cmd.add_argument("--rules", type=Path, action="append", help="extra rule catalog (repeatable)")
+    cmd.add_argument(
+        "--raw", action="store_true", help="treat the file as a raw code blob (e.g. shellcode)"
+    )
+    cmd.add_argument(
+        "--bits", type=int, choices=(32, 64), default=64, help="architecture for --raw (default 64)"
+    )
     return parser
 
 
@@ -60,15 +73,32 @@ def _summary(a: StaticAnalysis) -> str:
     for ind in r.indicators:
         mitre = ",".join(ind.mitre) or "-"
         lines.append(f"    [{ind.severity:<6}] {ind.id:<30} {mitre:<20} {ind.description}")
-    lines.append(f"  technique findings ({len(a.findings)}):")
-    for f in a.findings:
+    lines += _findings_lines(a.findings)
+    return "\n".join(lines)
+
+
+def _raw_summary(a: RawAnalysis) -> str:
+    s = a.sample
+    lines = [
+        f"{s.path}",
+        f"  sha256   {s.hashes.sha256}",
+        f"  type     raw x{'64' if s.bits == 64 else '86'} blob, {s.size:,} bytes",
+        f"  entropy  {s.entropy:.3f}",
+    ]
+    lines += _findings_lines(a.findings)
+    return "\n".join(lines)
+
+
+def _findings_lines(findings: list[Finding]) -> list[str]:
+    lines = [f"  technique findings ({len(findings)}):"]
+    for f in findings:
         mitre = ",".join(f.mitre)
         where = next((m for m in f.matches if m.rva is not None or m.offset is not None), None)
         loc = ""
         if where is not None:
             loc = f" @ rva {where.rva:#x}" if where.rva is not None else f" @ off {where.offset:#x}"
         lines.append(f"    [{f.severity:<6}] {f.rule_id:<8} {mitre:<20} {f.name}{loc}")
-    return "\n".join(lines)
+    return lines
 
 
 def _analyze(args: argparse.Namespace) -> int:
@@ -78,10 +108,23 @@ def _analyze(args: argparse.Namespace) -> int:
             config_path = Path("config.yaml")
         config = load_config(config_path)
         rules = rule_set([*config.rules.paths, *(args.rules or [])])
-        result = analyze(args.file, rules)
-    except (PEParseError, RuleError, ConfigError) as exc:
+        if args.raw and args.sigma is not None:
+            print(
+                "error: Sigma rules need a PE (process/image-load hashes); unavailable with --raw",
+                file=sys.stderr,
+            )
+            return EXIT_ERROR
+        result: StaticAnalysis | RawAnalysis = (
+            analyze_raw(args.file, rules, bits=args.bits) if args.raw else analyze(args.file, rules)
+        )
+    except PEParseError as exc:
+        hint = "" if args.raw else " (use --raw to analyse a shellcode/code blob)"
+        print(f"error: {exc}{hint}", file=sys.stderr)
+        return EXIT_ERROR
+    except (RuleError, ConfigError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_ERROR
+    sample = result.sample if isinstance(result, RawAnalysis) else result.report
 
     if args.session is not None:
         try:
@@ -94,8 +137,8 @@ def _analyze(args: argparse.Namespace) -> int:
 
     try:
         if args.yara is not None:
-            args.yara.write_text(generate_yara(result.report, result.findings), encoding="utf-8")
-        if args.sigma is not None:
+            args.yara.write_text(generate_yara(sample, result.findings), encoding="utf-8")
+        if args.sigma is not None and isinstance(result, StaticAnalysis):
             args.sigma.write_text(generate_sigma(result.report, result.findings), encoding="utf-8")
     except OSError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -104,7 +147,7 @@ def _analyze(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(result.to_dict(), indent=2, default=str))
     else:
-        print(_summary(result))
+        print(_raw_summary(result) if isinstance(result, RawAnalysis) else _summary(result))
     return EXIT_OK
 
 

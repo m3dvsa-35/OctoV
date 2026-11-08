@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import bisect
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -138,8 +139,15 @@ def discover_functions(
 ) -> dict[int, Function]:
     """Functions reachable from the entry point, exports, .pdata starts and direct calls."""
     seeds = [report.entry_point, *report.export_rvas.values(), *report.function_starts]
+    return discover_from(dis, seeds, max_functions)
+
+
+def discover_from(
+    dis: Disassembler, seeds: Sequence[int], max_functions: int = 20_000
+) -> dict[int, Function]:
+    """Functions reachable from ``seeds`` by following direct calls."""
     functions: dict[int, Function] = {}
-    queue = [s for s in dict.fromkeys(seeds) if s and dis.view.is_executable(s)]
+    queue = [s for s in dict.fromkeys(seeds) if dis.view.is_executable(s)]
     while queue and len(functions) < max_functions:
         start = queue.pop()
         if start in functions:

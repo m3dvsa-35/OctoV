@@ -122,8 +122,9 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
       Cytoscape.js to stay offline/no bundled JS), Hex, MITRE heat table; background
       discovery (QThreadPool); synced navigation; LRU of 8 loaded samples.
 - [x] Code review (9 findings) fixed with regression tests (`tests/unit/test_review_fixes.py`).
-- [ ] **Not done, carried over:** raw shellcode (non-PE) input mode — engine already
-      supports `scan(data, report=None)`; needs CLI/GUI entry + YARA without PEReport.
+- [x] Raw (non-PE) input mode: `analyze_raw()`, `RawView` (32/64-bit), `discover_from()`,
+      YARA without MZ anchor; CLI `--raw [--bits 32|64]` (Sigma refused for raw).
+      GUI raw mode not done (the GUI is being replaced, see below).
 - [ ] After PR merge: close #2, open M3 issue (dynamic analysis).
 
 Known limitation: tail jumps (`jmp` to another function) are followed as intra-function

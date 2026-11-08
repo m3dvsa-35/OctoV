@@ -16,7 +16,7 @@ and turn findings into defender artifacts (YARA, Sigma, STIX 2.1, IOCs).
 | Milestone | Scope | State |
 |-----------|-------|-------|
 | **M1** | Skeleton, PE parser + packing indicators, `.octov` sessions, GUI shell, i18n (EN/AZ), CLI `analyze`, CI | ✅ |
-| **M2** | Static rule engine (evasion/PIC catalogs), Capstone disassembly, CFG graph, hex, MITRE table, YARA/Sigma export | ✅ (raw shellcode mode pending) |
+| **M2** | Static rule engine (evasion/PIC catalogs), Capstone disassembly, CFG graph, hex, MITRE table, YARA/Sigma export | ✅ |
 | M3 | Dynamic analysis: Frida 16.x agent, ETW, Job Object + AppContainer sandbox, VAD/memory forensics, network IOCs | planned |
 | M4 | MIL (SSA IL) decompiler MVP → pseudo-C, synced asm/pseudo/graph views | planned |
 | M5 | AI assistant (OpenRouter / OpenAI-compatible fallback), evidence-cited reports, guided workflows | planned |
@@ -35,6 +35,7 @@ uv sync
 uv run octov analyze path\to\sample.exe
 uv run octov analyze sample.exe --json --session case.octov
 uv run octov analyze sample.exe --yara sample.yar --sigma sample.yml
+uv run octov analyze shellcode.bin --raw --bits 64 --yara shellcode.yar
 uv run octov-gui
 ```
 

@@ -13,9 +13,13 @@ from __future__ import annotations
 import math
 import re
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from octov.core.static.pe_parser import PEReport
 from octov.core.static.rules import Finding
+
+if TYPE_CHECKING:
+    from octov.core.static.analysis import RawSample
 
 _IDENT = re.compile(r"[^A-Za-z0-9_]+")
 
@@ -37,7 +41,7 @@ def _escape(text: str) -> str:
     return "".join(out)
 
 
-def _meta(report: PEReport, findings: list[Finding]) -> list[str]:
+def _meta(report: PEReport | RawSample, findings: list[Finding]) -> list[str]:
     techniques = sorted({t for f in findings for t in f.mitre})
     lines = [
         'author = "OctoV"',
@@ -54,7 +58,7 @@ def _meta(report: PEReport, findings: list[Finding]) -> list[str]:
     return lines
 
 
-def _description(report: PEReport, findings: list[Finding]) -> str:
+def _description(report: PEReport | RawSample, findings: list[Finding]) -> str:
     if not findings:
         return "Exact-hash match for an analysed sample (no technique findings)."
     names = "; ".join(f.name for f in findings[:5])
@@ -66,7 +70,10 @@ def _two_thirds(n: int) -> int:
     return max(1, math.ceil(n * 2 / 3))
 
 
-def generate_yara(report: PEReport, findings: list[Finding], rule_name: str | None = None) -> str:
+def generate_yara(
+    report: PEReport | RawSample, findings: list[Finding], rule_name: str | None = None
+) -> str:
+    """Build a YARA rule; PE samples are anchored on the MZ header, raw blobs are not."""
     name = sanitize_rule_name(rule_name or f"OctoV_{report.hashes.sha256[:12]}")
     strings: dict[tuple[str, str], str] = {}
     imports: dict[str, None] = {}
@@ -100,8 +107,10 @@ def generate_yara(report: PEReport, findings: list[Finding], rule_name: str | No
 
     lines.append("    condition:")
     if clauses:
+        if isinstance(report, PEReport):
+            clauses.insert(0, "uint16(0) == 0x5A4D")
         joined = " and\n        ".join(clauses)
-        lines.append(f"        uint16(0) == 0x5A4D and\n        {joined}")
+        lines.append(f"        {joined}")
     else:
         lines.append(
             f"        filesize == {report.size} and "
