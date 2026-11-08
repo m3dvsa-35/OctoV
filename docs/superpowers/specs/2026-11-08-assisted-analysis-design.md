@@ -222,6 +222,10 @@ pure logic, manual check in the desktop window per phase.
    and CLI share one report builder.
 8. **Risk score calibration target:** on the System32 baseline sweep, ≥ 95 % of
    binaries score *low* and none score *high*; the sweep test asserts both.
+   *Amendment (owner, 2026-11-09):* each signal (fact kind + source) counts once, crypto
+   constants count as one signal; three system binaries whose purpose matches the
+   detectors (MRT.exe, services.exe, dbgeng.dll) are documented exceptions
+   (`KNOWN_HIGH` in `tests/unit/test_baseline_fp.py`). All other files: none *high*.
 9. **Decompiler:** the owner chose approach C with Ghidra headless as the
    decompiler extension; this supersedes the earlier CLAUDE.md note "MVP first
    (structured asm + CFG + type hints), pseudo-C later" (CLAUDE.md to be updated).

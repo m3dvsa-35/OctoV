@@ -125,127 +125,85 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 - Installed plugins the user wants used: superpowers (TDD, verification, code review),
   caveman (commit messages, review), ui-ux-pro-max (visual panels), karpathy guidelines.
 
-## Status / where we stopped  (updated 2026-11-08, end of chat 1)
+## Status / where we stopped  (updated 2026-11-08, end of chat 2)
 
 ### How to resume in a new chat (read this first)
-1. `git switch feat/assisted-triage && git pull` — all work is pushed.
-2. Work is executed **inline ("Native")** with the superpowers *executing-plans* skill
-   (owner chose it). Invoke `superpowers:executing-plans` with
-   `docs/superpowers/plans/2026-11-08-assisted-triage-phase1.md`, then continue at the
-   first task without a `complete` line in the ledger.
-3. Ledger (git-ignored, local only): `.superpowers/sdd/2026-11-08-assisted-triage-phase1/progress.md`
-   — contains pre-flight table, every `Ruling:` and `Task N: complete` lines. If it is missing
-   (fresh clone), trust `git log` (one `feat(analysis): ...` commit per task) and recreate it.
-4. Helper scripts (absolute paths on this machine):
-   `C:/Users/Fexreddin/.claude/plugins/cache/superpowers-dev/superpowers/7.0.2/skills/executing-plans/scripts/task-start <PLAN_ABS> <N>`
-   and `.../task-done <PLAN_ABS> <N> <BASE_SHA> -- <test command>` (run with `bash`).
-5. Per task: write the failing test, run it (must fail), implement, run, ruff format+check,
-   commit (`feat(analysis): ...` + Co-Authored-By trailer), `task-done`. Then next task.
-6. After Task 14: final whole-branch review (`superpowers:requesting-code-review` style,
-   fresh subagent on the most capable model), ONE fix pass, then push + PR + update this file.
+1. `git switch feat/assisted-triage` — **chat 2 stopped before push/PR (owner asked to stop):
+   the last commits are LOCAL ONLY.** Remaining steps, in order:
+   a. Re-run the full sweep with the final scoring: `.venv/Scripts/python
+      scripts/baseline_sweep.py %TEMP%/sweep.jsonl` (~15 min). Expect 0 high facts, high band
+      only for MRT.exe / services.exe / dbgeng.dll (`KNOWN_HIGH`), ≥ 95 % low. Put the numbers
+      into "Baselines" below (replace the "pending" note).
+   b. Full gates (ruff, mypy, pytest, tsc, vitest, build), `git grep -nE "sk-or-v1-[0-9a-f]{20,}"`
+      (must print nothing), `git ls-files --eol | grep w/crlf` (must print nothing).
+   c. Commit docs, `git push -u origin feat/assisted-triage`, open the PR (base `feat/web-ui`),
+      list the deferred minors from the ledger in the PR body.
+2. Phase 1 is **implementation-complete** (Tasks 1-14 done, see ledger
+   `.superpowers/sdd/2026-11-08-assisted-triage-phase1/progress.md`, git-ignored, local only).
+   Final review (fresh opus reviewer): 0 Critical, 4 Important — all fixed in `980b86c` with
+   RED→GREEN tests; 13 minors deferred (listed in the ledger and the PR description).
+3. Next: land the PR chain (see "Other open work"), then Phase 2 (capa, FLOSS) — start with
+   `superpowers:brainstorming` against the spec's Phase 2 section, then `writing-plans`.
 
-### Assisted triage — Phase 1 progress (branch `feat/assisted-triage`)
+### Assisted triage — Phase 1 (branch `feat/assisted-triage`)
 Spec: `docs/superpowers/specs/2026-11-08-assisted-analysis-design.md` (owner-approved).
-Plan: `docs/superpowers/plans/2026-11-08-assisted-triage-phase1.md` (14 tasks).
+Plan: `docs/superpowers/plans/2026-11-08-assisted-triage-phase1.md` (14 tasks, all done).
 
-| # | Task | State | Module(s) |
-|---|------|-------|-----------|
-| 1 | Fact model + analyzer pipeline | done | `core/analysis/facts.py`, `pipeline.py` |
-| 2 | Strings extraction + classification | done | `core/analysis/strings.py` |
-| 3 | IOC list (CSV/JSON) | done | `core/analysis/iocs.py` |
-| 4 | Instruction.data_ref + XrefIndex | done | `core/static/disasm.py`, `core/analysis/xrefs.py` |
-| 5 | Crypto constants | done | `core/analysis/crypto.py` |
-| 6 | Embedded payload carving + AES ZIP | done | `core/analysis/carve.py` (dep `pyzipper`) |
-| 7 | Packer verdict + suggested names | done | `core/analysis/packer.py`, `naming.py` |
-| 8 | Function ranking + risk score | done | `core/analysis/scoring.py` |
-| 9 | Session schema v2 (annotations, payloads, migration) | done | `core/session/session.py` |
-| 10 | Analyzers + API integration + triage report | done | `core/analysis/analyzers.py`, `report.py`, `app/api.py` |
-| 11 | CLI `octov triage` | done (`cli/triage.py`) | `cli/main.py` |
-| 12 | Explanations EN/AZ for fact kinds | done | `core/i18n/{en,az}.py` |
-| 13 | Web UI: Triage, Strings, xrefs, annotations, compact | **PARTIAL — NEXT** | `web/src/...` |
-| 14 | Baseline/perf tests + docs | todo | tests, CLAUDE.md, README |
+Modules: `core/analysis/{facts,pipeline,strings,iocs,xrefs,crypto,carve,packer,naming,scoring,
+analyzers,report}.py`; session schema v2 (`annotations`, `payloads`, v1 auto-migrates);
+`cli/triage.py` (`octov triage`); EN/AZ explanations for every fact kind; web UI tabs
+`Triage | Overview | Disassembly | Graph | Hex | Strings`, xref popover, annotate menu
+(`n` rename, `;` comment, `b` bookmark, `x` xrefs, or right-click), Compact toggle
+(`settings.compact`).
 
-Key interfaces already built (use these exact names in Tasks 8-14):
-- `facts.Evidence(detail, offset=None, rva=None, type=None, value=None)`;
-  `facts.Fact(kind, source_id, severity, title, evidence, mitre=(), tags=(), confidence=1.0,
-  explain_key=None)` with `.id` = `kind:source_id:<lowest rva|offset hex|value>`, `.to_dict()`;
-  `facts_from_indicators(report)`, `facts_from_findings(findings)`.
-- `pipeline.AnalysisContext(data, report, bits, findings, functions={}, index=None,
-  results={}, facts=[])` + `.add(facts)`; `Analyzer` protocol (`id, cost "fast"|"slow",
-  depends_on, pe_only, run(ctx)`); `Pipeline(analyzers).run_fast(ctx)`,
-  `.start_slow(ctx, on_done)`, `.status()` → `{id: {"state","error"}}`.
-- `strings.FoundString(value, encoding, offset, rva, section, category)`,
-  `extract_strings(data, report, min_len=4)`, `classify(value)`, `MAX_STRINGS`.
-- `iocs.Ioc(type, value, offsets, benign_hint)`, `build_iocs(strings)`, `iocs_csv`, `iocs_json`.
-- `xrefs.Xref(src, dst, kind, func)`, `XrefIndex.build(functions, import_addresses)`,
-  `.to(dst)`, `.from_function(start)`, `.imports_called(start)` → `["dll!func"]`.
-- `crypto.find_crypto(data, report)` → facts kind `crypto_constant`.
-- `carve.Payload(offset, size, kind, where, sha256)`, `carve_payloads(data, report)`,
-  `payload_facts(payloads)`, `payload_zip(data, name)` (AES, password `infected`).
-- `packer.PackerVerdict`, `packer_verdict(report)`, `packer_fact(report, verdict)`.
-- `naming.API_FAMILIES`, `suggest_name(start, imports_called)`.
-- `scoring.risk_score(facts, verdicts)` → `RiskScore(score, band, contributions)`;
-  `rank_functions(functions, xrefs, facts, strings, names)` → `[RankedFunction(start, name, score, reasons)]`.
-- `Session.add_annotation(sha, kind, value, address=None, target=None)`, `.annotations(sha, kind=None)`,
-  `.delete_annotation(id)`, `.add_payload(parent, payload, data)`, `.payload_bytes(sha)`, `.payloads(parent)`;
-  schema v2 (`annotations`, `payloads`), v1 auto-migrates.
-- `analyzers.default_analyzers()`; `report.build_triage(ctx, verdicts, names, jobs)` → dict keys
-  score, packer, capabilities, iocs, payloads, top_functions, attack, orphaned_verdicts, jobs.
-- `WorkbenchApi(config, settings_path, workspace_dir)`: new `get_triage, job_status, get_strings,
-  get_iocs, export_iocs, xrefs_to, annotate, delete_annotation, list_annotations, set_verdict,
-  list_payloads, open_payload, export_payload`; `get_findings` rows are fact dicts (+name,
-  description, mitre_names, rva, offset, verdict; display `source_id`, not `id`);
-  `list_functions` items have `suggested`. Frontend not yet updated for these (Task 13).
+Key interfaces (stable, use these names):
+- `facts.Fact(kind, source_id, severity, title, evidence, mitre, tags, confidence, explain_key)`,
+  `.id` = `kind:source_id:<lowest rva|offset hex|value>`; `facts.Evidence(detail, offset, rva, type, value)`.
+- `pipeline.AnalysisContext` + `Pipeline(analyzers).run_fast(ctx)` / `.start_slow(ctx, on_done)` /
+  `.status()`; fast = pe_indicators, rules, strings, iocs, crypto, carve, packer;
+  slow = functions → xrefs → naming → ranking.
+- `WorkbenchApi`: `get_triage, job_status, get_strings, get_iocs, export_iocs, xrefs_to, annotate,
+  delete_annotation, list_annotations, set_verdict, list_payloads, open_payload, export_payload`;
+  `get_settings/set_settings` include `compact: bool`.
+- Annotations live in the open session, else in `~/.octov/workspaces/<sha256>.octov`
+  (SQLite opened with `check_same_thread=False`: the dev server/pywebview call from worker threads).
+- Web: `api.getStrings` (not `strings`, which fetches UI text), store actions `renameFunction`,
+  `setComment`, `toggleBookmark`, `promptAnnotation`, `annotationKey`; helpers in `web/src/lib/triage.ts`.
 
-### Task 13 status
-DONE: types/client use the fact shape (`FindingRow`, `CapabilityRow`, `Triage`), Findings/Overview
-show `source_id`, new **Triage** tab (default; `TriageView.tsx`) with score + reasons, verdict
-buttons, packer, capabilities with EN/AZ explanations, IOCs + CSV copy, top functions, payload
-open/encrypted export; store polls `job_status` and refreshes triage (`refreshAnalysis`, `setVerdict`).
-LEFT: Strings tab (`api.get_strings` paging, category chips, xref count), xref popover
-(`xrefs_to`), rename/comment/bookmark actions in disasm/graph/function list (`annotate`,
-`list_annotations`), Compact toggle (+ `compact` in get/set_settings), desktop visual check of
-the Triage tab in both languages/modes. Then Task 14 and the final review.
+Baselines (Windows 11 System32, 4370 files): rules-only sweep 0 high hits. Full pipeline,
+first sweep (before signal dedupe): 0 high facts, 0 failed jobs, 0 timeouts, 98.8 % low,
+5 high band (MRT, whesvc_assets, dbgeng, services, ntoskrnl); fast analyzers median 0.12 s /
+p99 1.07 s / max 26 s (amd_comgr.dll, 100 MB), slow analyzers median 0.41 s / p99 21.5 s /
+max 49 s. Fix `1bbd994` (each signal counts once, crypto = one signal); simulated result
+99.1 % low, high band only the 3 owner-approved `KNOWN_HIGH` files. **Confirming sweep with
+the final code: pending (step 1a).**
+Perf: synthetic 5 MB PE, fast analyzers 0.7 s (budget 3 s, `tests/unit/test_triage_perf.py`).
+CI runs a System32 slice (stride 25 for rules, stride 80 for the full pipeline, ~45 s).
 
-### Notes for Task 13 (web UI)
-- Backend is complete; the frontend still speaks the *old* findings shape. Breaking change:
-  `get_findings` rows now have `id` = fact id (`rule:EVA-001:0x2000`), `source_id` (show this in
-  the ID column), `kind` (`rule|indicator|crypto_constant|embedded_payload|packer|ioc`), `title`,
-  `name`, `description`, `severity`, `mitre`, `mitre_names`, `rva`, `offset`, `evidence[]`,
-  `explain_key`, `verdict`. Update `web/src/api/types.ts` (`FindingRow`) + `FindingsView.tsx`
-  (React key must be `id`; show `source_id`).
-- Add to `web/src/api/client.ts`: `triage(sha)`, `jobStatus(sha)`, `strings(sha, category, query,
-  offset, limit)` (NOTE: name clash with existing `strings(lang)` UI-text call — call the new one
-  `getStrings`), `iocs`, `exportIocs(sha, fmt)`, `xrefsTo(sha, rva)`, `annotate(sha, kind, value,
-  address, target)`, `deleteAnnotation`, `listAnnotations`, `setVerdict(sha, factId, verdict|null)`,
-  `listPayloads`, `openPayload(sha, payloadSha)`, `exportPayload(sha, payloadSha, path)`.
-  Bridge calls pass params positionally in Python signature order.
-- Explanations: `t(explain_key + ".explain")`, and `t("fact." + kind + ".next")`.
-- Add `compact: bool` to `get_settings/set_settings` (Python + test) for the Compact toggle.
-- Every new UI string -> both `en.py` and `az.py` (`test_web_strings.py` enforces).
-- Verify visually in the desktop window (`.venv/Scripts/python -m octov.app.desktop <file>`,
-  screenshot via PrintWindow) in both languages and both display modes; rebuild web first.
-
-Rulings made so far (also in the ledger; tasks 8-12 rulings are only in the ledger): indicator evidence uses real locations (IAT slot
-RVAs for API indicators, section VA/raw offset, entry RVA); header-level facts and
-import-only rule matches anchor at offset 0/rva 0; extra crypto signatures (AES inverse
-S-box, SHA-1 init, TEA delta); image resources (PNG/JPEG/GIF/BMP/RIFF/ICO) are never
-reported as high-entropy payloads; helpers `payload_facts` and `packer_fact` added.
+Known limitations: tail jumps are followed as intra-function edges (CRT entry functions absorb
+their tail-called body); the Strings tab has no chip for uncategorised strings ("All" only).
 
 ### Other open work
 - PR #3 (M2, base `main`) — CI green, Auto-fix ON.
-- PR #4 (web UI, base `feat/m2-static-engine`) — Auto-fix ON. Merge order: #3 → retarget
-  #4 to `main` → merge → rebase `feat/assisted-triage` onto `main`, then open its PR.
+- PR #4 (web UI, base `feat/m2-static-engine`) — Auto-fix ON.
+- Triage PR (base `feat/web-ui`). Merge order: #3 → retarget #4 to `main` → merge → retarget
+  the triage PR to `main` (rebase if needed) → merge.
 - After Phase 1: Phase 2 (capa, FLOSS), Phase 3 (Ghidra decompiler), Phase 4 (symbol tree,
   call graph, memory map, search), Phase 5 (FLIRT-like, PDB, binary diff); M3 dynamic; M5 AI.
 
-Known limitation: tail jumps are followed as intra-function edges (CRT entry functions absorb
-their tail-called body).
-
-### Extra environment notes learned in chat 1
-- Bash heredocs that contain `\0`/`\x00` escapes can write literal NUL bytes into files
-  (Python then refuses to import them). For non-trivial edits write a small Python script with
-  the Write tool to a temp file and run it with `.venv/Scripts/python <script>`.
+### Environment notes learned in chats 1-2
+- Bash heredocs that contain `\0`/`\x00`/`\\` escapes can be mangled. For non-trivial edits
+  use the Write/Edit tools, or a Python script that edits with `read_bytes`/`write_bytes`.
+- **`Path.write_text` on Windows writes CRLF** — the repo is LF. Use `write_bytes` (or
+  `newline="\n"`). Check before committing: `git ls-files --eol | grep w/crlf` must print nothing.
 - Desktop window screenshot: `PrintWindow(hwnd, hdc, 2)` via PowerShell Add-Type; the window
   handle is `(Get-Process python | ? MainWindowTitle -eq "OctoV").MainWindowHandle`.
+  The UI settings file is `~/.octov/ui.json` (language/theme/compact) — set it before launching
+  to capture other languages/modes, and restore it afterwards.
+- Interactive UI checks are easiest in the browser pane: `octov serve --port 8765`, open the
+  printed token URL, drive the page with JS (React inputs need the native value setter).
+- In chat 2 the project folder had lost `.git` and `.venv` (it was a copy). `.git` was restored
+  from a fresh clone after verifying identical content; git identity is set **repo-locally**
+  (`m3dvsa-35`, noreply address). Recreate the venv with `python -m uv sync --all-extras` and
+  web deps with `scripts/npm.py ci`.
 - Rebuild the web UI after any `web/` change before testing the desktop app.

@@ -24,6 +24,14 @@ STRIDE = 1 if FULL else 25
 # The full pipeline (strings, xrefs, ranking) is ~1 s per file: sample fewer in CI.
 PIPELINE_STRIDE = 1 if FULL else 80
 JOB_TIMEOUT = 120.0
+# Owner-approved exceptions (2026-11-09): system binaries whose job *is* what the detectors
+# describe. Each has 4-6 distinct medium capabilities; lowering weights enough to clear them
+# would also drop real injectors to "low". Every other file must stay out of the high band.
+KNOWN_HIGH = {
+    "MRT.exe": "Malicious Software Removal Tool: embeds malware patterns and unpackers",
+    "services.exe": "Service Control Manager: creates services, cross-process APIs",
+    "dbgeng.dll": "Debugger engine: debugging and process-memory APIs",
+}
 
 
 def _baseline_files(stride: int = STRIDE) -> list[Path]:
@@ -83,6 +91,8 @@ def test_system32_full_pipeline_baseline(tmp_path: Path) -> None:
         high = [c["source_id"] for c in caps if c["severity"] == "high"]
         if high:
             offenders.append(f"{path.name}: {', '.join(high)}")
+        if score["band"] == "high" and path.name in KNOWN_HIGH:
+            continue
         bands[score["band"]] += 1
         if score["band"] != "low":
             raised.append(f"{path.name}: {score['score']}")
