@@ -156,5 +156,13 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 - [x] Qt GUI and PySide6 removed.
 - Next ideas: drag-and-drop open in desktop shell, AI panel (M5), dynamic views (M3).
 
+**Assisted triage (Phase 1) — branch `feat/assisted-triage` (from `feat/web-ui`). WHERE WE STOPPED:**
+- Owner approved the design: `docs/superpowers/specs/2026-11-08-assisted-analysis-design.md`.
+- Implementation plan written: `docs/superpowers/plans/2026-11-08-assisted-triage-phase1.md`
+  (14 tasks, TDD). **No task started yet.** Next step: ask the owner to pick the execution
+  method (Native recommended to save usage), then start Task 1.
+- Open PRs: #3 (M2, CI green, Auto-fix on) and #4 (web UI, stacked on #3, Auto-fix on).
+  Merge order: #3 → retarget #4 to main → merge → rebase `feat/assisted-triage` on main.
+
 Known limitation: tail jumps (`jmp` to another function) are followed as intra-function
 edges, so CRT entry functions absorb their tail-called body.
