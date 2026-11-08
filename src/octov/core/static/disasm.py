@@ -32,6 +32,7 @@ class Instruction:
     is_trap: bool = False  # int3 / hlt / ud2: execution never falls through
     target: int | None = None  # direct branch/call target RVA
     comment: str | None = None  # e.g. resolved import name
+    data_ref: int | None = None  # RVA referenced by a memory/immediate operand (non-branch)
 
     @property
     def end(self) -> int:
@@ -55,6 +56,8 @@ class CodeView(Protocol):
 
     def is_executable(self, rva: int) -> bool: ...
 
+    def contains(self, rva: int) -> bool: ...
+
 
 class RawView:
     """A raw code blob (e.g. extracted shellcode) addressed by offset from ``base``."""
@@ -69,6 +72,9 @@ class RawView:
 
     def is_executable(self, rva: int) -> bool:
         return 0 <= rva - self.image_base < len(self.data)
+
+    def contains(self, rva: int) -> bool:
+        return self.is_executable(rva)
 
     def read(self, rva: int, size: int) -> bytes:
         off = rva - self.image_base
@@ -100,6 +106,9 @@ class ImageView:
         sec = self._section_for(rva)
         return bool(sec and sec.executable)
 
+    def contains(self, rva: int) -> bool:
+        return self._section_for(rva) is not None
+
     def read(self, rva: int, size: int) -> bytes:
         sec = self._section_for(rva)
         if sec is None:
@@ -116,6 +125,7 @@ class ImageView:
 
 _RIP_SLOT = re.compile(r"\[rip ([+-]) 0x([0-9a-f]+)\]")
 _ABS_SLOT = re.compile(r"(?:ptr |^)\[0x([0-9a-f]+)\]")
+_HEX_IMM = re.compile(r"0x[0-9a-f]{5,16}")
 _RETURNS = frozenset({"ret", "retf", "iret", "iretd", "iretq", "sysret", "sysexit"})
 _TRAPS = frozenset({"int3", "hlt", "ud2"})
 
@@ -172,6 +182,7 @@ class Disassembler:
                 slot = self._memory_slot(address, size, op_str)
                 if slot is not None:
                     comment = self._imports.get(slot)
+        data_ref = None if (is_jump or is_call) else self._data_ref(address, size, op_str)
         return Instruction(
             address=address,
             size=size,
@@ -185,7 +196,20 @@ class Disassembler:
             is_trap=base in _TRAPS,
             target=target,
             comment=comment,
+            data_ref=data_ref,
         )
+
+    def _data_ref(self, address: int, size: int, op_str: str) -> int | None:
+        """RVA inside the image that a non-branch operand points to, if any."""
+        slot = self._memory_slot(address, size, op_str)
+        if slot is not None and self.view.contains(slot):
+            return slot
+        if self._image_base:  # absolute VAs as immediates (common in x86 code)
+            for token in _HEX_IMM.findall(op_str):
+                rva = int(token, 16) - self._image_base
+                if rva > 0 and self.view.contains(rva):
+                    return rva
+        return None
 
     def _memory_slot(self, address: int, size: int, op_str: str) -> int | None:
         m = _RIP_SLOT.search(op_str)
