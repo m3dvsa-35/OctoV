@@ -156,8 +156,8 @@ Plan: `docs/superpowers/plans/2026-11-08-assisted-triage-phase1.md` (14 tasks).
 | 7 | Packer verdict + suggested names | done | `core/analysis/packer.py`, `naming.py` |
 | 8 | Function ranking + risk score | done | `core/analysis/scoring.py` |
 | 9 | Session schema v2 (annotations, payloads, migration) | done | `core/session/session.py` |
-| 10 | Analyzers + API integration + triage report | **NEXT** | `core/analysis/analyzers.py`, `report.py`, `app/api.py` |
-| 11 | CLI `octov triage` | todo | `cli/main.py` |
+| 10 | Analyzers + API integration + triage report | done | `core/analysis/analyzers.py`, `report.py`, `app/api.py` |
+| 11 | CLI `octov triage` | **NEXT** | `cli/main.py` |
 | 12 | Explanations EN/AZ for fact kinds | todo | `core/i18n/{en,az}.py` |
 | 13 | Web UI: Triage, Strings, xrefs, annotations, compact | todo | `web/src/...` |
 | 14 | Baseline/perf tests + docs | todo | tests, CLAUDE.md, README |
@@ -186,6 +186,13 @@ Key interfaces already built (use these exact names in Tasks 8-14):
 - `Session.add_annotation(sha, kind, value, address=None, target=None)`, `.annotations(sha, kind=None)`,
   `.delete_annotation(id)`, `.add_payload(parent, payload, data)`, `.payload_bytes(sha)`, `.payloads(parent)`;
   schema v2 (`annotations`, `payloads`), v1 auto-migrates.
+- `analyzers.default_analyzers()`; `report.build_triage(ctx, verdicts, names, jobs)` → dict keys
+  score, packer, capabilities, iocs, payloads, top_functions, attack, orphaned_verdicts, jobs.
+- `WorkbenchApi(config, settings_path, workspace_dir)`: new `get_triage, job_status, get_strings,
+  get_iocs, export_iocs, xrefs_to, annotate, delete_annotation, list_annotations, set_verdict,
+  list_payloads, open_payload, export_payload`; `get_findings` rows are fact dicts (+name,
+  description, mitre_names, rva, offset, verdict; display `source_id`, not `id`);
+  `list_functions` items have `suggested`. Frontend not yet updated for these (Task 13).
 
 Rulings made so far (also in the ledger): indicator evidence uses real locations (IAT slot
 RVAs for API indicators, section VA/raw offset, entry RVA); header-level facts and
