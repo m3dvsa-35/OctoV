@@ -112,6 +112,7 @@ export interface DiscoveryStatus {
 export interface FunctionSummary {
   start: number;
   name: string;
+  suggested: boolean;
   blocks: number;
   size: number;
   is_entry: boolean;
@@ -159,6 +160,39 @@ export interface ByteChunk {
 export interface Settings {
   language: "en" | "az";
   theme: "dark" | "light";
+  compact: boolean;
+}
+
+export type AnnotationKind = "name" | "comment" | "bookmark" | "verdict";
+
+export interface Annotation {
+  id: number;
+  kind: AnnotationKind;
+  address: number | null;
+  target: string | null;
+  value: string;
+}
+
+export interface StringRow {
+  value: string;
+  encoding: string;
+  offset: number;
+  rva: number | null;
+  section: string | null;
+  category: string | null;
+  xrefs: number | null;
+}
+
+export interface StringsPage {
+  total: number;
+  items: StringRow[];
+}
+
+export interface XrefRow {
+  src: number;
+  kind: string;
+  func: number | null;
+  func_name: string | null;
 }
 
 export interface Capabilities {

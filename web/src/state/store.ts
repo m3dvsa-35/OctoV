@@ -1,6 +1,9 @@
 import { useRef, useSyncExternalStore } from "react";
 import { api, ApiError } from "../api/client";
+import { annotationIndex, type AnnotationIndex } from "../lib/triage";
+import { invalidateFunctionCache } from "./hooks";
 import type {
+  Annotation,
   Capabilities,
   DiscoveryStatus,
   FindingRow,
@@ -13,7 +16,7 @@ import type {
   Verdict,
 } from "../api/types";
 
-export type MainView = "triage" | "overview" | "disasm" | "graph" | "hex";
+export type MainView = "triage" | "overview" | "disasm" | "graph" | "hex" | "strings";
 export type BottomView = "findings" | "mitre";
 
 export interface Nav {
@@ -26,6 +29,12 @@ export interface Toast {
   id: number;
   kind: "error" | "info";
   text: string;
+}
+
+/** Where a context menu / popover was opened (viewport coordinates). */
+export interface Anchor {
+  x: number;
+  y: number;
 }
 
 export interface State {
@@ -48,16 +57,23 @@ export interface State {
   side: MainView;
   bottom: BottomView;
   busy: boolean;
-  dialog: null | { kind: "open"; raw: boolean } | { kind: "session"; mode: "new" | "open" } | {
-    kind: "export";
-  };
+  annotationList: Annotation[];
+  annotations: AnnotationIndex;
+  menu: null | (Anchor & { address: number; fn: number | null });
+  xref: null | (Anchor & { rva: number; label: string });
+  dialog:
+    | null
+    | { kind: "open"; raw: boolean }
+    | { kind: "session"; mode: "new" | "open" }
+    | { kind: "export" }
+    | { kind: "annotate"; mode: "name" | "comment"; address: number; initial: string };
   palette: boolean;
   toasts: Toast[];
 }
 
 let state: State = {
   ready: false,
-  settings: { language: "en", theme: "dark" },
+  settings: { language: "en", theme: "dark", compact: false },
   strings: {},
   caps: { native_dialogs: false },
   samples: [],
@@ -75,6 +91,10 @@ let state: State = {
   side: "graph",
   bottom: "findings",
   busy: false,
+  annotationList: [],
+  annotations: { comments: {}, bookmarks: {}, names: {} },
+  menu: null,
+  xref: null,
   dialog: null,
   palette: false,
   toasts: [],
@@ -215,6 +235,10 @@ export async function selectSample(sha: string): Promise<void> {
     history: [],
     future: [],
     main: "triage",
+    annotationList: [],
+    annotations: { comments: {}, bookmarks: {}, names: {} },
+    menu: null,
+    xref: null,
   });
   try {
     const [overview, findings, mitre, triage] = await Promise.all([
@@ -225,6 +249,7 @@ export async function selectSample(sha: string): Promise<void> {
     ]);
     if (state.active !== sha) return;
     setState({ overview, findings, mitre, triage });
+    void loadAnnotations(sha);
     void pollDiscovery(sha);
     void pollJobs(sha);
   } catch (err) {
@@ -290,6 +315,73 @@ export async function setVerdict(factId: string, verdict: Verdict | null): Promi
   } catch (err) {
     reportError(err);
   }
+}
+
+async function loadAnnotations(sha: string): Promise<void> {
+  const list = await api.listAnnotations(sha);
+  if (state.active === sha) setState({ annotationList: list, annotations: annotationIndex(list) });
+}
+
+/** Replace (or with an empty value, remove) the analyst's name/comment at ``address``. */
+async function replaceAnnotation(kind: "name" | "comment", address: number, value: string): Promise<void> {
+  const sha = state.active;
+  if (!sha) return;
+  try {
+    for (const a of state.annotationList) {
+      if (a.kind === kind && a.address === address) await api.deleteAnnotation(sha, a.id);
+    }
+    if (value.trim()) await api.annotate(sha, kind, value.trim(), address);
+    await loadAnnotations(sha);
+    if (kind === "name") {
+      invalidateFunctionCache(sha);
+      const functions = await api.functions(sha);
+      if (state.active === sha) setState({ functions, nav: state.nav ? { ...state.nav } : null });
+      await refreshAnalysis(sha);
+    }
+  } catch (err) {
+    reportError(err);
+  }
+}
+
+export const renameFunction = (start: number, name: string) => replaceAnnotation("name", start, name);
+export const setComment = (address: number, text: string) => replaceAnnotation("comment", address, text);
+
+export async function toggleBookmark(address: number): Promise<void> {
+  const sha = state.active;
+  if (!sha) return;
+  try {
+    const existing = state.annotations.bookmarks[address];
+    if (existing !== undefined) await api.deleteAnnotation(sha, existing);
+    else await api.annotate(sha, "bookmark", "", address);
+    await loadAnnotations(sha);
+  } catch (err) {
+    reportError(err);
+  }
+}
+
+/** Open the rename / comment prompt for ``address`` (rename targets the containing function). */
+export function promptAnnotation(mode: "name" | "comment", address: number, fn: number | null): void {
+  if (mode === "name") {
+    if (fn === null) return;
+    const current = state.functions.find((f) => f.start === fn);
+    const initial = state.annotations.names[fn] ?? (current && !current.suggested ? current.name : "");
+    setState({ menu: null, dialog: { kind: "annotate", mode, address: fn, initial } });
+    return;
+  }
+  setState({ menu: null, dialog: { kind: "annotate", mode, address, initial: state.annotations.comments[address]?.value ?? "" } });
+}
+
+/** Keyboard shortcuts shared by the code views: n = rename, ; = comment, b = bookmark, x = xrefs. */
+export function annotationKey(e: { key: string; ctrlKey: boolean; altKey: boolean; metaKey: boolean; preventDefault(): void }): void {
+  const nav = state.nav;
+  if (!nav || e.ctrlKey || e.altKey || e.metaKey || state.dialog) return;
+  if (e.key === "n") promptAnnotation("name", nav.rva, nav.fn);
+  else if (e.key === ";") promptAnnotation("comment", nav.rva, nav.fn);
+  else if (e.key === "b") void toggleBookmark(nav.rva);
+  else if (e.key === "x")
+    setState({ xref: { x: window.innerWidth / 2 - 160, y: window.innerHeight / 3, rva: nav.rva, label: `0x${nav.rva.toString(16)}` } });
+  else return;
+  e.preventDefault();
 }
 
 export async function closeSample(sha: string): Promise<void> {

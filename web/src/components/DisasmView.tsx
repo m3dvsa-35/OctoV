@@ -1,11 +1,12 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import clsx from "clsx";
-import { Code2 } from "lucide-react";
+import { Bookmark, Code2 } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import type { InstructionData } from "../api/types";
 import { hex } from "../lib/format";
 import { useFunctionData, useLinear } from "../state/hooks";
-import { navigate, useStore, useT } from "../state/store";
+import { annotationKey, getState, navigate, useStore, useT } from "../state/store";
+import { openAnnotateMenu } from "./AnnotateMenu";
 import { AsmText } from "./Asm";
 import { Empty } from "./ui";
 
@@ -18,7 +19,12 @@ const ROW_HEIGHT = 20;
 
 export function DisasmView() {
   const t = useT();
-  const { sha, nav, discovery } = useStore((s) => ({ sha: s.active, nav: s.nav, discovery: s.discovery }));
+  const { sha, nav, discovery, bookmarks } = useStore((s) => ({
+    sha: s.active,
+    nav: s.nav,
+    discovery: s.discovery,
+    bookmarks: s.annotations.bookmarks,
+  }));
   const fn = useFunctionData(sha, nav?.fn ?? null);
   const linear = useLinear(sha, nav?.rva ?? null, nav !== null && nav.fn === null);
 
@@ -70,7 +76,13 @@ export function DisasmView() {
   }
 
   return (
-    <div ref={parent} className="selectable h-full overflow-auto font-mono text-[12.5px] leading-5">
+    <div
+      ref={parent}
+      tabIndex={0}
+      onKeyDown={annotationKey}
+      aria-label={t("ui.disassembly")}
+      className="selectable h-full overflow-auto font-mono text-[12.5px] leading-5 outline-none"
+    >
       <div style={{ height: virtual.getTotalSize(), position: "relative", minWidth: "max-content" }}>
         {virtual.getVirtualItems().map((item) => {
           const row = rows[item.index];
@@ -91,12 +103,22 @@ export function DisasmView() {
             <div
               key={item.key}
               style={style}
+              onClick={() => void navigate(insn.address, { record: false, view: getState().main })}
               onDoubleClick={() => insn.target !== null && void navigate(insn.target)}
+              onContextMenu={(e) => {
+                void navigate(insn.address, { record: false, view: getState().main });
+                openAnnotateMenu(e, insn.address, nav.fn);
+              }}
               className={clsx(
                 "absolute inset-x-0 flex items-center whitespace-pre px-4",
                 active ? "bg-accent/15 shadow-[inset_2px_0_0_var(--accent)]" : "hover:bg-raised/50",
               )}
             >
+              <span className="w-3 shrink-0" title={bookmarks[insn.address] !== undefined ? t("annotate.bookmarked") : undefined}>
+                {bookmarks[insn.address] !== undefined && (
+                  <Bookmark size={10} className="fill-accent text-accent" aria-label={t("annotate.bookmarked")} />
+                )}
+              </span>
               <span className="mr-3 w-[76px] shrink-0 text-asm-addr">{hex(insn.address, 8)}</span>
               <span className="mr-3 w-[150px] shrink-0 truncate text-faint">
                 {insn.bytes.match(/../g)?.join(" ")}

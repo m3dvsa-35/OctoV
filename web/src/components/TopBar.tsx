@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Sun,
   FileOutput,
+  Rows3,
 } from "lucide-react";
 import {
   browseAndOpen,
@@ -21,6 +22,7 @@ import {
   useStore,
   useT,
 } from "../state/store";
+import clsx from "clsx";
 import { Button, IconButton, Kbd, Segmented } from "./ui";
 
 export function TopBar() {
@@ -79,6 +81,19 @@ export function TopBar() {
       >
         {t("ui.export")}
       </Button>
+      <button
+        type="button"
+        aria-pressed={settings.compact}
+        title={t("ui.compact_hint")}
+        onClick={() => void updateSettings({ compact: !settings.compact })}
+        className={clsx(
+          "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border px-2 text-[12px] transition-colors",
+          settings.compact ? "border-accent bg-accent/15 text-fg" : "border-line text-muted hover:text-fg",
+        )}
+      >
+        <Rows3 size={13} aria-hidden />
+        {t("ui.compact")}
+      </button>
       <Segmented<"en" | "az">
         label={t("ui.language")}
         value={settings.language}

@@ -1,4 +1,6 @@
 import type {
+  Annotation,
+  AnnotationKind,
   ByteChunk,
   Capabilities,
   DiscoveryStatus,
@@ -11,8 +13,10 @@ import type {
   Overview,
   SampleSummary,
   Settings,
+  StringsPage,
   Triage,
   Verdict,
+  XrefRow,
 } from "./types";
 
 /**
@@ -108,6 +112,14 @@ export const api = {
     call<SampleSummary>("open_payload", { sha, payload_sha: payloadSha }),
   exportPayload: (sha: string, payloadSha: string, path: string) =>
     call<null>("export_payload", { sha, payload_sha: payloadSha, path }),
+  getStrings: (sha: string, category: string | null, query: string, offset: number, limit: number) =>
+    call<StringsPage>("get_strings", { sha, category, query, offset, limit }),
+  xrefsTo: (sha: string, rva: number) => call<XrefRow[]>("xrefs_to", { sha, rva }),
+  annotate: (sha: string, kind: AnnotationKind, value: string, address: number | null, target: string | null = null) =>
+    call<Annotation>("annotate", { sha, kind, value, address, target }),
+  deleteAnnotation: (sha: string, annotationId: number) =>
+    call<null>("delete_annotation", { sha, annotation_id: annotationId }),
+  listAnnotations: (sha: string) => call<Annotation[]>("list_annotations", { sha }),
   mitre: (sha: string) => call<MitreRow[]>("get_mitre", { sha }),
   discoveryStatus: (sha: string) => call<DiscoveryStatus>("discovery_status", { sha }),
   functions: (sha: string) => call<FunctionSummary[]>("list_functions", { sha }),

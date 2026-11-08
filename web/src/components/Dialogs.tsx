@@ -2,7 +2,18 @@ import clsx from "clsx";
 import { AlertTriangle, Check, Copy, Info, Save, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../api/client";
-import { getState, notify, openSample, sessionAction, setState, useStore, useT } from "../state/store";
+import { hex } from "../lib/format";
+import {
+  getState,
+  notify,
+  openSample,
+  renameFunction,
+  sessionAction,
+  setComment,
+  setState,
+  useStore,
+  useT,
+} from "../state/store";
 import { Button, IconButton, Tabs } from "./ui";
 
 function Modal({ title, children, wide }: { title: string; children: ReactNode; wide?: boolean }) {
@@ -161,12 +172,52 @@ function ExportDialog() {
   );
 }
 
+function AnnotateDialog({ mode, address, initial }: { mode: "name" | "comment"; address: number; initial: string }) {
+  const t = useT();
+  const [value, setValue] = useState(initial);
+  const valid = mode === "comment" || value.trim() === "" || /^[A-Za-z_$?@][\w$?@.:<>~-]{0,127}$/.test(value.trim());
+  return (
+    <Modal title={`${mode === "name" ? t("annotate.rename") : t("annotate.comment")} · ${hex(address)}`}>
+      <form
+        className="flex flex-col gap-3 p-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!valid) return;
+          setState({ dialog: null });
+          void (mode === "name" ? renameFunction(address, value) : setComment(address, value));
+        }}
+      >
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[12px] text-muted">{mode === "name" ? t("annotate.rename_hint") : t("annotate.comment_hint")}</span>
+          <input
+            autoFocus
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            aria-invalid={!valid}
+            className="h-8 rounded-md border border-line bg-bg px-2.5 font-mono text-[12.5px] outline-none focus:border-accent/60 aria-[invalid=true]:border-sev-high"
+          />
+          {!valid && <span className="text-[11.5px] text-sev-high">{t("annotate.invalid_name")}</span>}
+        </label>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setState({ dialog: null })}>
+            {t("ui.cancel")}
+          </Button>
+          <Button variant="primary" type="submit" disabled={!valid}>
+            {t("annotate.save")}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 export function Dialogs() {
   const t = useT();
   const dialog = useStore((s) => s.dialog);
   if (!dialog) return null;
   if (dialog.kind === "open") return <OpenDialog raw={dialog.raw} />;
   if (dialog.kind === "export") return <ExportDialog />;
+  if (dialog.kind === "annotate") return <AnnotateDialog key={`${dialog.mode}:${dialog.address}`} {...dialog} />;
   return (
     <PathDialog
       title={dialog.mode === "new" ? t("ui.new_session") : t("ui.open_session")}

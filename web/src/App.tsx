@@ -1,5 +1,17 @@
-import { Binary, Code2, FileCode2, FolderOpen, Grid3x3, LayoutDashboard, Loader2, Network, ShieldAlert } from "lucide-react";
+import {
+  Binary,
+  Code2,
+  FileCode2,
+  FolderOpen,
+  Grid3x3,
+  LayoutDashboard,
+  Loader2,
+  Network,
+  ShieldAlert,
+  TextQuote,
+} from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
+import { AnnotateMenu } from "./components/AnnotateMenu";
 import { CommandPalette } from "./components/CommandPalette";
 import { Dialogs, Toasts } from "./components/Dialogs";
 import { DisasmView } from "./components/DisasmView";
@@ -9,8 +21,10 @@ import { HexView } from "./components/HexView";
 import { MitreView } from "./components/MitreView";
 import { OverviewView } from "./components/OverviewView";
 import { Sidebar } from "./components/Sidebar";
+import { StringsView } from "./components/StringsView";
 import { TriageView } from "./components/TriageView";
 import { TopBar } from "./components/TopBar";
+import { XrefPopover } from "./components/XrefPopover";
 import { Button, Empty, Tabs } from "./components/ui";
 import { hex } from "./lib/format";
 import { browseAndOpen, type BottomView, type MainView, setState, useStore, useT } from "./state/store";
@@ -27,6 +41,8 @@ function ViewSwitch({ view }: { view: MainView }) {
       return <GraphView />;
     case "hex":
       return <HexView />;
+    case "strings":
+      return <StringsView />;
   }
 }
 
@@ -38,6 +54,7 @@ function useViewTabs() {
     { id: "disasm" as const, label: t("ui.disassembly"), icon: Code2 },
     { id: "graph" as const, label: t("ui.graph"), icon: Network },
     { id: "hex" as const, label: t("ui.hex"), icon: Binary },
+    { id: "strings" as const, label: t("ui.strings"), icon: TextQuote },
   ];
 }
 
@@ -120,11 +137,12 @@ function Welcome() {
 
 function StatusBar() {
   const t = useT();
-  const { ov, nav, discovery, busy } = useStore((s) => ({
+  const { ov, nav, discovery, busy, fnName } = useStore((s) => ({
     ov: s.overview,
     nav: s.nav,
     discovery: s.discovery,
     busy: s.busy,
+    fnName: s.nav?.fn != null ? s.functions.find((f) => f.start === s.nav?.fn)?.name : undefined,
   }));
   return (
     <footer className="flex h-7 shrink-0 items-center gap-4 border-t border-line bg-panel px-3 font-mono text-[11px] text-faint">
@@ -147,7 +165,7 @@ function StatusBar() {
         <span>
           rva {hex(nav.rva)}
           {nav.offset !== null && ` · off ${hex(nav.offset)}`}
-          {nav.fn !== null && ` · sub_${nav.fn.toString(16)}`}
+          {nav.fn !== null && ` · ${fnName ?? `sub_${nav.fn.toString(16)}`}`}
         </span>
       )}
       <span className="ml-auto">{t("ui.local_only")}</span>
@@ -178,6 +196,8 @@ export function App() {
       </div>
       <StatusBar />
       <CommandPalette />
+      <AnnotateMenu />
+      <XrefPopover />
       <Dialogs />
       <Toasts />
     </div>

@@ -122,8 +122,12 @@ class WorkbenchApi:
 
     # -- settings & strings ------------------------------------------------------
 
-    def _load_settings(self) -> dict[str, str]:
-        settings = {"language": self._config.ui.language, "theme": self._config.ui.theme}
+    def _load_settings(self) -> dict[str, Any]:
+        settings: dict[str, Any] = {
+            "language": self._config.ui.language,
+            "theme": self._config.ui.theme,
+            "compact": False,
+        }
         try:
             stored = json.loads(self._settings_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -132,17 +136,20 @@ class WorkbenchApi:
             settings["language"] = stored["language"]
         if stored.get("theme") in THEMES:
             settings["theme"] = stored["theme"]
+        if isinstance(stored.get("compact"), bool):
+            settings["compact"] = stored["compact"]
         return settings
 
-    def get_settings(self) -> dict[str, str]:
+    def get_settings(self) -> dict[str, Any]:
         return dict(self._settings)
 
-    def set_settings(self, settings: dict[str, str]) -> dict[str, str]:
+    def set_settings(self, settings: dict[str, Any]) -> dict[str, Any]:
         lang = settings.get("language", self._settings["language"])
         theme = settings.get("theme", self._settings["theme"])
-        if lang not in LANGUAGES or theme not in THEMES:
+        compact = settings.get("compact", self._settings["compact"])
+        if lang not in LANGUAGES or theme not in THEMES or not isinstance(compact, bool):
             raise ApiError(f"invalid settings: {settings}")
-        self._settings = {"language": lang, "theme": theme}
+        self._settings = {"language": lang, "theme": theme, "compact": compact}
         try:
             self._settings_path.parent.mkdir(parents=True, exist_ok=True)
             self._settings_path.write_text(json.dumps(self._settings), encoding="utf-8")

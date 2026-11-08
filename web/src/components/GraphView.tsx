@@ -21,7 +21,8 @@ import type { BlockData, EdgeKind, FunctionData } from "../api/types";
 import { hex } from "../lib/format";
 import { HEADER_H, LINE_H, MAX_LINES, type ElkEdge, type Pt, toElkGraph } from "../lib/cfgLayout";
 import { useFunctionData } from "../state/hooks";
-import { navigate, useStore, useT } from "../state/store";
+import { annotationKey, getState, navigate, useStore, useT } from "../state/store";
+import { openAnnotateMenu } from "./AnnotateMenu";
 import { AsmText } from "./Asm";
 import { Empty } from "./ui";
 
@@ -66,6 +67,10 @@ const BlockNode = memo(function BlockNode({ data }: NodeProps<Node<BlockNodeData
           <div
             key={insn.address}
             onClick={() => void navigate(insn.address, { view: "graph", record: false })}
+            onContextMenu={(e) => {
+              void navigate(insn.address, { view: "graph", record: false });
+              openAnnotateMenu(e, insn.address, getState().nav?.fn ?? null);
+            }}
             className={clsx(
               "nodrag cursor-pointer whitespace-pre px-3",
               insn.address === active ? "bg-accent/20" : "hover:bg-raised/60",
@@ -238,7 +243,7 @@ export function GraphView() {
   }
   return (
     <ReactFlowProvider>
-      <div className="relative h-full">
+      <div className="relative h-full outline-none" tabIndex={0} onKeyDown={annotationKey} aria-label={t("ui.graph")}>
         <div className="pointer-events-none absolute left-3 top-2 z-10 rounded bg-panel/90 px-2 py-1 font-mono text-[11.5px] text-muted">
           {fn.name} · {fn.blocks.length} blocks · {hex(fn.start)}
         </div>
