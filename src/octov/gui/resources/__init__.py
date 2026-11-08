@@ -1,0 +1,1 @@
+"""OctoV gui.resources package."""

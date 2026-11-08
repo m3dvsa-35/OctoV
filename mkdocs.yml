@@ -1,0 +1,5 @@
+site_name: OctoV
+theme:
+  name: material
+nav:
+  - Home: index.md

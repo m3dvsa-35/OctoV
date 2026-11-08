@@ -1,0 +1,280 @@
+# OctoV evasion technique detection catalog (defensive).
+#
+# Each rule describes *observable artifacts* of an adversary technique so that
+# analysts can recognise it in a sample. Indicators are matched by the static
+# rule engine (M2):
+#   import  - imported API name (A/W suffix ignored)
+#   string  - ASCII/UTF-16LE string present in the file
+#   bytes   - hex byte pattern, '?' = wildcard nibble
+#   section - section name
+# condition: "any", "all", or an integer N (= at least N indicators).
+version: 1
+rules:
+  - id: EVA-001
+    name: Direct system call stub
+    description: Inline x64 syscall stub (mov r10, rcx; mov eax, SSN; syscall) bypassing user-mode API hooks.
+    severity: high
+    mitre: [T1106, T1562.001]
+    condition: any
+    indicators:
+      - { type: bytes, value: "4C 8B D1 B8 ?? ?? 00 00 0F 05" }
+      - { type: bytes, value: "49 89 CA B8 ?? ?? 00 00 0F 05" }
+
+  - id: EVA-002
+    name: Legacy int 2Eh system call
+    description: System call through int 2Eh instead of ntdll exports.
+    severity: medium
+    mitre: [T1106]
+    condition: any
+    indicators:
+      - { type: bytes, value: "B8 ?? ?? 00 00 CD 2E" }
+
+  - id: EVA-003
+    name: Heaven's Gate transition
+    description: WOW64 far-return into 64-bit code segment 0x33 to evade 32-bit hooks.
+    severity: high
+    mitre: [T1106, T1562.001]
+    condition: any
+    indicators:
+      - { type: bytes, value: "6A 33 E8 00 00 00 00 83 04 24 05 CB" }
+
+  - id: EVA-004
+    name: Reflective DLL loading
+    description: Exported reflective loader or in-memory PE mapping routine.
+    severity: high
+    mitre: [T1620]
+    condition: any
+    indicators:
+      - { type: string, value: "ReflectiveLoader" }
+      - { type: string, value: "_ReflectiveLoader@4" }
+
+  - id: EVA-005
+    name: ETW tampering
+    description: References to ETW write routines alongside memory protection changes (patching EtwEventWrite/NtTraceEvent).
+    severity: high
+    mitre: [T1562.006]
+    condition: 2
+    indicators:
+      - { type: string, value: "EtwEventWrite" }
+      - { type: string, value: "NtTraceEvent" }
+      - { type: import, value: VirtualProtect }
+      - { type: import, value: NtProtectVirtualMemory }
+
+  - id: EVA-006
+    name: AMSI tampering
+    description: References to AMSI scan routines suggesting in-memory AMSI patching.
+    severity: high
+    mitre: [T1562.001]
+    condition: 2
+    indicators:
+      - { type: string, value: "AmsiScanBuffer" }
+      - { type: string, value: "amsi.dll" }
+      - { type: string, value: "AmsiOpenSession" }
+      - { type: import, value: VirtualProtect }
+
+  - id: EVA-007
+    name: Classic remote DLL injection
+    description: Remote allocation + write + remote thread starting LoadLibrary.
+    severity: high
+    mitre: [T1055.001]
+    condition: all
+    indicators:
+      - { type: import, value: VirtualAllocEx }
+      - { type: import, value: WriteProcessMemory }
+      - { type: import, value: CreateRemoteThread }
+
+  - id: EVA-008
+    name: Process hollowing
+    description: Suspended process creation, image unmapping and thread context redirection.
+    severity: high
+    mitre: [T1055.012]
+    condition: 3
+    indicators:
+      - { type: import, value: CreateProcess }
+      - { type: import, value: NtUnmapViewOfSection }
+      - { type: import, value: ZwUnmapViewOfSection }
+      - { type: import, value: SetThreadContext }
+      - { type: import, value: ResumeThread }
+
+  - id: EVA-009
+    name: APC injection
+    description: Queues asynchronous procedure calls into other threads.
+    severity: high
+    mitre: [T1055.004]
+    condition: any
+    indicators:
+      - { type: import, value: QueueUserAPC }
+      - { type: import, value: NtQueueApcThread }
+      - { type: string, value: "NtQueueApcThreadEx" }
+
+  - id: EVA-010
+    name: Thread execution hijacking
+    description: Suspends a thread and rewrites its context.
+    severity: high
+    mitre: [T1055.003]
+    condition: all
+    indicators:
+      - { type: import, value: SuspendThread }
+      - { type: import, value: GetThreadContext }
+      - { type: import, value: SetThreadContext }
+
+  - id: EVA-011
+    name: Section mapping injection
+    description: Shared section created and mapped into a remote process.
+    severity: high
+    mitre: [T1055]
+    condition: all
+    indicators:
+      - { type: string, value: "NtCreateSection" }
+      - { type: string, value: "NtMapViewOfSection" }
+
+  - id: EVA-012
+    name: Process doppelganging / transacted hollowing
+    description: NTFS transactions used to create a process from a transacted file.
+    severity: high
+    mitre: [T1055.013]
+    condition: 2
+    indicators:
+      - { type: import, value: CreateTransaction }
+      - { type: import, value: RollbackTransaction }
+      - { type: string, value: "NtCreateProcessEx" }
+      - { type: import, value: CreateFileTransacted }
+
+  - id: EVA-013
+    name: ntdll unhooking
+    description: Reads a clean ntdll copy (disk or KnownDlls) to overwrite hooked .text.
+    severity: high
+    mitre: [T1562.001]
+    condition: 2
+    indicators:
+      - { type: string, value: "\\KnownDlls\\ntdll.dll" }
+      - { type: string, value: "\\System32\\ntdll.dll" }
+      - { type: import, value: VirtualProtect }
+      - { type: import, value: MapViewOfFile }
+
+  - id: EVA-014
+    name: Vulnerable driver loading (BYOVD)
+    description: Installs/loads a kernel driver and communicates via IOCTLs.
+    severity: high
+    mitre: [T1068, T1543.003]
+    condition: 3
+    indicators:
+      - { type: import, value: CreateService }
+      - { type: import, value: StartService }
+      - { type: string, value: "NtLoadDriver" }
+      - { type: import, value: DeviceIoControl }
+      - { type: string, value: ".sys" }
+
+  - id: EVA-015
+    name: Kernel callback / sensor tampering
+    description: References to kernel notification routines commonly removed to blind EDR sensors.
+    severity: high
+    mitre: [T1562.001]
+    condition: any
+    indicators:
+      - { type: string, value: "PspCreateProcessNotifyRoutine" }
+      - { type: string, value: "PsSetCreateProcessNotifyRoutine" }
+      - { type: string, value: "PspLoadImageNotifyRoutine" }
+      - { type: string, value: "EtwThreatIntProvRegHandle" }
+
+  - id: EVA-016
+    name: API hashing (ROR13)
+    description: ROR13 hash loop used to resolve APIs without import table entries.
+    severity: medium
+    mitre: [T1027.007]
+    condition: any
+    indicators:
+      - { type: bytes, value: "C1 CF 0D" }
+      - { type: bytes, value: "C1 C9 0D" }
+
+  - id: EVA-017
+    name: Debugger detection
+    description: API-based debugger checks.
+    severity: low
+    mitre: [T1622]
+    condition: any
+    indicators:
+      - { type: import, value: IsDebuggerPresent }
+      - { type: import, value: CheckRemoteDebuggerPresent }
+      - { type: import, value: NtQueryInformationProcess }
+
+  - id: EVA-018
+    name: Virtualization / sandbox checks
+    description: Artifacts used to detect analysis VMs.
+    severity: medium
+    mitre: [T1497.001]
+    condition: 2
+    indicators:
+      - { type: string, value: "VBoxService" }
+      - { type: string, value: "vmtoolsd" }
+      - { type: string, value: "VMware" }
+      - { type: string, value: "SbieDll.dll" }
+      - { type: string, value: "HARDWARE\\ACPI\\DSDT\\VBOX__" }
+
+  - id: EVA-019
+    name: Token privilege manipulation
+    description: Enables privileges such as SeDebugPrivilege.
+    severity: medium
+    mitre: [T1134]
+    condition: 2
+    indicators:
+      - { type: import, value: OpenProcessToken }
+      - { type: import, value: AdjustTokenPrivileges }
+      - { type: string, value: "SeDebugPrivilege" }
+
+  - id: EVA-020
+    name: LSASS memory access
+    description: Targets lsass.exe memory (credential dumping).
+    severity: high
+    mitre: [T1003.001]
+    condition: 2
+    indicators:
+      - { type: string, value: "lsass.exe" }
+      - { type: import, value: MiniDumpWriteDump }
+      - { type: import, value: OpenProcess }
+
+  - id: EVA-021
+    name: Callback-based code execution
+    description: Abuses Win32 callback APIs to run shellcode without creating threads.
+    severity: medium
+    mitre: [T1106]
+    condition: 2
+    indicators:
+      - { type: import, value: EnumSystemLocales }
+      - { type: import, value: CreateTimerQueueTimer }
+      - { type: import, value: EnumChildWindows }
+      - { type: import, value: CertEnumSystemStore }
+      - { type: import, value: VirtualAlloc }
+
+  - id: EVA-022
+    name: Event log clearing
+    description: Clears Windows event logs.
+    severity: medium
+    mitre: [T1070.001]
+    condition: any
+    indicators:
+      - { type: import, value: ClearEventLog }
+      - { type: string, value: "wevtutil cl" }
+      - { type: string, value: "EvtClearLog" }
+
+  - id: EVA-023
+    name: Defender configuration tampering
+    description: Disables or excludes Microsoft Defender protections.
+    severity: high
+    mitre: [T1562.001]
+    condition: any
+    indicators:
+      - { type: string, value: "DisableAntiSpyware" }
+      - { type: string, value: "Set-MpPreference" }
+      - { type: string, value: "Add-MpPreference -ExclusionPath" }
+
+  - id: EVA-024
+    name: Module stomping
+    description: Loads a benign DLL and overwrites its code with a payload.
+    severity: high
+    mitre: [T1055.001]
+    condition: all
+    indicators:
+      - { type: import, value: LoadLibraryEx }
+      - { type: import, value: VirtualProtect }
+      - { type: string, value: "DONT_RESOLVE_DLL_REFERENCES" }

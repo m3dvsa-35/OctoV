@@ -1,0 +1,29 @@
+# OctoV configuration. Copy to config.yaml (git-ignored) and adjust.
+#
+# SECURITY: never put API keys here. The AI key is read ONLY from the
+# OCTOV_AI_KEY environment variable; an `api_key` entry in this file is ignored.
+
+ui:
+  language: en          # en | az  (az also makes the AI assistant answer in Azerbaijani)
+  theme: dark           # dark | light
+
+ai:
+  base_url: https://openrouter.ai/api/v1
+  model: nvidia/nemotron-3-ultra-550b-a55b:free
+  # Optional OpenAI-compatible fallback (e.g. local Ollama / LM Studio). No key required.
+  fallback_base_url: null   # e.g. http://localhost:11434/v1
+  fallback_model: null      # e.g. qwen2.5-coder:14b
+  timeout_s: 60
+
+static:
+  max_file_size_mb: 256
+
+dynamic:
+  enabled: false        # dynamic analysis arrives in M3 (Frida 16.x, Job Object + AppContainer)
+  symbol_cache: ~/.octov/symbols
+  symbol_server: https://msdl.microsoft.com/download/symbols
+
+rules:
+  paths:                # relative to this file
+    - rules/evasion_patterns.yaml
+    - rules/pic_patterns.yaml

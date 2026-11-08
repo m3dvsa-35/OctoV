@@ -1,0 +1,1 @@
+"""OctoV core.static package."""
