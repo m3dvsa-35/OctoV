@@ -24,10 +24,12 @@ ever receives extracted evidence, never the binary.
 | Dynamic (M3) | Frida 16.x pinned + frida-compile TS agent; Job Object + AppContainer (no admin) |
 | Symbols | Microsoft Symbol Server + local PDB cache (`~/.octov/symbols`) |
 | AI (M5) | OpenRouter `nvidia/nemotron-3-ultra-550b-a55b:free`; fallback any OpenAI-compatible endpoint (Ollama/LM Studio) |
-| Decompiler (M4) | MVP first (structured asm + CFG + type hints), pseudo-C later |
+| Decompiler | Ghidra headless via `pyghidra` as an optional extension (approach C, 2026-11-08); own decompiler = long-term option only |
 | Telemetry | none |
 | Test samples | synthetic & benign only (`tests/samples/builder.py`, `tests/samples/corpus.py`) |
 | License | MIT |
+
+| Product direction | Assisted (not fully automatic) malware analysis for beginners **and** pros: auto triage on open, every result explained (EN/AZ) and evidence-backed, analyst can correct. Design: `docs/superpowers/specs/2026-11-08-assisted-analysis-design.md` |
 
 ## Secrets
 
