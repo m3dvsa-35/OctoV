@@ -74,3 +74,52 @@ def test_rule_catalogs_are_well_formed(name: str) -> None:
 def test_evasion_catalog_covers_twenty_techniques() -> None:
     doc = yaml.safe_load((RULES / "evasion_patterns.yaml").read_text(encoding="utf-8"))
     assert len(doc["rules"]) >= 20
+
+
+def _evasive(tmp_path: Path) -> Path:
+    from tests.samples.builder import DATA, TEXT, SectionSpec
+
+    blob = b"\x00" * 16 + bytes.fromhex("4C8BD1B8180000000F05") + b"\x00" * 16
+    path = tmp_path / "ev.exe"
+    path.write_bytes(
+        build_pe(
+            PESpec(
+                sections=[SectionSpec(".text", b"\xc3", TEXT), SectionSpec(".data", blob, DATA)],
+                imports={"kernel32.dll": ["ExitProcess"]},
+            )
+        )
+    )
+    return path
+
+
+def test_analyze_reports_rule_findings(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["analyze", str(_evasive(tmp_path))]) == 0
+    out = capsys.readouterr().out
+    assert "EVA-001" in out and "Direct system call stub" in out
+
+
+def test_analyze_json_contains_findings(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["analyze", str(_evasive(tmp_path)), "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    [finding] = [f for f in out["findings"] if f["rule_id"] == "EVA-001"]
+    assert finding["matches"][0]["rva"] is not None
+
+
+def test_analyze_writes_yara_and_sigma(tmp_path: Path) -> None:
+    import yara
+
+    sample = _evasive(tmp_path)
+    yar, sig = tmp_path / "out.yar", tmp_path / "out.yml"
+    assert main(["analyze", str(sample), "--yara", str(yar), "--sigma", str(sig)]) == 0
+    assert yara.compile(filepath=str(yar)).match(str(sample))
+    assert "Hashes|contains" in sig.read_text(encoding="utf-8")
+
+
+def test_session_stores_findings(tmp_path: Path) -> None:
+    session_path = tmp_path / "case.octov"
+    assert main(["analyze", str(_evasive(tmp_path)), "--session", str(session_path)]) == 0
+    with Session.open(session_path) as s:
+        [row] = s.list_samples()
+        stored = s.get_sample(row.sha256)
+        assert stored is not None
+        assert any(f["rule_id"] == "EVA-001" for f in stored["findings"])
