@@ -28,6 +28,9 @@ from tests.samples.builder import DATA, TEXT, PESpec, SectionSpec, build_pe
         ("aGVsbG8gd29ybGQgdGhpcyBpcyBiYXNlNjQ=", "base64"),
         ("Hello", None),
         ("GetProcAddress", None),
+        ("Windows.System.Launcher", None),
+        ("Windows.Storage.StorageFile", None),
+        ("System.Net.WebClient", None),
     ],
 )
 def test_classify(value: str, expected: str | None) -> None:

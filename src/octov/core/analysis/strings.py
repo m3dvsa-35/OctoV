@@ -140,7 +140,9 @@ def classify(value: str) -> str | None:
         return "command"
     if _WALLET.match(v):
         return "wallet"
-    if _DOMAIN.match(v) and v.rsplit(".", 1)[-1].lower() not in _FILE_EXT:
+    tld = v.rsplit(".", 1)[-1]
+    # PascalCase last label = .NET/WinRT namespace (Windows.Storage.StorageFile), not a host.
+    if _DOMAIN.match(v) and tld.lower() not in _FILE_EXT and tld.islower():
         return "domain"
     if (
         _BASE64.match(v)

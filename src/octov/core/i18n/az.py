@@ -213,4 +213,32 @@ STRINGS: dict[str, str] = {
         "Kompilyasiya vaxtı sıfırdır və ya gələcəkdədir; bu, onun saxtalaşdırıldığını "
         "(timestomping) və ya build aləti tərəfindən təkrarlanma üçün silindiyini göstərir."
     ),
+    "ui.triage": "Triage",
+    "triage.risk": "Risk xalı",
+    "triage.band.low": "aşağı",
+    "triage.band.medium": "orta",
+    "triage.band.high": "yüksək",
+    "triage.why": "Bu xal niyə belədir",
+    "triage.nothing": "Xala təsir edən şübhəli heç nə yoxdur.",
+    "triage.reviewed": "{total} tapıntıdan {n}-i yoxlanılıb",
+    "triage.running": "hələ analiz olunur: {jobs}",
+    "triage.verdict.confirm": "Təsdiqləndi",
+    "triage.verdict.fp": "Yalançı pozitiv",
+    "triage.verdict.benign": "Burada zərərsizdir",
+    "triage.packed": "Paketlənib və ya şifrələnib ({packer})",
+    "triage.capabilities": "İmkanlar və tapıntılar",
+    "triage.iocs": "IOC-lər",
+    "triage.copy_csv": "CSV kopyala",
+    "triage.no_iocs": "Stringlərdə kompromis göstəricisi tapılmadı.",
+    "triage.top_functions": "Ən şübhəli funksiyalar",
+    "triage.payloads": "Gizli payload-lar",
+    "triage.open_payload": "Nümunə kimi aç",
+    "triage.export_payload": "Eksport (şifrəli ZIP)",
+    "triage.payload_safety": (
+        "Payload-lar heç vaxt diskə icra edilə bilən fayl kimi yazılmır; eksport 'infected'"
+        " parollu AES ZIP-dir."
+    ),
+    "triage.orphaned": (
+        "{n} saxlanmış verdikt artıq görünməyən tapıntılara aiddir (qaydalar dəyişib)."
+    ),
 }

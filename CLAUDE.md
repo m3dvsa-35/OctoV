@@ -159,7 +159,7 @@ Plan: `docs/superpowers/plans/2026-11-08-assisted-triage-phase1.md` (14 tasks).
 | 10 | Analyzers + API integration + triage report | done | `core/analysis/analyzers.py`, `report.py`, `app/api.py` |
 | 11 | CLI `octov triage` | done (`cli/triage.py`) | `cli/main.py` |
 | 12 | Explanations EN/AZ for fact kinds | done | `core/i18n/{en,az}.py` |
-| 13 | Web UI: Triage, Strings, xrefs, annotations, compact | **NEXT** | `web/src/...` |
+| 13 | Web UI: Triage, Strings, xrefs, annotations, compact | **PARTIAL — NEXT** | `web/src/...` |
 | 14 | Baseline/perf tests + docs | todo | tests, CLAUDE.md, README |
 
 Key interfaces already built (use these exact names in Tasks 8-14):
@@ -194,7 +194,17 @@ Key interfaces already built (use these exact names in Tasks 8-14):
   description, mitre_names, rva, offset, verdict; display `source_id`, not `id`);
   `list_functions` items have `suggested`. Frontend not yet updated for these (Task 13).
 
-### Notes for Task 13 (web UI) — read before starting
+### Task 13 status
+DONE: types/client use the fact shape (`FindingRow`, `CapabilityRow`, `Triage`), Findings/Overview
+show `source_id`, new **Triage** tab (default; `TriageView.tsx`) with score + reasons, verdict
+buttons, packer, capabilities with EN/AZ explanations, IOCs + CSV copy, top functions, payload
+open/encrypted export; store polls `job_status` and refreshes triage (`refreshAnalysis`, `setVerdict`).
+LEFT: Strings tab (`api.get_strings` paging, category chips, xref count), xref popover
+(`xrefs_to`), rename/comment/bookmark actions in disasm/graph/function list (`annotate`,
+`list_annotations`), Compact toggle (+ `compact` in get/set_settings), desktop visual check of
+the Triage tab in both languages/modes. Then Task 14 and the final review.
+
+### Notes for Task 13 (web UI)
 - Backend is complete; the frontend still speaks the *old* findings shape. Breaking change:
   `get_findings` rows now have `id` = fact id (`rule:EVA-001:0x2000`), `source_id` (show this in
   the ID column), `kind` (`rule|indicator|crypto_constant|embedded_payload|packer|ioc`), `title`,

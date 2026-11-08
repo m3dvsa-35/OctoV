@@ -50,17 +50,48 @@ export interface Evidence {
   rva?: number | null;
 }
 
+export type FactKind = "rule" | "indicator" | "crypto_constant" | "embedded_payload" | "packer" | "ioc";
+export type Verdict = "false_positive" | "benign" | "confirmed";
+
+/** A fact (one automatic result) as served by get_findings / triage capabilities. */
 export interface FindingRow {
-  id: string;
-  kind: "indicator" | "rule";
+  id: string; // stable fact id, e.g. "rule:EVA-001:0x2000"
+  source_id: string; // rule / indicator id shown to the analyst
+  kind: FactKind;
+  title: string;
   name: string;
+  description: string;
   severity: Severity;
   mitre: string[];
   mitre_names: Record<string, string>;
-  description: string;
   rva: number | null;
   offset: number | null;
   evidence: Evidence[];
+  explain_key: string | null;
+  confidence: number;
+  verdict: Verdict | null;
+}
+
+/** Triage capability rows are raw fact dicts (no derived location/name fields). */
+export type CapabilityRow = Omit<FindingRow, "rva" | "offset" | "mitre_names" | "name" | "description">;
+
+export interface Contribution {
+  fact_id: string;
+  points: number;
+  title: string;
+  severity: Severity;
+}
+
+export interface Triage {
+  score: { score: number; band: "low" | "medium" | "high"; contributions: Contribution[] };
+  packer: { packed: boolean; confidence: number; packer: string | null; reasons: string[] } | null;
+  capabilities: CapabilityRow[];
+  iocs: { type: string; value: string; offsets: number[]; benign_hint: string | null }[];
+  payloads: { offset: number; size: number; kind: string; where: string; sha256: string }[];
+  top_functions: { start: number; name: string; score: number; reasons: string[] }[];
+  attack: MitreRow[];
+  orphaned_verdicts: { fact_id: string; verdict: Verdict }[];
+  jobs: Record<string, { state: string; error: string | null }>;
 }
 
 export interface MitreRow {

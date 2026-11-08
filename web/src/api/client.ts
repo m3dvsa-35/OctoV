@@ -11,6 +11,8 @@ import type {
   Overview,
   SampleSummary,
   Settings,
+  Triage,
+  Verdict,
 } from "./types";
 
 /**
@@ -97,6 +99,15 @@ export const api = {
   closeSample: (sha: string) => call<null>("close_sample", { sha }),
   overview: (sha: string) => call<Overview>("get_overview", { sha }),
   findings: (sha: string) => call<FindingRow[]>("get_findings", { sha }),
+  triage: (sha: string) => call<Triage>("get_triage", { sha }),
+  jobStatus: (sha: string) => call<Triage["jobs"]>("job_status", { sha }),
+  setVerdict: (sha: string, factId: string, verdict: Verdict | null) =>
+    call<null>("set_verdict", { sha, fact_id: factId, verdict }),
+  exportIocs: (sha: string, fmt: "csv" | "json") => call<string>("export_iocs", { sha, fmt }),
+  openPayload: (sha: string, payloadSha: string) =>
+    call<SampleSummary>("open_payload", { sha, payload_sha: payloadSha }),
+  exportPayload: (sha: string, payloadSha: string, path: string) =>
+    call<null>("export_payload", { sha, payload_sha: payloadSha, path }),
   mitre: (sha: string) => call<MitreRow[]>("get_mitre", { sha }),
   discoveryStatus: (sha: string) => call<DiscoveryStatus>("discovery_status", { sha }),
   functions: (sha: string) => call<FunctionSummary[]>("list_functions", { sha }),

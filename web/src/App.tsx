@@ -9,6 +9,7 @@ import { HexView } from "./components/HexView";
 import { MitreView } from "./components/MitreView";
 import { OverviewView } from "./components/OverviewView";
 import { Sidebar } from "./components/Sidebar";
+import { TriageView } from "./components/TriageView";
 import { TopBar } from "./components/TopBar";
 import { Button, Empty, Tabs } from "./components/ui";
 import { hex } from "./lib/format";
@@ -16,6 +17,8 @@ import { browseAndOpen, type BottomView, type MainView, setState, useStore, useT
 
 function ViewSwitch({ view }: { view: MainView }) {
   switch (view) {
+    case "triage":
+      return <TriageView />;
     case "overview":
       return <OverviewView />;
     case "disasm":
@@ -30,6 +33,7 @@ function ViewSwitch({ view }: { view: MainView }) {
 function useViewTabs() {
   const t = useT();
   return [
+    { id: "triage" as const, label: t("ui.triage"), icon: ShieldAlert },
     { id: "overview" as const, label: t("ui.overview"), icon: LayoutDashboard },
     { id: "disasm" as const, label: t("ui.disassembly"), icon: Code2 },
     { id: "graph" as const, label: t("ui.graph"), icon: Network },
@@ -74,7 +78,7 @@ function Workspace() {
             <Tabs<MainView>
               value={side}
               onChange={(v) => setState({ side: v })}
-              items={tabs.filter((x) => x.id !== "overview")}
+              items={tabs.filter((x) => x.id !== "overview" && x.id !== "triage")}
             />
             <div className="min-h-0 flex-1">
               <ViewSwitch view={side} />

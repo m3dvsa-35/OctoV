@@ -206,4 +206,32 @@ STRINGS: dict[str, str] = {
         "The compile timestamp is zero or in the future, which suggests it was forged "
         "(timestomping) or stripped by a build tool for reproducibility."
     ),
+    "ui.triage": "Triage",
+    "triage.risk": "Risk score",
+    "triage.band.low": "low",
+    "triage.band.medium": "medium",
+    "triage.band.high": "high",
+    "triage.why": "Why this score",
+    "triage.nothing": "Nothing suspicious contributes to the score.",
+    "triage.reviewed": "{n} of {total} findings reviewed",
+    "triage.running": "still analysing: {jobs}",
+    "triage.verdict.confirm": "Confirmed",
+    "triage.verdict.fp": "False positive",
+    "triage.verdict.benign": "Benign here",
+    "triage.packed": "Packed or encrypted ({packer})",
+    "triage.capabilities": "Capabilities and findings",
+    "triage.iocs": "IOCs",
+    "triage.copy_csv": "Copy CSV",
+    "triage.no_iocs": "No indicators of compromise found in strings.",
+    "triage.top_functions": "Most suspicious functions",
+    "triage.payloads": "Embedded payloads",
+    "triage.open_payload": "Open as sample",
+    "triage.export_payload": "Export (encrypted ZIP)",
+    "triage.payload_safety": (
+        "Payloads are never written to disk as executables; export is an AES ZIP with "
+        "password 'infected'."
+    ),
+    "triage.orphaned": (
+        "{n} saved verdicts refer to findings that no longer appear (rules changed)."
+    ),
 }

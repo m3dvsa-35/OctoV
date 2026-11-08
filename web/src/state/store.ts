@@ -9,9 +9,11 @@ import type {
   Overview,
   SampleSummary,
   Settings,
+  Triage,
+  Verdict,
 } from "../api/types";
 
-export type MainView = "overview" | "disasm" | "graph" | "hex";
+export type MainView = "triage" | "overview" | "disasm" | "graph" | "hex";
 export type BottomView = "findings" | "mitre";
 
 export interface Nav {
@@ -34,6 +36,7 @@ export interface State {
   samples: SampleSummary[];
   active: string | null;
   overview: Overview | null;
+  triage: Triage | null;
   findings: FindingRow[];
   mitre: MitreRow[];
   functions: FunctionSummary[];
@@ -60,6 +63,7 @@ let state: State = {
   samples: [],
   active: null,
   overview: null,
+  triage: null,
   findings: [],
   mitre: [],
   functions: [],
@@ -67,7 +71,7 @@ let state: State = {
   nav: null,
   history: [],
   future: [],
-  main: "overview",
+  main: "triage",
   side: "graph",
   bottom: "findings",
   busy: false,
@@ -202,6 +206,7 @@ export async function selectSample(sha: string): Promise<void> {
   setState({
     active: sha,
     overview: null,
+    triage: null,
     findings: [],
     mitre: [],
     functions: [],
@@ -209,16 +214,19 @@ export async function selectSample(sha: string): Promise<void> {
     nav: null,
     history: [],
     future: [],
+    main: "triage",
   });
   try {
-    const [overview, findings, mitre] = await Promise.all([
+    const [overview, findings, mitre, triage] = await Promise.all([
       api.overview(sha),
       api.findings(sha),
       api.mitre(sha),
+      api.triage(sha),
     ]);
     if (state.active !== sha) return;
-    setState({ overview, findings, mitre });
+    setState({ overview, findings, mitre, triage });
     void pollDiscovery(sha);
+    void pollJobs(sha);
   } catch (err) {
     reportError(err);
   }
@@ -238,8 +246,47 @@ async function pollDiscovery(sha: string): Promise<void> {
       if (state.active !== sha) return;
       setState({ functions });
       const entry = functions.find((f) => f.is_entry) ?? functions[0];
-      if (entry && !state.nav) await navigate(entry.start, { record: false });
+      // Background navigation must not pull the analyst away from the tab they are on.
+      if (entry && !state.nav) await navigate(entry.start, { record: false, view: state.main });
     }
+  } catch (err) {
+    reportError(err);
+  }
+}
+
+/** Re-read the triage report until every background analyzer has finished. */
+async function pollJobs(sha: string): Promise<void> {
+  try {
+    const jobs = await api.jobStatus(sha);
+    if (state.active !== sha) return;
+    const busy = Object.values(jobs).some((j) => j.state === "queued" || j.state === "running");
+    if (busy) {
+      window.setTimeout(() => void pollJobs(sha), 400);
+      setState((s) => (s.triage ? { triage: { ...s.triage, jobs } } : {}));
+      return;
+    }
+    await refreshAnalysis(sha);
+  } catch (err) {
+    reportError(err);
+  }
+}
+
+export async function refreshAnalysis(sha: string): Promise<void> {
+  const [triage, findings, mitre, samples] = await Promise.all([
+    api.triage(sha),
+    api.findings(sha),
+    api.mitre(sha),
+    api.listSamples(),
+  ]);
+  if (state.active === sha) setState({ triage, findings, mitre, samples });
+}
+
+export async function setVerdict(factId: string, verdict: Verdict | null): Promise<void> {
+  const sha = state.active;
+  if (!sha) return;
+  try {
+    await api.setVerdict(sha, factId, verdict);
+    await refreshAnalysis(sha);
   } catch (err) {
     reportError(err);
   }
@@ -268,7 +315,7 @@ export async function navigate(
       nav,
       history: opts.record === false || !s.nav ? s.history : [...s.history.slice(-99), s.nav],
       future: opts.record === false ? s.future : [],
-      main: opts.view ?? (s.main === "overview" ? "disasm" : s.main),
+      main: opts.view ?? (s.main === "overview" || s.main === "triage" ? "disasm" : s.main),
     }));
   } catch (err) {
     reportError(err);
