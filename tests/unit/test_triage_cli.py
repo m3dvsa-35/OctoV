@@ -13,6 +13,7 @@ KEYS = {
     "packer",
     "capabilities",
     "iocs",
+    "iocs_total",
     "payloads",
     "top_functions",
     "attack",
@@ -65,3 +66,14 @@ def test_triage_non_pe_suggests_raw(tmp_path: Path, capsys: pytest.CaptureFixtur
     assert main(["triage", str(blob)]) == 2
     assert "raw" in capsys.readouterr().err
     assert main(["triage", str(blob), "--raw", "--json"]) == 0
+
+
+def test_triage_json_lists_every_ioc(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """The UI payload is capped; the CLI report is not."""
+    urls = b"".join(b"http://host%04d.example/p\x00" % i for i in range(150))
+    path = tmp_path / "many.exe"
+    path.write_bytes(build_pe(PESpec(sections=[SectionSpec(".data", urls, DATA)])))
+    assert main(["triage", str(path), "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["iocs_total"] == 300
+    assert len(out["iocs"]) == 300

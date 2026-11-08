@@ -8,12 +8,13 @@ tags, so hunts can be pivoted by technique.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
 import yaml
 
-from octov.core.static.pe_parser import PEReport
+from octov.core.static.pe_parser import Indicator, PEReport
 from octov.core.static.rules import Finding
 
 _NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "https://github.com/m3dvsa-35/OctoV")
@@ -21,17 +22,22 @@ _LEVELS = {"info": "informational", "low": "low", "medium": "medium", "high": "h
 _ORDER = ["info", "low", "medium", "high"]
 
 
-def _level(report: PEReport, findings: list[Finding]) -> str:
-    severities = [f.severity for f in findings] + [i.severity for i in report.indicators]
+def _level(findings: list[Finding], indicators: Sequence[Indicator]) -> str:
+    severities = [f.severity for f in findings] + [i.severity for i in indicators]
     worst = max(severities, key=_ORDER.index, default="low")
     return _LEVELS[max(worst, "low", key=_ORDER.index)]
 
 
-def generate_sigma(report: PEReport, findings: list[Finding]) -> str:
+def generate_sigma(
+    report: PEReport, findings: list[Finding], indicators: Sequence[Indicator] | None = None
+) -> str:
+    """``indicators`` defaults to all of ``report.indicators`` (pass the kept ones to filter)."""
+    if indicators is None:
+        indicators = report.indicators
     name = report.path.replace("\\", "/").rsplit("/", 1)[-1] if report.path else None
     label = name or report.hashes.sha256[:12]
     techniques = sorted(
-        {t for f in findings for t in f.mitre} | {t for i in report.indicators for t in i.mitre}
+        {t for f in findings for t in f.mitre} | {t for i in indicators for t in i.mitre}
     )
     hashes = [f"SHA256={report.hashes.sha256.upper()}", f"MD5={report.hashes.md5.upper()}"]
     if report.hashes.imphash:
@@ -58,7 +64,7 @@ def generate_sigma(report: PEReport, findings: list[Finding]) -> str:
             "condition": "selection",
         },
         "falsepositives": ["Unrelated software sharing the same import table (IMPHASH match)"],
-        "level": _level(report, findings),
+        "level": _level(findings, indicators),
     }
     if not doc["tags"]:
         del doc["tags"]

@@ -110,6 +110,7 @@ def run(args: argparse.Namespace) -> int:
                 break
             time.sleep(0.05)
         report = api.get_triage(sha)
+        report["iocs"] = api.get_iocs(sha)  # the UI payload is capped, the CLI lists all
         if args.iocs is not None:
             args.iocs.write_text(api.export_iocs(sha, "csv"), encoding="utf-8")
     name = args.file.name

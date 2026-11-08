@@ -23,10 +23,10 @@ from typing import Any
 
 from octov.core.analysis.analyzers import default_analyzers
 from octov.core.analysis.carve import payload_zip
-from octov.core.analysis.facts import Fact, facts_from_findings
-from octov.core.analysis.iocs import iocs_csv, iocs_json
+from octov.core.analysis.facts import Fact, facts_from_findings, facts_from_indicators
+from octov.core.analysis.iocs import ioc_fact_id, iocs_csv, iocs_json
 from octov.core.analysis.pipeline import AnalysisContext, Pipeline
-from octov.core.analysis.report import build_triage
+from octov.core.analysis.report import build_triage, ioc_rows
 from octov.core.analysis.scoring import IGNORED_VERDICTS
 from octov.core.config import THEMES, Config
 from octov.core.export.sigma_gen import generate_sigma
@@ -231,6 +231,7 @@ class WorkbenchApi:
             self._samples[sha] = sample
             if self._session is not None:
                 self._persist(self._session, sample)
+                self._merge_workspace(self._session, sample)
             else:
                 ws = self._workspace_dir / f"{sha}.octov"
                 if ws.is_file():
@@ -244,6 +245,38 @@ class WorkbenchApi:
     def _persist(self, session: Session, sample: _Sample) -> None:
         try:
             session.add_sample(sample.analysis)
+            session.commit()
+        except SessionError as exc:
+            raise ApiError(str(exc)) from exc
+
+    def _merge_workspace(self, session: Session, sample: _Sample) -> None:
+        """Copy the sample's workspace annotations into ``session`` (spec 9.3).
+
+        The session wins: a name/verdict it already has for the same address/fact is kept;
+        identical comments/bookmarks are not duplicated.
+        """
+        path = self._workspace_dir / f"{sample.sha}.octov"
+        store = sample.store
+        if store is None:
+            if not path.is_file():
+                return
+            try:
+                store = sample.store = Session.open(path)
+            except SessionError:
+                return
+        have = session.annotations(sample.sha)
+        names = {a.address for a in have if a.kind == "name"}
+        verdicts = {a.target for a in have if a.kind == "verdict"}
+        same = {(a.kind, a.address, a.target, a.value) for a in have}
+        try:
+            for a in store.annotations(sample.sha):
+                if (
+                    (a.kind == "name" and a.address in names)
+                    or (a.kind == "verdict" and a.target in verdicts)
+                    or (a.kind, a.address, a.target, a.value) in same
+                ):
+                    continue
+                session.add_annotation(sample.sha, a.kind, a.value, a.address, a.target)
             session.commit()
         except SessionError as exc:
             raise ApiError(str(exc)) from exc
@@ -474,10 +507,19 @@ class WorkbenchApi:
         }
 
     def get_iocs(self, sha: str) -> list[dict[str, Any]]:
-        return list(self.get_triage(sha)["iocs"])
+        """Every IOC (the triage report only carries the first ``MAX_TRIAGE_IOCS``)."""
+        s = self._get(sha)
+        return ioc_rows(s.ctx, self._verdicts(s))
 
     def export_iocs(self, sha: str, fmt: str = "csv") -> str:
-        iocs = self._get(sha).ctx.results.get("iocs", [])
+        """IOC list minus those the analyst marked false positive / benign."""
+        s = self._get(sha)
+        verdicts = self._verdicts(s)
+        iocs = [
+            i
+            for i in s.ctx.results.get("iocs", [])
+            if verdicts.get(ioc_fact_id(i)) not in IGNORED_VERDICTS
+        ]
         if fmt == "json":
             return iocs_json(iocs)
         if fmt == "csv":
@@ -630,7 +672,13 @@ class WorkbenchApi:
         s = self._get(sha)
         if s.report is None:
             return None
-        return generate_sigma(s.report, self._kept_findings(s))
+        verdicts = self._verdicts(s)
+        indicators = [
+            ind
+            for ind, fact in zip(s.report.indicators, facts_from_indicators(s.report), strict=True)
+            if verdicts.get(fact.id) not in IGNORED_VERDICTS
+        ]
+        return generate_sigma(s.report, self._kept_findings(s), indicators)
 
     # -- sessions --------------------------------------------------------------------
 
@@ -643,6 +691,7 @@ class WorkbenchApi:
         with self._lock:
             for s in self._samples.values():
                 self._persist(session, s)
+                self._merge_workspace(session, s)
         return {"path": str(session.path)}
 
     def open_session(self, path: str) -> list[dict[str, Any]]:

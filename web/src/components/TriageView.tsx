@@ -205,7 +205,11 @@ export function TriageView() {
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <Card
-            title={`${t("triage.iocs")} (${tri.iocs.length})`}
+            title={
+              tri.iocs_total > tri.iocs.length
+                ? `${t("triage.iocs")} (${t("triage.iocs_shown", { n: tri.iocs.length, total: tri.iocs_total })})`
+                : `${t("triage.iocs")} (${tri.iocs_total})`
+            }
             right={
               tri.iocs.length > 0 && (
                 <button
@@ -228,10 +232,19 @@ export function TriageView() {
               <table className="w-full table-fixed text-left text-[12px]">
                 <tbody className="selectable">
                   {tri.iocs.map((i) => (
-                    <tr key={`${i.type}:${i.value}`} className={clsx("border-t border-line first:border-t-0", i.benign_hint && "opacity-50")}>
+                    <tr
+                      key={`${i.type}:${i.value}`}
+                      className={clsx(
+                        "border-t border-line first:border-t-0",
+                        (i.benign_hint || i.verdict === "false_positive" || i.verdict === "benign") && "opacity-50",
+                      )}
+                    >
                       <td className="w-24 py-1 text-muted">{i.type}</td>
                       <td className="truncate font-mono" title={i.value}>{i.value}</td>
-                      <td className="w-40 truncate text-faint">{i.benign_hint}</td>
+                      <td className="w-32 truncate text-faint">{i.benign_hint}</td>
+                      <td className="w-[92px] text-right">
+                        {i.fact_id && <VerdictButtons factId={i.fact_id} verdict={i.verdict} />}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

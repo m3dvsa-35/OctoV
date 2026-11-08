@@ -5,12 +5,36 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from octov.core.analysis.iocs import ioc_fact_id
 from octov.core.analysis.pipeline import AnalysisContext
 from octov.core.analysis.scoring import IGNORED_VERDICTS, risk_score
 from octov.core.mitre import technique_name, technique_tactic
 
 CAPABILITY_KINDS = ("rule", "indicator", "crypto_constant", "embedded_payload", "packer")
 _ORDER = {"high": 0, "medium": 1, "low": 2, "info": 3}
+
+
+MAX_TRIAGE_IOCS = 200
+
+
+def ioc_rows(ctx: AnalysisContext, verdicts: Mapping[str, str]) -> list[dict[str, Any]]:
+    """Every IOC with the id of its fact (``None`` when no fact is emitted) and verdict."""
+    fact_ids = {f.id for f in ctx.facts if f.kind == "ioc"}
+    rows = []
+    for i in ctx.results.get("iocs", []):
+        fid = ioc_fact_id(i)
+        fid_or_none = fid if fid in fact_ids else None
+        rows.append(
+            {
+                "type": i.type,
+                "value": i.value,
+                "offsets": list(i.offsets),
+                "benign_hint": i.benign_hint,
+                "fact_id": fid_or_none,
+                "verdict": verdicts.get(fid) if fid_or_none else None,
+            }
+        )
+    return rows
 
 
 def build_triage(
@@ -77,15 +101,8 @@ def build_triage(
             else None
         ),
         "capabilities": capabilities,
-        "iocs": [
-            {
-                "type": i.type,
-                "value": i.value,
-                "offsets": list(i.offsets),
-                "benign_hint": i.benign_hint,
-            }
-            for i in ctx.results.get("iocs", [])
-        ],
+        "iocs": ioc_rows(ctx, verdicts)[:MAX_TRIAGE_IOCS],
+        "iocs_total": len(ctx.results.get("iocs", [])),
         "payloads": [
             {
                 "offset": p.offset,

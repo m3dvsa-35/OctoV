@@ -294,4 +294,5 @@ STRINGS: dict[str, str] = {
     "strings.cat.user_agent": "User-Agent",
     "strings.cat.wallet": "Pul kisəsi",
     "strings.cat.base64": "Base64",
+    "triage.iocs_shown": "{total}-dən ilk {n}; CSV kopyası hamısını ixrac edir",
 }

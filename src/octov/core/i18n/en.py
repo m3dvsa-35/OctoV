@@ -287,4 +287,5 @@ STRINGS: dict[str, str] = {
     "strings.cat.user_agent": "User-Agent",
     "strings.cat.wallet": "Wallet",
     "strings.cat.base64": "Base64",
+    "triage.iocs_shown": "first {n} of {total}; Copy CSV exports all",
 }

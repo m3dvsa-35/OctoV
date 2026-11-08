@@ -67,6 +67,19 @@ def _hint(kind: str, value: str) -> str | None:
     return None
 
 
+def _url_host(url: str) -> str | None:
+    """Host of ``url``; ``None`` when it does not parse (e.g. an unclosed ``[`` IPv6 bracket)."""
+    try:
+        return urlsplit(url).hostname
+    except ValueError:
+        return None
+
+
+def ioc_fact_id(ioc: Ioc) -> str:
+    """Id of the ``ioc`` fact the analyzer emits for ``ioc`` (keyed by its first offset)."""
+    return f"ioc:{ioc.type}:{hex(min(ioc.offsets))}"
+
+
 def build_iocs(strings: Sequence[FoundString]) -> list[Ioc]:
     found: dict[tuple[str, str], list[int]] = {}
 
@@ -80,7 +93,7 @@ def build_iocs(strings: Sequence[FoundString]) -> list[Ioc]:
             continue
         add(s.category, s.value, s.offset)
         if s.category in ("url", "email"):
-            host = urlsplit(s.value).hostname if s.category == "url" else s.value.split("@", 1)[1]
+            host = _url_host(s.value) if s.category == "url" else s.value.split("@", 1)[1]
             if host:
                 kind = "ipv4" if host.replace(".", "").isdigit() else "domain"
                 add(kind, host, s.offset)

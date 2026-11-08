@@ -91,3 +91,4 @@ def test_system32_full_pipeline_baseline(tmp_path: Path) -> None:
     assert scanned >= 40
     assert offenders == [], "\n".join(offenders)
     assert bands["low"] / scanned >= 0.95, f"{bands}; not low: {raised}"
+    assert bands["high"] == 0, f"{bands}; not low: {raised}"

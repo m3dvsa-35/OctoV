@@ -86,7 +86,15 @@ export interface Triage {
   score: { score: number; band: "low" | "medium" | "high"; contributions: Contribution[] };
   packer: { packed: boolean; confidence: number; packer: string | null; reasons: string[] } | null;
   capabilities: CapabilityRow[];
-  iocs: { type: string; value: string; offsets: number[]; benign_hint: string | null }[];
+  iocs: {
+    type: string;
+    value: string;
+    offsets: number[];
+    benign_hint: string | null;
+    fact_id: string | null;
+    verdict: Verdict | null;
+  }[];
+  iocs_total: number;
   payloads: { offset: number; size: number; kind: string; where: string; sha256: string }[];
   top_functions: { start: number; name: string; score: number; reasons: string[] }[];
   attack: MitreRow[];
