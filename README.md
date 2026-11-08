@@ -55,7 +55,7 @@ environment:
 | `virtual_size_inflated` | low | T1027.002 |
 | `entry_point_not_executable` / `entry_point_outside_sections` | high | T1027 |
 | `no_imports`, `dynamic_api_resolution` | medium | T1027.007, T1106 |
-| `process_injection_apis` | high | T1055 |
+| `process_injection_apis` | medium (capability) | T1055 |
 | `anti_debug_apis` | low | T1622 |
 | `overlay_present` | low | — |
 | `suspicious_timestamp` | low | T1070.006 |
