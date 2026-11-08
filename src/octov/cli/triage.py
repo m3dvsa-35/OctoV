@@ -52,7 +52,8 @@ def _text(name: str, r: dict[str, Any]) -> str:
         lines.append("  Most suspicious functions:")
         for f in r["top_functions"][:10]:
             lines.append(
-                f"    {f['start']:#010x} {f['name']:<28} {f['score']:>3}  {'; '.join(f['reasons'][:3])}"
+                f"    {f['start']:#010x} {f['name']:<28} {f['score']:>3}  "
+                + "; ".join(f["reasons"][:3])
             )
     return "\n".join(lines)
 
@@ -62,7 +63,8 @@ def _markdown(name: str, r: dict[str, Any]) -> str:
     out = [f"# Triage: {name}", "", f"**Risk:** {s['score']}/100 ({s['band']})", ""]
     if r["packer"] and r["packer"]["packed"]:
         out += [
-            f"**Packed:** {r['packer']['packer'] or 'unknown'} - {'; '.join(r['packer']['reasons'])}",
+            f"**Packed:** {r['packer']['packer'] or 'unknown'} - "
+            + "; ".join(r["packer"]["reasons"]),
             "",
         ]
     out += ["## Capabilities", "", "| Severity | ID | Finding | ATT&CK |", "|---|---|---|---|"]
