@@ -59,8 +59,10 @@ def packer_fact(report: PEReport, verdict: PackerVerdict) -> Fact | None:
         source_id=verdict.packer or "generic",
         severity="medium",
         title=f"Packed with {verdict.packer}" if verdict.packer else "Likely packed or encrypted",
-        evidence=(Evidence("entry point", rva=report.entry_point),)
-        + tuple(Evidence(r) for r in verdict.reasons),
+        evidence=(
+            Evidence("entry point", rva=report.entry_point),
+            *(Evidence(r) for r in verdict.reasons),
+        ),
         mitre=("T1027.002",),
         confidence=verdict.confidence,
         explain_key="fact.packer",

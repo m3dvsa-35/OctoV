@@ -122,47 +122,86 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 - Installed plugins the user wants used: superpowers (TDD, verification, code review),
   caveman (commit messages, review), ui-ux-pro-max (visual panels), karpathy guidelines.
 
-## Status / where we stopped
+## Status / where we stopped  (updated 2026-11-08, end of chat 1)
 
-**M1 — done** (commit 965d7c2 on `main`, CI green).
+### How to resume in a new chat (read this first)
+1. `git switch feat/assisted-triage && git pull` — all work is pushed.
+2. Work is executed **inline ("Native")** with the superpowers *executing-plans* skill
+   (owner chose it). Invoke `superpowers:executing-plans` with
+   `docs/superpowers/plans/2026-11-08-assisted-triage-phase1.md`, then continue at the
+   first task without a `complete` line in the ledger.
+3. Ledger (git-ignored, local only): `.superpowers/sdd/2026-11-08-assisted-triage-phase1/progress.md`
+   — contains pre-flight table, every `Ruling:` and `Task N: complete` lines. If it is missing
+   (fresh clone), trust `git log` (one `feat(analysis): ...` commit per task) and recreate it.
+4. Helper scripts (absolute paths on this machine):
+   `C:/Users/Fexreddin/.claude/plugins/cache/superpowers-dev/superpowers/7.0.2/skills/executing-plans/scripts/task-start <PLAN_ABS> <N>`
+   and `.../task-done <PLAN_ABS> <N> <BASE_SHA> -- <test command>` (run with `bash`).
+5. Per task: write the failing test, run it (must fail), implement, run, ruff format+check,
+   commit (`feat(analysis): ...` + Co-Authored-By trailer), `task-done`. Then next task.
+6. After Task 14: final whole-branch review (`superpowers:requesting-code-review` style,
+   fresh subagent on the most capable model), ONE fix pass, then push + PR + update this file.
 
-**M2 — implemented on branch `feat/m2-static-engine`, PR open against `main`** (Issue #2):
-- [x] Rule engine `core/static/rules.py` (bytes/string/import/export/section, any/all/N,
-      `unless`; exporters of an API never count as its consumer).
-- [x] Catalog tuned on System32: 0 high hits across 4370 binaries (full sweep:
-      `OCTOV_FULL_BASELINE=1 pytest tests/unit/test_baseline_fp.py`, ~2 min).
-- [x] Every catalog rule detects its synthetic sample (30/30) and respects its threshold.
-- [x] Disassembler (`disasm.py`, Capstone `disasm_lite`, IAT annotation) + CFG (`cfg.py`,
-      recursive descent, block splitting, seeds: EP/exports/.pdata).
-      Timing: notepad 0.36 s, kernel32 1.5 s, shell32 13 s (20k-function cap).
-- [x] Exporters `core/export/yara_gen.py` (compiles + matches sample, misses benign) and
-      `sigma_gen.py` (pySigma-valid). CLI: `--yara`, `--sigma`, `--rules`, `--config`.
-- [x] Pipeline `core/static/analysis.py` (`analyze`, `rule_set` cached; config `rules.paths`
-      honoured by GUI and CLI).
-- [x] GUI: Disassembly (+function list), native CFG graph (QGraphicsView — chosen over
-      Cytoscape.js to stay offline/no bundled JS), Hex, MITRE heat table; background
-      discovery (QThreadPool); synced navigation; LRU of 8 loaded samples.
-- [x] Code review (9 findings) fixed with regression tests (`tests/unit/test_review_fixes.py`).
-- [x] Raw (non-PE) input mode: `analyze_raw()`, `RawView` (32/64-bit), `discover_from()`,
-      YARA without MZ anchor; CLI `--raw [--bits 32|64]` (Sigma refused for raw).
-      GUI raw mode not done (the GUI is being replaced, see below).
-- [ ] After PR merge: close #2, open M3 issue (dynamic analysis).
+### Assisted triage — Phase 1 progress (branch `feat/assisted-triage`)
+Spec: `docs/superpowers/specs/2026-11-08-assisted-analysis-design.md` (owner-approved).
+Plan: `docs/superpowers/plans/2026-11-08-assisted-triage-phase1.md` (14 tasks).
 
-**GUI rewrite — branch `feat/web-ui` (stacked on `feat/m2-static-engine`), PR open:**
-- [x] WorkbenchApi + dev server (tests: `test_app_api.py`), desktop shell (`octov-gui`).
-- [x] React UI: samples/functions sidebar, Overview, Disassembly, CFG graph (React Flow + ELK
-      worker, orthogonal edges), Hex (virtual, chunked), Findings, MITRE tiles, Ctrl+K palette,
-      export dialog (YARA/Sigma), sessions, back/forward history, EN/AZ + Night/Normal.
-- [x] Qt GUI and PySide6 removed.
-- Next ideas: drag-and-drop open in desktop shell, AI panel (M5), dynamic views (M3).
+| # | Task | State | Module(s) |
+|---|------|-------|-----------|
+| 1 | Fact model + analyzer pipeline | done | `core/analysis/facts.py`, `pipeline.py` |
+| 2 | Strings extraction + classification | done | `core/analysis/strings.py` |
+| 3 | IOC list (CSV/JSON) | done | `core/analysis/iocs.py` |
+| 4 | Instruction.data_ref + XrefIndex | done | `core/static/disasm.py`, `core/analysis/xrefs.py` |
+| 5 | Crypto constants | done | `core/analysis/crypto.py` |
+| 6 | Embedded payload carving + AES ZIP | done | `core/analysis/carve.py` (dep `pyzipper`) |
+| 7 | Packer verdict + suggested names | done | `core/analysis/packer.py`, `naming.py` |
+| 8 | Function ranking + risk score | **NEXT** | `core/analysis/scoring.py` |
+| 9 | Session schema v2 (annotations, payloads, migration) | todo | `core/session/session.py` |
+| 10 | Analyzers + API integration + triage report | todo | `core/analysis/analyzers.py`, `report.py`, `app/api.py` |
+| 11 | CLI `octov triage` | todo | `cli/main.py` |
+| 12 | Explanations EN/AZ for fact kinds | todo | `core/i18n/{en,az}.py` |
+| 13 | Web UI: Triage, Strings, xrefs, annotations, compact | todo | `web/src/...` |
+| 14 | Baseline/perf tests + docs | todo | tests, CLAUDE.md, README |
 
-**Assisted triage (Phase 1) — branch `feat/assisted-triage` (from `feat/web-ui`). WHERE WE STOPPED:**
-- Owner approved the design: `docs/superpowers/specs/2026-11-08-assisted-analysis-design.md`.
-- Implementation plan written: `docs/superpowers/plans/2026-11-08-assisted-triage-phase1.md`
-  (14 tasks, TDD). Owner chose **Native** execution. **Tasks 1-3 done** (ledger:
-  .superpowers/sdd/2026-11-08-assisted-triage-phase1/progress.md). Resume at **Task 4** (xrefs).
-- Open PRs: #3 (M2, CI green, Auto-fix on) and #4 (web UI, stacked on #3, Auto-fix on).
-  Merge order: #3 → retarget #4 to main → merge → rebase `feat/assisted-triage` on main.
+Key interfaces already built (use these exact names in Tasks 8-14):
+- `facts.Evidence(detail, offset=None, rva=None, type=None, value=None)`;
+  `facts.Fact(kind, source_id, severity, title, evidence, mitre=(), tags=(), confidence=1.0,
+  explain_key=None)` with `.id` = `kind:source_id:<lowest rva|offset hex|value>`, `.to_dict()`;
+  `facts_from_indicators(report)`, `facts_from_findings(findings)`.
+- `pipeline.AnalysisContext(data, report, bits, findings, functions={}, index=None,
+  results={}, facts=[])` + `.add(facts)`; `Analyzer` protocol (`id, cost "fast"|"slow",
+  depends_on, pe_only, run(ctx)`); `Pipeline(analyzers).run_fast(ctx)`,
+  `.start_slow(ctx, on_done)`, `.status()` → `{id: {"state","error"}}`.
+- `strings.FoundString(value, encoding, offset, rva, section, category)`,
+  `extract_strings(data, report, min_len=4)`, `classify(value)`, `MAX_STRINGS`.
+- `iocs.Ioc(type, value, offsets, benign_hint)`, `build_iocs(strings)`, `iocs_csv`, `iocs_json`.
+- `xrefs.Xref(src, dst, kind, func)`, `XrefIndex.build(functions, import_addresses)`,
+  `.to(dst)`, `.from_function(start)`, `.imports_called(start)` → `["dll!func"]`.
+- `crypto.find_crypto(data, report)` → facts kind `crypto_constant`.
+- `carve.Payload(offset, size, kind, where, sha256)`, `carve_payloads(data, report)`,
+  `payload_facts(payloads)`, `payload_zip(data, name)` (AES, password `infected`).
+- `packer.PackerVerdict`, `packer_verdict(report)`, `packer_fact(report, verdict)`.
+- `naming.API_FAMILIES`, `suggest_name(start, imports_called)`.
 
-Known limitation: tail jumps (`jmp` to another function) are followed as intra-function
-edges, so CRT entry functions absorb their tail-called body.
+Rulings made so far (also in the ledger): indicator evidence uses real locations (IAT slot
+RVAs for API indicators, section VA/raw offset, entry RVA); header-level facts and
+import-only rule matches anchor at offset 0/rva 0; extra crypto signatures (AES inverse
+S-box, SHA-1 init, TEA delta); image resources (PNG/JPEG/GIF/BMP/RIFF/ICO) are never
+reported as high-entropy payloads; helpers `payload_facts` and `packer_fact` added.
+
+### Other open work
+- PR #3 (M2, base `main`) — CI green, Auto-fix ON.
+- PR #4 (web UI, base `feat/m2-static-engine`) — Auto-fix ON. Merge order: #3 → retarget
+  #4 to `main` → merge → rebase `feat/assisted-triage` onto `main`, then open its PR.
+- After Phase 1: Phase 2 (capa, FLOSS), Phase 3 (Ghidra decompiler), Phase 4 (symbol tree,
+  call graph, memory map, search), Phase 5 (FLIRT-like, PDB, binary diff); M3 dynamic; M5 AI.
+
+Known limitation: tail jumps are followed as intra-function edges (CRT entry functions absorb
+their tail-called body).
+
+### Extra environment notes learned in chat 1
+- Bash heredocs that contain `\0`/`\x00` escapes can write literal NUL bytes into files
+  (Python then refuses to import them). For non-trivial edits write a small Python script with
+  the Write tool to a temp file and run it with `.venv/Scripts/python <script>`.
+- Desktop window screenshot: `PrintWindow(hwnd, hdc, 2)` via PowerShell Add-Type; the window
+  handle is `(Get-Process python | ? MainWindowTitle -eq "OctoV").MainWindowHandle`.
+- Rebuild the web UI after any `web/` change before testing the desktop app.
