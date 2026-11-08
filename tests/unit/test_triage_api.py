@@ -202,3 +202,25 @@ def test_orphan_after_rule_removed_from_config(tmp_path: Path) -> None:
     plain = _api(tmp_path)
     plain.open_sample(str(path))
     assert fact["id"] in {o["fact_id"] for o in plain.get_triage(sha)["orphaned_verdicts"]}
+
+
+def test_workspace_store_is_usable_from_other_threads(tmp_path: Path) -> None:
+    """The dev server and pywebview call the API from worker threads."""
+    import threading
+
+    api = WorkbenchApi(Config(), settings_path=tmp_path / "ui.json", workspace_dir=tmp_path / "ws")
+    sha = api.open_sample(str(_suspicious(tmp_path)))["sha256"]
+    api.annotate(sha, "comment", "main thread", address=0x1000)
+    out: list[object] = []
+
+    def worker() -> None:
+        try:
+            api.annotate(sha, "bookmark", "", address=0x1004)
+            out.append(sorted(a["kind"] for a in api.list_annotations(sha)))
+        except Exception as exc:
+            out.append(exc)
+
+    t = threading.Thread(target=worker)
+    t.start()
+    t.join()
+    assert out == [["bookmark", "comment"]]

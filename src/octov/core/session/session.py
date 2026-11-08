@@ -157,7 +157,7 @@ class Session:
         path = Path(path)
         if path.exists():
             raise SessionError(f"session already exists: {path}")
-        con = sqlite3.connect(path)
+        con = sqlite3.connect(path, check_same_thread=False)  # threadsafety 3: serialized
         try:
             con.executescript(_SCHEMA + _V2_TABLES)
             con.execute(f"PRAGMA application_id = {APPLICATION_ID}")
@@ -178,7 +178,7 @@ class Session:
         path = Path(path)
         if not path.is_file():
             raise SessionError(f"session not found: {path}")
-        con = sqlite3.connect(path)
+        con = sqlite3.connect(path, check_same_thread=False)  # threadsafety 3: serialized
         try:
             app_id = con.execute("PRAGMA application_id").fetchone()[0]
             version = con.execute("PRAGMA user_version").fetchone()[0]

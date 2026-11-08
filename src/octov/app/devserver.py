@@ -98,6 +98,12 @@ def make_server(
                 self._json(HTTPStatus.OK, {"error": str(exc)})
             except TypeError as exc:
                 self._json(HTTPStatus.BAD_REQUEST, {"error": f"bad parameters: {exc}"})
+            except Exception as exc:
+                self.log_error("rpc %s failed: %r", request.get("method"), exc)
+                self._json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"error": f"internal error: {type(exc).__name__}: {exc}"},
+                )
 
     server = ThreadingHTTPServer((host, port), Handler)
     server.daemon_threads = True
