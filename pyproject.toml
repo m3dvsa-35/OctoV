@@ -24,6 +24,7 @@ dependencies = [
     "msgpack>=1.0",
     "pyyaml>=6.0",
     "PySide6>=6.6",
+    "pywebview>=6.2.1",
 ]
 
 [project.optional-dependencies]
@@ -46,6 +47,7 @@ dev = [
     "mkdocs-material>=9.5",
     "yara-python>=4.5.4",
     "pysigma>=2.0.2",
+    "nodejs-wheel-binaries>=24.19.0",
 ]
 
 [build-system]
