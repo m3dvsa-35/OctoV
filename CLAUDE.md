@@ -85,17 +85,20 @@ src/octov/
   core/static/analysis.py   analyze() = parse + rules; rule_set(paths) cached
   core/static/disasm.py     ImageView (RVA reads) + Disassembler (Capstone lite, IAT comments)
   core/static/cfg.py        build_function / discover_functions (basic blocks, edges)
+  core/analysis/            triage pipeline: facts, pipeline, strings, iocs, xrefs, crypto,
+                            carve, packer, naming, scoring, analyzers, report
   core/export/              yara_gen.py, sigma_gen.py
   core/mitre.py             offline technique name/tactic table (test enforces coverage)
-  core/session/session.py   .octov = SQLite + msgpack (samples, artifacts, notes, meta)
+  core/session/session.py   .octov = SQLite + msgpack (samples, artifacts, annotations, payloads, meta; schema v2)
   app/api.py                WorkbenchApi: the ONLY UI<->core contract (JSON in/out)
   app/devserver.py          loopback RPC + static server (token, allowlist, no CORS)
   app/desktop.py            pywebview window; DesktopApi adds native file dialogs
   webui/dist/               built frontend (git-ignored)
 web/src/                    React UI: api/client.ts (bridge or /rpc), state/store.ts,
-                            components/* (Overview, Findings, Mitre, Disasm, Graph, Hex,
-                            CommandPalette, Dialogs), lib/format.ts, lib/cfgLayout.ts
-  cli/main.py               `octov analyze`
+                            components/* (Triage, Overview, Findings, Mitre, Disasm, Graph,
+                            Hex, Strings, XrefPopover, AnnotateMenu, CommandPalette, Dialogs),
+                            lib/format.ts, lib/cfgLayout.ts, lib/triage.ts
+  cli/main.py, cli/triage.py `octov analyze`, `octov triage`
 rules/                      evasion_patterns.yaml (EVA-xxx), pic_patterns.yaml (PIC-xxx)
 tests/samples/builder.py    synthetic PE32+ builder (sections, imports, overlay, dll flag)
 tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
