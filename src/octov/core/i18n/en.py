@@ -102,4 +102,108 @@ STRINGS: dict[str, str] = {
     "ui.display_mode": "Display mode",
     "ui.theme_night": "Night",
     "ui.theme_normal": "Normal",
+    "fact.rule.explain": (
+        "A detection rule matched concrete artifacts of an attacker technique (byte "
+        "patterns, strings or imports). Matches are evidence, not proof: legitimate "
+        "security tools and system components can contain the same artifacts."
+    ),
+    "fact.rule.next": (
+        "Jump to the evidence address, read the surrounding function and check whether the "
+        "code actually uses it."
+    ),
+    "fact.indicator.explain": (
+        "A structural property of the file that is common in malware, such as packing, "
+        "unusual sections or suspicious imports. On its own it is a weak signal."
+    ),
+    "fact.indicator.next": (
+        "Combine it with other findings; several independent indicators together are far "
+        "more meaningful than one."
+    ),
+    "fact.crypto_constant.explain": (
+        "The file contains a constant table of a known cryptographic or checksum algorithm."
+        " Ransomware and loaders use these to encrypt files or decrypt configuration; many "
+        "legitimate programs use them too."
+    ),
+    "fact.crypto_constant.next": (
+        "Open the cross-references of the table to find the function that uses it and what "
+        "data it processes."
+    ),
+    "fact.embedded_payload.explain": (
+        "Another executable or an opaque high-entropy blob is hidden inside this file. "
+        "Droppers and loaders carry their real payload this way; installers do it "
+        "legitimately."
+    ),
+    "fact.embedded_payload.next": (
+        "Open the payload as a new sample to analyse it; export it only as the encrypted ZIP."
+    ),
+    "fact.packer.explain": (
+        "Several signs show the file is packed or encrypted, so the code you see is mostly "
+        "an unpacking stub and the real program appears only in memory at run time."
+    ),
+    "fact.packer.next": (
+        "Expect few meaningful functions or strings. Note the packer, and plan dynamic "
+        "analysis (M3) or unpacking to see the real code."
+    ),
+    "fact.ioc.explain": (
+        "An indicator of compromise (address, domain, URL, mutex, wallet or command) found "
+        "as a string in the file. Such values let defenders hunt for the same activity "
+        "elsewhere."
+    ),
+    "fact.ioc.next": (
+        "Check the value against threat intelligence and your logs, and look at which "
+        "function references it."
+    ),
+    "ind.high_entropy_section.explain": (
+        "This section looks random (entropy above 7.2), which usually means compressed or "
+        "encrypted data. Packers and encrypted payloads cause this; images and compressed "
+        "resources do too."
+    ),
+    "ind.rwx_section.explain": (
+        "This section is writable and executable at the same time, so code can modify "
+        "itself. Unpacking stubs and shellcode loaders need this; normal compilers rarely "
+        "produce it."
+    ),
+    "ind.packer_section_name.explain": (
+        "The section name is the default of a known packer or protector. It strongly "
+        "suggests the file was packed, which hides the real code from static analysis."
+    ),
+    "ind.virtual_size_inflated.explain": (
+        "The section reserves much more memory than it stores on disk, typical of a buffer "
+        "that an unpacker fills at run time with the real program."
+    ),
+    "ind.entry_point_not_executable.explain": (
+        "Execution starts in a section that is not marked executable, which normal programs"
+        " never do. It points to manual tampering or a packer that fixes permissions at run"
+        " time."
+    ),
+    "ind.entry_point_outside_sections.explain": (
+        "The entry point lies outside every section, a sign of a hand-crafted or corrupted "
+        "header used to confuse analysis tools."
+    ),
+    "ind.no_imports.explain": (
+        "The executable imports no functions at all, so it must find Windows APIs itself at"
+        " run time. This is common for packed files and shellcode-style loaders."
+    ),
+    "ind.dynamic_api_resolution.explain": (
+        "Only a handful of imports, including a library loader and GetProcAddress-style "
+        "resolver. The program resolves the APIs it really uses at run time, hiding them "
+        "from the import table."
+    ),
+    "ind.process_injection_apis.explain": (
+        "The file imports APIs that write into another process and start code there, the "
+        "building blocks of process injection. Debuggers and some security tools use them "
+        "legitimately."
+    ),
+    "ind.anti_debug_apis.explain": (
+        "The file imports APIs that detect a debugger. Malware uses them to change "
+        "behaviour under analysis; ordinary programs also call them for crash handling."
+    ),
+    "ind.overlay_present.explain": (
+        "Data is appended after the last section. Installers and signed files often have "
+        "overlays, but droppers also hide payloads or configuration there."
+    ),
+    "ind.suspicious_timestamp.explain": (
+        "The compile timestamp is zero or in the future, which suggests it was forged "
+        "(timestomping) or stripped by a build tool for reproducibility."
+    ),
 }

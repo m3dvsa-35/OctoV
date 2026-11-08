@@ -108,4 +108,109 @@ STRINGS: dict[str, str] = {
     "ui.display_mode": "Görünüş rejimi",
     "ui.theme_night": "Gecə",
     "ui.theme_normal": "Normal",
+    "fact.rule.explain": (
+        "Aşkarlama qaydası hücum texnikasının konkret izlərinə (bayt nümunələri, stringlər "
+        "və ya importlar) uyğun gəldi. Bu, sübut deyil, dəlildir: qanuni təhlükəsizlik "
+        "alətləri və sistem komponentləri də eyni izləri daşıya bilər."
+    ),
+    "fact.rule.next": (
+        "Sübutun ünvanına keçin, ətrafdakı funksiyanı oxuyun və kodun bunu həqiqətən "
+        "istifadə edib-etmədiyini yoxlayın."
+    ),
+    "fact.indicator.explain": (
+        "Faylın zərərli proqramlarda tez-tez rast gəlinən struktur xüsusiyyəti: paketləmə, "
+        "qeyri-adi bölmələr və ya şübhəli importlar. Tək başına zəif siqnaldır."
+    ),
+    "fact.indicator.next": (
+        "Digər tapıntılarla birlikdə qiymətləndirin; bir neçə müstəqil indikator bir "
+        "indikatordan qat-qat mənalıdır."
+    ),
+    "fact.crypto_constant.explain": (
+        "Faylda tanınmış kriptoqrafik və ya yoxlama cəmi alqoritminin sabit cədvəli var. "
+        "Ransomware və loader-lər bunu faylları şifrələmək və ya konfiqurasiyanı açmaq üçün"
+        " istifadə edir; bir çox qanuni proqram da istifadə edir."
+    ),
+    "fact.crypto_constant.next": (
+        "Cədvəlin xref-lərini açın: onu istifadə edən funksiyanı və hansı məlumatı emal "
+        "etdiyini tapın."
+    ),
+    "fact.embedded_payload.explain": (
+        "Bu faylın içində başqa icra edilə bilən fayl və ya yüksək entropiyalı qapalı blok "
+        "gizlənib. Dropper və loader-lər əsl payload-u belə daşıyır; quraşdırıcılar bunu "
+        "qanuni edir."
+    ),
+    "fact.embedded_payload.next": (
+        "Payload-u yeni nümunə kimi açıb analiz edin; ixracı yalnız şifrəli ZIP ilə edin."
+    ),
+    "fact.packer.explain": (
+        "Bir neçə əlamət faylın paketləndiyini və ya şifrələndiyini göstərir: gördüyünüz "
+        "kod əsasən açma stub-ıdır, əsl proqram yalnız işləyərkən yaddaşda görünür."
+    ),
+    "fact.packer.next": (
+        "Az sayda mənalı funksiya və string gözləyin. Packer-i qeyd edin və əsl kodu görmək"
+        " üçün dinamik analiz (M3) və ya açmanı planlayın."
+    ),
+    "fact.ioc.explain": (
+        "Faylda string kimi tapılan kompromis göstəricisi (ünvan, domen, URL, mutex, cüzdan"
+        " və ya komanda). Müdafiəçilər bu dəyərlərlə eyni fəaliyyəti başqa yerlərdə axtara "
+        "bilər."
+    ),
+    "fact.ioc.next": (
+        "Dəyəri təhdid kəşfiyyatı və jurnallarınızla müqayisə edin, hansı funksiyanın ona "
+        "istinad etdiyinə baxın."
+    ),
+    "ind.high_entropy_section.explain": (
+        "Bu bölmə təsadüfi görünür (entropiya 7.2-dən yüksək), bu adətən sıxılmış və ya "
+        "şifrələnmiş məlumat deməkdir. Packer-lər və şifrəli payload-lar buna səbəb olur; "
+        "şəkillər və sıxılmış resurslar da."
+    ),
+    "ind.rwx_section.explain": (
+        "Bu bölmə eyni anda həm yazıla, həm də icra edilə biləndir, yəni kod özünü dəyişə "
+        "bilər. Açma stub-ları və shellcode loader-ləri buna ehtiyac duyur; adi "
+        "kompilyatorlar nadir hallarda belə edir."
+    ),
+    "ind.packer_section_name.explain": (
+        "Bölmə adı tanınmış packer və ya qoruyucunun standart adıdır. Bu, faylın "
+        "paketləndiyini və əsl kodun statik analizdən gizləndiyini güclü şəkildə göstərir."
+    ),
+    "ind.virtual_size_inflated.explain": (
+        "Bölmə diskdə saxladığından xeyli çox yaddaş ayırır; bu, açıcının işləyərkən əsl "
+        "proqramla doldurduğu bufer üçün tipikdir."
+    ),
+    "ind.entry_point_not_executable.explain": (
+        "İcra icra edilə bilən kimi işarələnməmiş bölmədə başlayır, adi proqramlar heç vaxt"
+        " belə etmir. Bu, əl ilə müdaxiləyə və ya icazələri işləyərkən düzəldən packer-ə "
+        "işarədir."
+    ),
+    "ind.entry_point_outside_sections.explain": (
+        "Giriş nöqtəsi heç bir bölmənin daxilində deyil; bu, analiz alətlərini çaşdırmaq "
+        "üçün əl ilə hazırlanmış və ya pozulmuş başlıq əlamətidir."
+    ),
+    "ind.no_imports.explain": (
+        "İcra faylı heç bir funksiya import etmir, yəni Windows API-lərini işləyərkən özü "
+        "tapmalıdır. Bu, paketlənmiş fayllar və shellcode tipli loader-lər üçün adidir."
+    ),
+    "ind.dynamic_api_resolution.explain": (
+        "Cəmi bir neçə import var, onların arasında kitabxana yükləyicisi və GetProcAddress"
+        " tipli həlledici. Proqram əsl istifadə etdiyi API-ləri işləyərkən tapır və onları "
+        "import cədvəlindən gizlədir."
+    ),
+    "ind.process_injection_apis.explain": (
+        "Fayl başqa prosesə yazan və orada kod başladan API-ləri import edir; bunlar proses"
+        " inyeksiyasının tikinti bloklarıdır. Debugger-lər və bəzi təhlükəsizlik alətləri "
+        "bunları qanuni istifadə edir."
+    ),
+    "ind.anti_debug_apis.explain": (
+        "Fayl debugger-i aşkar edən API-ləri import edir. Zərərli proqramlar bunlarla "
+        "analiz altında davranışını dəyişir; adi proqramlar da xəta emalı üçün çağırır."
+    ),
+    "ind.overlay_present.explain": (
+        "Son bölmədən sonra məlumat əlavə olunub. Quraşdırıcılar və imzalı fayllarda "
+        "overlay tez-tez olur, amma dropper-lər də payload və ya konfiqurasiyanı orada "
+        "gizlədir."
+    ),
+    "ind.suspicious_timestamp.explain": (
+        "Kompilyasiya vaxtı sıfırdır və ya gələcəkdədir; bu, onun saxtalaşdırıldığını "
+        "(timestomping) və ya build aləti tərəfindən təkrarlanma üçün silindiyini göstərir."
+    ),
 }
