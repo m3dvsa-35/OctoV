@@ -18,6 +18,8 @@ ENGINES = ("floss", "capa")  # lane order: strings first, they are cheaper
 _MODULE = {"capa": "capa", "floss": "floss"}
 _DISTRIBUTION = {"capa": "flare-capa", "floss": "flare-floss"}
 _VERSION_DIR = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
+_LOCAL_DIR = re.compile(r"^local-[0-9a-f]{12}$")  # installed with --allow-unpinned
+DEFAULT_RULES_ROOT = Path("~/.octov/capa-rules")
 
 
 @dataclass(frozen=True)
@@ -36,15 +38,21 @@ class ExtensionStatus:
 
 
 def capa_rules_dir(rules_root: Path) -> tuple[str, Path] | None:
-    """Newest ``<version>/`` under ``rules_root`` that contains at least one ``*.yml``."""
+    """Newest ``<version>/`` under ``rules_root`` that contains at least one ``*.yml``.
+
+    A ``local-<hash>`` set (an explicit ``--allow-unpinned`` install) wins over pinned ones.
+    """
     if not rules_root.is_dir():
         return None
     found: list[tuple[tuple[int, int, int], str, Path]] = []
     for child in rules_root.iterdir():
         match = _VERSION_DIR.match(child.name)
-        if match and child.is_dir() and next(child.rglob("*.yml"), None) is not None:
-            key = (int(match[1]), int(match[2]), int(match[3]))
-            found.append((key, child.name, child))
+        if not (match or _LOCAL_DIR.match(child.name)) or not child.is_dir():
+            continue
+        if next(child.rglob("*.yml"), None) is None:
+            continue
+        key = (int(match[1]), int(match[2]), int(match[3])) if match else (1 << 30, 0, 0)
+        found.append((key, child.name, child))
     if not found:
         return None
     _, name, path = max(found)

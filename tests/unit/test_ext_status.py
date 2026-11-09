@@ -50,3 +50,11 @@ def test_capa_rules_dir_picks_newest_with_yml(tmp_path: Path) -> None:
 
 def test_rules_dir_missing_root(tmp_path: Path) -> None:
     assert capa_rules_dir(tmp_path / "nope") is None
+
+
+def test_local_rules_dir_wins(tmp_path: Path) -> None:
+    for name in ("v10.0.0", "local-0123456789ab"):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "rule.yml").write_text("x", encoding="utf-8")
+    found = capa_rules_dir(tmp_path)
+    assert found is not None and found[0] == "local-0123456789ab"
