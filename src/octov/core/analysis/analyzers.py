@@ -67,12 +67,14 @@ class Iocs(_Base):
                 source_id=i.type,
                 severity="info",
                 title=f"{i.type}: {i.value}",
-                evidence=tuple(Evidence(i.value, offset=o, value=i.value) for o in i.offsets),
+                evidence=tuple(
+                    Evidence(i.value, offset=o, value=i.value) for o in i.offsets if o >= 0
+                ),
                 explain_key="fact.ioc",
             )
             for i in iocs
             # IOCs seen only in FLOSS-recovered strings (offset -1) are one hidden_ioc fact
-            if i.type in FACT_IOC_TYPES and i.benign_hint is None and min(i.offsets) >= 0
+            if i.type in FACT_IOC_TYPES and i.benign_hint is None and max(i.offsets) >= 0
         )
 
 

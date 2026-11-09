@@ -1,19 +1,13 @@
 from __future__ import annotations
 
-import sys
 import threading
 import time
 from pathlib import Path
 from typing import Any
 
-import pytest
-
-from octov.app import api as api_mod
 from octov.app.api import WorkbenchApi
 from octov.core.config import Config
 from octov.ext import ExtensionStatus
-from octov.ext import capa as capa_ext
-from octov.ext import floss as floss_ext
 from tests.samples.builder import stack_string_pe
 from tests.unit.test_triage_api import _suspicious
 
@@ -36,38 +30,6 @@ def _status(ready: set[str]) -> list[ExtensionStatus]:
         )
         for e in ("floss", "capa")
     ]
-
-
-@pytest.fixture
-def engines(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, Any]:
-    """Fake engines printing recorded output; counts how often each one started."""
-    started = {"capa": 0, "floss": 0}
-    state: dict[str, Any] = {"ready": {"capa", "floss"}, "started": started, "mode": {}}
-
-    def capa_cmd(path: Path, rules: Path, sigs: Path, *, raw: bool, bits: int) -> list[str]:
-        started["capa"] += 1
-        return [
-            sys.executable,
-            FAKE,
-            *state["mode"].get(
-                "capa", ["file", str(FIXTURES / "capa" / "synthetic_injector.json")]
-            ),
-        ]
-
-    def floss_cmd(path: Path, *, raw: bool, bits: int) -> list[str]:
-        started["floss"] += 1
-        return [
-            sys.executable,
-            FAKE,
-            *state["mode"].get("floss", ["file", str(FIXTURES / "floss" / "synthetic_stack.json")]),
-        ]
-
-    monkeypatch.setattr(capa_ext, "capa_command", capa_cmd)
-    monkeypatch.setattr(floss_ext, "floss_command", floss_cmd)
-    monkeypatch.setattr(api_mod, "extension_status", lambda root: _status(state["ready"]))
-    (tmp_path / "rules" / "v10.0.0").mkdir(parents=True)
-    (tmp_path / "rules" / "v10.0.0" / "r.yml").write_text("x", encoding="utf-8")
-    return state
 
 
 def _api(tmp_path: Path, config: Config | None = None, name: str = "a") -> WorkbenchApi:

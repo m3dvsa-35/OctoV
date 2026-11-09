@@ -96,9 +96,10 @@ class _Job:
 
         handle = wintypes.HANDLE(int(proc._handle))  # type: ignore[attr-defined]
         if not self._k32.AssignProcessToJobObject(wintypes.HANDLE(self.handle), handle):
-            proc.kill()
             raise OSError(self._ctypes.get_last_error(), "AssignProcessToJobObject failed")
-        self._ctypes.WinDLL("ntdll").NtResumeProcess(handle)
+        status = self._ctypes.WinDLL("ntdll").NtResumeProcess(handle)
+        if status != 0:
+            raise OSError(status, "NtResumeProcess failed")
 
     def peak_memory(self) -> int:
         if self.handle is None:
@@ -139,7 +140,10 @@ def _creation_flags() -> int:
 def run_engine(
     argv: list[str], *, timeout_s: float, max_memory_mb: int, cancel: threading.Event
 ) -> EngineRun:
-    job = _Job(max_memory_mb)
+    try:
+        job = _Job(max_memory_mb)
+    except OSError as exc:
+        raise EngineError("crash", f"cannot isolate engine: {exc}") from exc
     start = time.monotonic()
     try:
         proc = subprocess.Popen(
@@ -166,7 +170,12 @@ def run_engine(
             del err[:-_STDERR_TAIL]
 
     try:
-        job.adopt_and_resume(proc)
+        try:
+            job.adopt_and_resume(proc)
+        except OSError as exc:
+            proc.kill()
+            proc.communicate(timeout=10)  # reap it and close its pipes
+            raise EngineError("crash", f"cannot isolate engine: {exc}") from exc
         readers = [threading.Thread(target=f, daemon=True) for f in (read_out, read_err)]
         for r in readers:
             r.start()

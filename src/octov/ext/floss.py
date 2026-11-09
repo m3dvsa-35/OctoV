@@ -83,12 +83,19 @@ def merge_strings(
     return out
 
 
+def _hidden_evidence(ioc: Ioc, function: int | None) -> Evidence:
+    if function is None:  # producer unknown: anchor at the file start
+        return Evidence(f"{ioc.type}: {ioc.value}", offset=0, rva=0, value=ioc.value)
+    return Evidence(f"{ioc.type}: {ioc.value}", rva=function, value=ioc.value)
+
+
 def floss_facts(recovered: Sequence[FoundString], hidden_iocs: Sequence[Ioc]) -> list[Fact]:
     facts: list[Fact] = []
     if len(recovered) >= OBFUSCATED_MIN:
         functions = sorted({s.function for s in recovered if s.function is not None})
         evidence = tuple(Evidence(f"function {fn:#x}", rva=fn) for fn in functions) or (
-            Evidence("recovered strings", value=str(len(recovered))),
+            # no producing function known: anchor at the file start, like header facts
+            Evidence("recovered strings", offset=0, rva=0, value=str(len(recovered))),
         )
         facts.append(
             Fact(
@@ -112,10 +119,7 @@ def floss_facts(recovered: Sequence[FoundString], hidden_iocs: Sequence[Ioc]) ->
                 source_id="floss",
                 severity="medium",
                 title=f"{len(hidden)} indicators only visible after deobfuscation",
-                evidence=tuple(
-                    Evidence(f"{i.type}: {i.value}", rva=producer(i.value), value=i.value)
-                    for i in hidden
-                ),
+                evidence=tuple(_hidden_evidence(i, producer(i.value)) for i in hidden),
                 explain_key="fact.hidden_ioc",
             )
         )

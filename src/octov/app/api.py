@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import hashlib
 import json
 import threading
 import time
@@ -772,8 +773,8 @@ class WorkbenchApi:
             if doc is not None:
                 s.pipeline.set_state(st.id, "running")
                 threading.Thread(
-                    target=self._apply_engine,
-                    args=(s, st.id, doc, None, True),
+                    target=self._finish_engine,
+                    args=(s, st.id, doc, None, True, None),
                     daemon=True,
                     name=f"octov-{st.id}-cached",
                 ).start()
@@ -781,10 +782,18 @@ class WorkbenchApi:
             if not explicit and not self._settings["extensions_auto_run"][st.id]:
                 s.pipeline.set_state(st.id, "idle")
                 continue
+            before = s.pipeline.status().get(st.id)
             s.pipeline.set_state(st.id, "queued")
-            job = self._engine_job(s, st, path)
-            if not QUEUES[st.id].submit(s.sha, job):
-                continue  # already queued or running for this sample
+            accepted = QUEUES[st.id].submit(s.sha, self._engine_job(s, st, path), owner=s)
+            if not accepted and before is not None:
+                # already queued or running for this very sample: keep its real state
+                s.pipeline.set_state(
+                    st.id,
+                    before["state"],
+                    before["error"],
+                    elapsed_s=before["elapsed_s"],
+                    cached=before["cached"],
+                )
 
     def _unavailable_reason(self, s: _Sample, st: ExtensionStatus) -> str | None:
         if not st.ready:
@@ -808,6 +817,13 @@ class WorkbenchApi:
             sigs.mkdir(parents=True, exist_ok=True)
         return capa_ext.capa_command(s.path, rules[1], sigs, raw=raw, bits=s.ctx.bits)
 
+    def _file_unchanged(self, s: _Sample) -> bool:
+        """Engines read the file from disk: it must still be the bytes that were opened."""
+        try:
+            return hashlib.sha256(s.path.read_bytes()).hexdigest() == s.sha
+        except OSError:
+            return False
+
     def _engine_job(self, s: _Sample, st: ExtensionStatus, cache_path: Path) -> Any:
         limits = self._config.extensions[st.id]
 
@@ -817,6 +833,8 @@ class WorkbenchApi:
             s.pipeline.set_state(st.id, "running")
             start = time.monotonic()
             try:
+                if not self._file_unchanged(s):
+                    raise EngineError("crash", "file changed on disk")
                 run = run_engine(
                     self._engine_command(s, st),
                     timeout_s=limits.timeout_s,
@@ -824,30 +842,51 @@ class WorkbenchApi:
                     cancel=cancel,
                 )
                 doc = parse_json(run)
+                if not self._file_unchanged(s):
+                    raise EngineError("crash", "file changed on disk")
             except EngineError as exc:
                 s.pipeline.set_state(st.id, "failed", exc.reason, elapsed_s=_secs(start))
                 return
-            self._apply_engine(s, st.id, doc, cache_path, False, _secs(start))
+            except Exception as exc:  # every job must end in a terminal state
+                s.pipeline.set_state(st.id, "failed", f"internal error: {exc}")
+                return
+            if st.id == "capa" and not s.pipeline.wait_slow(0):
+                # capa attaches to discovered functions: wait for the slow lane, but not
+                # inside the engine queue, which would hold up every other sample's capa run
+                threading.Thread(
+                    target=self._finish_engine,
+                    args=(s, st.id, doc, cache_path, False, _secs(start)),
+                    daemon=True,
+                    name="octov-capa-apply",
+                ).start()
+                return
+            self._finish_engine(s, st.id, doc, cache_path, False, _secs(start))
 
         return job
 
-    def _apply_engine(
+    def _finish_engine(
         self,
         s: _Sample,
         engine: str,
         doc: dict[str, Any],
         cache_path: Path | None,
         cached: bool,
-        elapsed: float | None = None,
+        elapsed: float | None,
     ) -> None:
+        """Apply an engine result; always ends in ``done`` or ``failed`` (or drops it if closed)."""
         try:
             if engine == "capa":
-                s.pipeline.wait_slow(300)
+                while not s.pipeline.wait_slow(0.5):
+                    if self._samples.get(s.sha) is not s:
+                        return  # closed while waiting
             if self._samples.get(s.sha) is not s:
                 return  # closed meanwhile: drop the result
             (apply_capa if engine == "capa" else apply_floss)(s.ctx, s.pipeline, doc)
         except EngineError as exc:
             s.pipeline.set_state(engine, "failed", exc.reason, elapsed_s=elapsed)
+            return
+        except Exception as exc:  # an adapter bug must not leave the job "running"
+            s.pipeline.set_state(engine, "failed", f"internal error: {exc}", elapsed_s=elapsed)
             return
         if cache_path is not None:
             # a cache that cannot be written only costs a rerun next time
