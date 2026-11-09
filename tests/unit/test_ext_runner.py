@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from octov.ext.runner import EngineError, EngineRun, parse_json, run_engine
+from octov.ext.runner import EngineError, EngineRun, parse_json, run_engine, spawn_isolated
 
 FAKE = str(Path(__file__).resolve().parents[1] / "fixtures" / "fake_engine.py")
 
@@ -72,3 +72,36 @@ def test_empty_or_non_object_output_is_bad(stdout: bytes) -> None:
     with pytest.raises(EngineError) as err:
         parse_json(EngineRun(stdout=stdout, stderr_tail="", elapsed_s=0.1))
     assert err.value.kind == "bad_output"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Job Object memory limit is Windows-only")
+def test_spawn_isolated_memory_limit() -> None:
+    proc = spawn_isolated([sys.executable, FAKE, "alloc"], 100)
+    try:
+        assert proc.pid > 0
+        assert proc.wait(30) != 0
+        assert not proc.alive()
+        assert proc.peak_memory() >= 50 << 20
+    finally:
+        proc.close()
+
+
+def test_spawn_isolated_pipes_and_kill() -> None:
+    echo = "import sys\nfor line in sys.stdin:\n    print(line.strip().upper(), flush=True)"
+    proc = spawn_isolated([sys.executable, "-c", echo], 512, stdin=True)
+    try:
+        assert proc.stdin is not None and proc.stdout is not None
+        proc.stdin.write(b"hello\n")
+        proc.stdin.flush()
+        assert proc.stdout.readline().strip() == b"HELLO"
+        assert proc.alive()
+        proc.kill()
+        assert not proc.alive()
+    finally:
+        proc.close()
+
+
+def test_spawn_isolated_missing_program_is_crash() -> None:
+    with pytest.raises(EngineError) as err:
+        spawn_isolated(["octov-no-such-program-xyz"], 100)
+    assert err.value.kind == "crash"

@@ -5,7 +5,12 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-ErrorKind = Literal["crash", "timeout", "no_function", "decompile_failed", "project_error"]
+ErrorKind = Literal[
+    "crash", "timeout", "no_function", "decompile_failed", "project_error", "not_ready"
+]
+ERROR_KINDS: frozenset[str] = frozenset(
+    ("crash", "timeout", "no_function", "decompile_failed", "project_error", "not_ready")
+)
 
 
 class GhidraError(Exception):
