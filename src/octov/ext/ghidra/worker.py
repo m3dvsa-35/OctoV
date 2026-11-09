@@ -13,6 +13,7 @@ import contextlib
 import os
 import shutil
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -174,10 +175,15 @@ class Worker:
         self.program = self.project = None
 
 
+def jvm_args(max_heap_mb: int, log_dir: Path) -> list[str]:
+    """Heap limit; a JVM crash report goes to the temp folder, not the analyst's folder."""
+    return [f"-Xmx{max_heap_mb}m", f"-XX:ErrorFile={log_dir / 'octov-ghidra-hs_err_pid%p.log'}"]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="octov-ghidra-worker")
     parser.add_argument("--ghidra", type=Path, required=True)
-    parser.add_argument("--max-heap-mb", type=int, default=3584)
+    parser.add_argument("--max-heap-mb", type=int, default=3072)
     args = parser.parse_args(argv)
 
     # keep the real stdout for the protocol; everything else (JVM, Ghidra logs) -> stderr
@@ -188,7 +194,7 @@ def main(argv: list[str] | None = None) -> int:
     import pyghidra
 
     launcher = pyghidra.HeadlessPyGhidraLauncher(install_dir=args.ghidra)
-    launcher.add_vmargs(f"-Xmx{args.max_heap_mb}m")
+    launcher.add_vmargs(*jvm_args(args.max_heap_mb, Path(tempfile.gettempdir())))
     launcher.start()
 
     worker = Worker(out)

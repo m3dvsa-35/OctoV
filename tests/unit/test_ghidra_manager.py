@@ -270,7 +270,7 @@ def test_worker_command_sets_java_home_and_drops_ai_key(tmp_path: Path) -> None:
         "--ghidra",
         str(install),
         "--max-heap-mb",
-        "3584",
+        "3072",  # a quarter (at least 1 GB) stays free for the JVM's non-heap memory
     ]
     assert cmd.env == {"PATH": "x", "JAVA_HOME": str(jdk)}
     with pytest.raises(GhidraError) as err:
@@ -330,3 +330,18 @@ def test_default_project_root_has_no_dot_folder(tmp_path: Path) -> None:
     assert fallback == tmp_path / "home" / "OctoV" / "ghidra-projects"
     for root in (local, fallback, default_project_root()):
         assert not any(part.startswith(".") for part in root.parts)
+
+
+@pytest.mark.parametrize(("limit", "heap"), [(4096, 3072), (8192, 6144), (2048, 1024), (1024, 512)])
+def test_heap_leaves_room_under_the_job_limit(limit: int, heap: int) -> None:
+    from octov.ext.ghidra.manager import heap_mb
+
+    assert heap_mb(limit) == heap
+
+
+def test_worker_jvm_args_keep_crash_logs_out_of_the_working_folder(tmp_path: Path) -> None:
+    from octov.ext.ghidra.worker import jvm_args
+
+    args = jvm_args(3072, tmp_path)
+    assert "-Xmx3072m" in args
+    assert f"-XX:ErrorFile={tmp_path / 'octov-ghidra-hs_err_pid%p.log'}" in args

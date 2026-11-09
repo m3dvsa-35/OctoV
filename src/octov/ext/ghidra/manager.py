@@ -31,13 +31,22 @@ _GRACE_S = 5.0  # on top of a request's own timeout, before the worker is declar
 _START_GRACE_S = 120.0  # JVM start + import, on top of the analysis timeout
 _SHUTDOWN_S = 5.0
 _STDERR_TAIL = 4096
-_HEAP_RESERVE_MB = 512  # the job limit also covers Python and the JVM's non-heap memory
 
 
 @dataclass(frozen=True)
 class WorkerCommand:
     argv: list[str]
     env: dict[str, str] | None = None
+
+
+def heap_mb(max_memory_mb: int) -> int:
+    """JVM heap under the Job Object limit.
+
+    The limit also covers Python and the JVM's own memory (metaspace, code cache, GC tables):
+    with only 512 MB spare a 10 MB DLL pushed the JVM into the limit and it crashed. A quarter,
+    at least 1 GB, stays free.
+    """
+    return max(512, max_memory_mb - max(1024, max_memory_mb // 4))
 
 
 def worker_command(
@@ -53,7 +62,7 @@ def worker_command(
         raise GhidraError("not_ready", "ext.reason.no_jdk")
     child_env = {k: v for k, v in env.items() if k != "OCTOV_AI_KEY"}
     child_env["JAVA_HOME"] = str(jdk[0])
-    heap = max(512, cfg.max_memory_mb - _HEAP_RESERVE_MB)
+    heap = heap_mb(cfg.max_memory_mb)
     argv = [sys.executable, "-m", "octov.ext.ghidra.worker"]
     return WorkerCommand([*argv, "--ghidra", str(install), "--max-heap-mb", str(heap)], child_env)
 
