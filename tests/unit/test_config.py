@@ -77,3 +77,21 @@ def test_bad_extension_config_rejected(tmp_path: Path, body: str) -> None:
     path.write_text(body, encoding="utf-8")
     with pytest.raises(ConfigError):
         load_config(path, env={})
+
+
+def test_ghidra_config(tmp_path: Path) -> None:
+    path = tmp_path / "config.yaml"
+    path.write_text(
+        "extensions:\n  ghidra:\n    max_workers: 1\n    java_home: C:/jdk\n", encoding="utf-8"
+    )
+    cfg = load_config(path, env={})
+    assert cfg.ghidra.max_workers == 1 and cfg.ghidra.java_home == Path("C:/jdk")
+    assert cfg.ghidra.max_memory_mb == 4096 and cfg.ghidra.install_dir is None
+    assert set(cfg.extensions) == {"capa", "floss"}
+
+
+def test_ghidra_config_unknown_key(tmp_path: Path) -> None:
+    path = tmp_path / "config.yaml"
+    path.write_text("extensions:\n  ghidra:\n    colour: red\n", encoding="utf-8")
+    with pytest.raises(ConfigError):
+        load_config(path, env={})

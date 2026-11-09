@@ -78,6 +78,21 @@ EXTENSION_IDS = ("capa", "floss")
 
 
 @dataclass
+class GhidraConfig:
+    max_memory_mb: int = 4096
+    max_workers: int = 2
+    idle_minutes: int = 10
+    decompile_timeout_s: int = 30
+    analysis_timeout_s: int = 900
+    project_keep_days: int = 30
+    install_dir: Path | None = None
+    java_home: Path | None = None
+
+
+_GHIDRA_PATHS = ("install_dir", "java_home")
+
+
+@dataclass
 class Config:
     ai: AIConfig = field(default_factory=AIConfig)
     ui: UIConfig = field(default_factory=UIConfig)
@@ -87,6 +102,7 @@ class Config:
     extensions: dict[str, ExtensionConfig] = field(
         default_factory=lambda: {e: ExtensionConfig() for e in EXTENSION_IDS}
     )
+    ghidra: GhidraConfig = field(default_factory=GhidraConfig)
 
 
 def _section(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
@@ -94,6 +110,20 @@ def _section(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ConfigError(f"'{name}' must be a mapping")
     return value
+
+
+def _parse_ghidra(target: GhidraConfig, values: Any, base_dir: Path) -> None:
+    if not isinstance(values, dict):
+        raise ConfigError("'extensions.ghidra' must be a mapping")
+    for key, value in values.items():
+        if not hasattr(target, key):
+            raise ConfigError(f"unknown setting extensions.ghidra.{key}")
+        if key in _GHIDRA_PATHS:
+            setattr(target, key, base_dir / str(value) if value else None)
+        elif not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise ConfigError(f"extensions.ghidra.{key} must be a positive integer")
+        else:
+            setattr(target, key, value)
 
 
 def load_config(path: str | Path | None, env: Mapping[str, str] | None = None) -> Config:
@@ -145,6 +175,9 @@ def load_config(path: str | Path | None, env: Mapping[str, str] | None = None) -
         cfg.rules.paths = [base_dir / p for p in rules["paths"]]
 
     for ext_id, values in _section(raw, "extensions").items():
+        if ext_id == "ghidra":
+            _parse_ghidra(cfg.ghidra, values, base_dir)
+            continue
         if ext_id not in cfg.extensions:
             raise ConfigError(f"unknown extension {ext_id!r}; use one of {EXTENSION_IDS}")
         if not isinstance(values, dict):

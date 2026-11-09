@@ -33,6 +33,8 @@ dynamic = ["frida>=16.5,<17", "frida-tools>=12,<14"]
 # Optional analysis engines (assisted triage phase 2), run as child processes.
 capa = ["flare-capa>=10,<11"]
 floss = ["flare-floss>=3.2,<4"]
+# Optional Ghidra decompiler (phase 3): pyghidra runs only in the worker process.
+ghidra = ["pyghidra>=3.2,<4"]
 
 [project.scripts]
 octov = "octov.cli.main:main"
