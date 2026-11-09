@@ -125,19 +125,11 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 - Installed plugins the user wants used: superpowers (TDD, verification, code review),
   caveman (commit messages, review), ui-ux-pro-max (visual panels), karpathy guidelines.
 
-## Status / where we stopped  (updated 2026-11-08, end of chat 2)
+## Status / where we stopped  (updated 2026-11-09, end of chat 3)
 
 ### How to resume in a new chat (read this first)
-1. `git switch feat/assisted-triage` — **chat 2 stopped before push/PR (owner asked to stop):
-   the last commits are LOCAL ONLY.** Remaining steps, in order:
-   a. Re-run the full sweep with the final scoring: `.venv/Scripts/python
-      scripts/baseline_sweep.py %TEMP%/sweep.jsonl` (~15 min). Expect 0 high facts, high band
-      only for MRT.exe / services.exe / dbgeng.dll (`KNOWN_HIGH`), ≥ 95 % low. Put the numbers
-      into "Baselines" below (replace the "pending" note).
-   b. Full gates (ruff, mypy, pytest, tsc, vitest, build), `git grep -nE "sk-or-v1-[0-9a-f]{20,}"`
-      (must print nothing), `git ls-files --eol | grep w/crlf` (must print nothing).
-   c. Commit docs, `git push -u origin feat/assisted-triage`, open the PR (base `feat/web-ui`),
-      list the deferred minors from the ledger in the PR body.
+1. `git switch feat/assisted-triage && git pull` — everything is pushed. **PR #5**
+   (https://github.com/m3dvsa-35/OctoV/pull/5, base `feat/web-ui`) is open; check its CI first.
 2. Phase 1 is **implementation-complete** (Tasks 1-14 done, see ledger
    `.superpowers/sdd/2026-11-08-assisted-triage-phase1/progress.md`, git-ignored, local only).
    Final review (fresh opus reviewer): 0 Critical, 4 Important — all fixed in `980b86c` with
@@ -186,8 +178,8 @@ their tail-called body); the Strings tab has no chip for uncategorised strings (
 ### Other open work
 - PR #3 (M2, base `main`) — CI green, Auto-fix ON.
 - PR #4 (web UI, base `feat/m2-static-engine`) — Auto-fix ON.
-- Triage PR (base `feat/web-ui`). Merge order: #3 → retarget #4 to `main` → merge → retarget
-  the triage PR to `main` (rebase if needed) → merge.
+- PR #5 triage (base `feat/web-ui`). Merge order: #3 → retarget #4 to `main` → merge → retarget
+  #5 to `main` (rebase if needed) → merge.
 - After Phase 1: Phase 2 (capa, FLOSS), Phase 3 (Ghidra decompiler), Phase 4 (symbol tree,
   call graph, memory map, search), Phase 5 (FLIRT-like, PDB, binary diff); M3 dynamic; M5 AI.
 
