@@ -85,6 +85,8 @@ src/octov/
   core/static/analysis.py   analyze() = parse + rules; rule_set(paths) cached
   core/static/disasm.py     ImageView (RVA reads) + Disassembler (Capstone lite, IAT comments)
   core/static/cfg.py        build_function / discover_functions (basic blocks, edges)
+  ext/                      optional engines: runner (Job Object), queue, cache, capa_rules,
+                            capa, floss, apply (see Phase 2 notes)
   core/analysis/            triage pipeline: facts, pipeline, strings, iocs, xrefs, crypto,
                             carve, packer, naming, scoring, analyzers, report
   core/export/              yara_gen.py, sigma_gen.py
@@ -128,15 +130,38 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 ## Status / where we stopped  (updated 2026-11-09, chat 4)
 
 ### How to resume in a new chat (read this first)
-1. **M1, M2, web UI and assisted-triage Phase 1 are all merged into `main`** (PR #3 → `0329058`,
-   #4 → `dc20e65`, #5 → `4571254`, merge commits; `main` CI green). Start from `main`:
-   `git switch main && git pull`. This status update lives on local branch
-   `docs/phase1-landed` (not pushed) — carry it into the next phase's branch.
-2. Next: **Phase 2 (capa, FLOSS)** — start with `superpowers:brainstorming` against the spec's
-   Phase 2 section, then `superpowers:writing-plans`; new branch `feat/assisted-triage-phase2`.
-3. Phase 1 record: ledger `.superpowers/sdd/2026-11-08-assisted-triage-phase1/progress.md`
-   (git-ignored, local only; rulings + 13 deferred minors, also listed in PR #5's description).
-   The deferred minors are good first tasks for Phase 2 or a cleanup PR.
+1. `main` has M1, M2, web UI and assisted-triage Phase 1 (PRs #3/#4/#5 merged).
+2. **Phase 2 (capa + FLOSS) is implemented on `feat/assisted-triage-phase2`** and pushed;
+   its PR targets `main` (see "Other open work"). Owner was away and said "do what is needed,
+   don't wait for approval": the PR was opened but **not merged** — merging is the owner's call.
+   Design: `docs/superpowers/specs/2026-11-09-assisted-triage-phase2-design.md`; plan:
+   `docs/superpowers/plans/2026-11-09-assisted-triage-phase2.md` (13 tasks, all done);
+   ledger: `.superpowers/sdd/2026-11-09-assisted-triage-phase2/progress.md` (rulings + deferred
+   minors). Final review: 0 Critical, 4 Important (+1 re-graded) fixed in `36fcd24`.
+3. Engines on this machine: `octov ext status` → capa 10.0.0 (rules v10.0.0 + sigs) and
+   FLOSS 3.2.0 ready (`python -m uv sync --all-extras`, `octov ext setup capa`).
+4. Next: owner reviews/merges the Phase 2 PR, then Phase 3 (Ghidra decompiler) — start with
+   `superpowers:brainstorming` against the parent spec's Phase 3.
+
+### Assisted triage — Phase 2 (capa + FLOSS) facts worth knowing
+- `octov/ext/`: `__init__` (status probe, never imports engines), `runner` (child process in a
+  Job Object: memory limit, kill-on-close, below-normal priority, timeout, cancel), `queue`
+  (one capa + one FLOSS process app-wide; dedupe per opened-sample object), `cache`
+  (`~/.octov/cache/<sha>/<engine>-<ver>-<rules>.json.gz`), `capa_rules` (pinned rules zip +
+  3 FLIRT .sig files, sha256), `capa`, `floss`, `apply` (merge + rerun iocs / naming+ranking).
+- **Calibration result:** capa `MEDIUM_PREFIXES = ("communication/c2",)`. Every other
+  candidate namespace (keylog, anti-VM, stack strings, persistence, RWX/inject, impact)
+  matched benign System32 components (Magnify, Narrator, msctf, dxgi, services) and pushed
+  them to the high band (83-file run: 83 % low, 4 high). capa matches are otherwise `info`
+  (explained, used for ranking reasons). `hidden_ioc` (FLOSS) stays medium, one per sample.
+- **Engine speed:** vivisect is slow on big DLLs: 2–6 min for 2–7 MB files, some hit the
+  600 s timeout (they end `failed`, by design). Small files: seconds. The first view never
+  waits; results are cached.
+- Unit tests never use the machine's engines (`tests/conftest.py` stubs `extension_status`);
+  `tests/unit/conftest.py` has the `engines` fixture (fake engine printing recorded fixtures).
+  Real-engine integration tests are skipped unless capa/FLOSS are installed.
+- Session calls are serialized by an RLock (concurrent writes on one sqlite3 connection lost
+  rows); every job ends in `done|failed|unavailable|idle`.
 
 ### Assisted triage — Phase 1 (branch `feat/assisted-triage`)
 Spec: `docs/superpowers/specs/2026-11-08-assisted-analysis-design.md` (owner-approved).
@@ -177,9 +202,13 @@ Known limitations: tail jumps are followed as intra-function edges (CRT entry fu
 their tail-called body); the Strings tab has no chip for uncategorised strings ("All" only).
 
 ### Other open work
+- Phase 2 PR (`feat/assisted-triage-phase2` → `main`): open, not merged. Deferred minors are
+  listed in its description and the ledger.
+- Calibration sweep numbers with engines: see the PR description / ledger (200-file slice,
+  `scripts/baseline_sweep.py --ext --stride 22 --cache-dir ~/.octov/calib-cache`).
 - Remote branches `feat/m2-static-engine`, `feat/web-ui`, `feat/assisted-triage` are merged and
   can be deleted (not done: the owner did not ask).
-- After Phase 1: Phase 2 (capa, FLOSS), Phase 3 (Ghidra decompiler), Phase 4 (symbol tree,
+- Roadmap: Phase 3 (Ghidra decompiler), Phase 4 (symbol tree,
   call graph, memory map, search), Phase 5 (FLIRT-like, PDB, binary diff); M3 dynamic; M5 AI.
 
 ### Environment notes learned in chats 1-2
