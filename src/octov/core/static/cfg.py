@@ -158,3 +158,28 @@ def discover_from(
         functions[start] = fn
         queue.extend(t for t in fn.calls if t not in functions and dis.view.is_executable(t))
     return functions
+
+
+class FunctionIndex:
+    """Sorted basic-block ranges for O(log n) address -> function lookup."""
+
+    def __init__(self, functions: dict[int, Function]) -> None:
+        self.functions = functions
+        entries = sorted(
+            ((b.start, b.end, fn) for fn in functions.values() for b in fn.blocks.values()),
+            key=lambda e: e[0],
+        )
+        self._starts = [e[0] for e in entries]
+        self._entries = entries
+
+    def lookup(self, rva: int) -> Function | None:
+        if rva in self.functions:
+            return self.functions[rva]
+        # Blocks never partially overlap; a block shared by several functions
+        # (tail-jump targets) appears with identical ranges, so any match is valid.
+        idx = bisect.bisect_right(self._starts, rva) - 1
+        if idx >= 0:
+            start, end, fn = self._entries[idx]
+            if start <= rva < end:
+                return fn
+        return None

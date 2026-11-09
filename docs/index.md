@@ -36,7 +36,15 @@ uv run octov analyze path\to\sample.exe
 uv run octov analyze sample.exe --json --session case.octov
 uv run octov analyze sample.exe --yara sample.yar --sigma sample.yml
 uv run octov analyze shellcode.bin --raw --bits 64 --yara shellcode.yar
-uv run octov-gui
+uv run octov-gui                      # desktop window (Edge WebView2)
+uv run octov serve                    # same UI in a browser, loopback + token
+```
+
+Building the UI (once, and after changes in `web/`) needs no system Node.js:
+
+```bash
+uv run python scripts/npm.py install
+uv run python scripts/npm.py run build
 ```
 
 Configuration: copy `config.yaml.example` to `config.yaml`. The AI key is read **only** from the
@@ -76,6 +84,15 @@ Baseline: 0 high-severity hits across the 4370 binaries of a Windows 11 System32
 Findings carry file offset + RVA evidence and feed the generated YARA (compiled and
 verified against the sample) and Sigma (pySigma-valid) rules.
 
+## Workbench UI
+
+A modern desktop UI (React + TypeScript in an Edge WebView2 window): samples and functions
+sidebar, overview, virtualised disassembly, control-flow graph with orthogonal routing,
+hex view, findings with clickable evidence, MITRE ATT&CK tiles, a Ctrl+K command palette and
+YARA/Sigma export. Two languages (EN / AZ) and two display modes (Night / Normal).
+API calls use pywebview's in-process bridge; the browser mode (`octov serve`) binds to
+127.0.0.1 and requires a per-run token.
+
 ## Layout
 
 ```
@@ -85,10 +102,11 @@ src/octov/
   core/ai/        evidence bundler + AI client (M5)
   core/session/   SQLite + msgpack .octov sessions
   core/i18n/      en / az UI strings
-  gui/            PySide6 dockable workbench
+  app/            workbench API, desktop shell, dev server
   cli/            headless CLI
   plugins/        plugin API (M6)
 rules/            detection catalogs (YAML)
+web/              React UI source (built into src/octov/webui/dist)
 tests/            unit tests + synthetic benign PE builder
 ```
 

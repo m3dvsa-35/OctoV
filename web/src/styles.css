@@ -1,0 +1,141 @@
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/600.css";
+@import "@xyflow/react/dist/style.css";
+@import "tailwindcss";
+
+/* Design tokens (Swiss / minimal, dense). Dark is the default theme. */
+@theme {
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-sev-high: var(--sev-high);
+  --color-sev-medium: var(--sev-medium);
+  --color-sev-low: var(--sev-low);
+  --color-sev-info: var(--sev-info);
+  --color-edge-true: var(--edge-true);
+  --color-edge-false: var(--edge-false);
+  --color-edge-jump: var(--edge-jump);
+  --color-asm-mnemonic: var(--asm-mnemonic);
+  --color-asm-number: var(--asm-number);
+  --color-asm-addr: var(--asm-addr);
+  --color-asm-comment: var(--asm-comment);
+}
+
+:root,
+[data-theme="dark"] {
+  /* Neutral black (no blue tint), Claude Code style. */
+  color-scheme: dark;
+  --bg: #121212;
+  --panel: #191918;
+  --raised: #262624;
+  --line: #2b2b29;
+  --fg: #ecebe8;
+  --muted: #a6a59f;
+  --faint: #73726c;
+  --accent: #d97757;
+  --accent-fg: #1a0f0a;
+  --sev-high: #f87171;
+  --sev-medium: #facc15;
+  --sev-low: #60a5fa;
+  --sev-info: #a6a59f;
+  --edge-true: #4ade80;
+  --edge-false: #f87171;
+  --edge-jump: #a6a59f;
+  --asm-mnemonic: #e8b38f;
+  --asm-number: #facc15;
+  --asm-addr: #73726c;
+  --asm-comment: #86efac;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f4ef;
+  --panel: #ffffff;
+  --raised: #ecebe5;
+  --line: #e3e1da;
+  --fg: #1a1a18;
+  --muted: #57564f;
+  --faint: #7a7972;
+  --accent: #c2410c;
+  --accent-fg: #ffffff;
+  --sev-high: #dc2626;
+  --sev-medium: #a16207;
+  --sev-low: #2563eb;
+  --sev-info: #57564f;
+  --edge-true: #15803d;
+  --edge-false: #dc2626;
+  --edge-jump: #57564f;
+  --asm-mnemonic: #9a3412;
+  --asm-number: #a16207;
+  --asm-addr: #7a7972;
+  --asm-comment: #15803d;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+
+.selectable {
+  user-select: text;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 35%, transparent);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* React Flow theming */
+.react-flow {
+  --xy-background-color: var(--bg);
+  --xy-edge-label-background-color: var(--panel);
+  --xy-controls-button-background-color: var(--panel);
+  --xy-controls-button-color: var(--fg);
+  --xy-controls-button-border-color: var(--line);
+  --xy-minimap-background-color: var(--panel);
+}

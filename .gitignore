@@ -14,3 +14,5 @@ config.yaml
 tests/samples/generated/
 .env
 .env.*
+web/node_modules/
+src/octov/webui/dist/

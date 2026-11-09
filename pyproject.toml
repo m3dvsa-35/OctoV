@@ -23,7 +23,7 @@ dependencies = [
     "numpy>=1.26",
     "msgpack>=1.0",
     "pyyaml>=6.0",
-    "PySide6>=6.6",
+    "pywebview>=6.2.1",
 ]
 
 [project.optional-dependencies]
@@ -34,7 +34,7 @@ dynamic = ["frida>=16.5,<17", "frida-tools>=12,<14"]
 octov = "octov.cli.main:main"
 
 [project.gui-scripts]
-octov-gui = "octov.gui.app:main"
+octov-gui = "octov.app.desktop:main"
 
 [dependency-groups]
 dev = [
@@ -46,6 +46,7 @@ dev = [
     "mkdocs-material>=9.5",
     "yara-python>=4.5.4",
     "pysigma>=2.0.2",
+    "nodejs-wheel-binaries>=24.19.0",
 ]
 
 [build-system]
