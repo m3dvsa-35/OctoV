@@ -1,0 +1,60 @@
+{
+ "analysis": {
+  "enable_decoded_strings": true,
+  "enable_stack_strings": true,
+  "enable_static_strings": false,
+  "enable_tight_strings": true,
+  "functions": {
+   "analyzed_decoded_strings": 1,
+   "analyzed_stack_strings": 1,
+   "analyzed_tight_strings": 0,
+   "decoding_function_scores": {
+    "5368713216": {
+     "score": 0.24,
+     "xrefs_to": 0
+    }
+   },
+   "discovered": 1,
+   "library": 0
+  }
+ },
+ "metadata": {
+  "file_path": "",
+  "imagebase": 5368709120,
+  "language": "unknown",
+  "language_selected": "",
+  "language_version": "version unknown",
+  "min_length": 4,
+  "runtime": {
+   "decoded_strings": 0.0298,
+   "find_features": 0.1837,
+   "language_strings": 0,
+   "stack_strings": 0.0373,
+   "start_date": "2026-11-09T00:00:00Z",
+   "static_strings": 0,
+   "tight_strings": 0.001,
+   "total": 3.85,
+   "vivisect": 3.5942
+  },
+  "version": "3.2.0"
+ },
+ "strings": {
+  "decoded_strings": [],
+  "language_strings": [],
+  "language_strings_missed": [],
+  "stack_strings": [
+   {
+    "encoding": "ASCII",
+    "frame_offset": 32,
+    "function": 5368713216,
+    "offset": 40,
+    "original_stack_pointer": 18446744072630828896,
+    "program_counter": 1096560655,
+    "stack_pointer": 18446744072630828816,
+    "string": "http://x.example/gate.php"
+   }
+  ],
+  "static_strings": [],
+  "tight_strings": []
+ }
+}
