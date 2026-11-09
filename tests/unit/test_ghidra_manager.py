@@ -318,3 +318,15 @@ def test_real_worker_reanalyses_corrupt_project(tmp_path: Path) -> None:
         assert mgr.decompile(A, 0x1000, {}, {})["entry_rva"] == 0x1000
     finally:
         mgr.shutdown_all()
+
+
+def test_default_project_root_has_no_dot_folder(tmp_path: Path) -> None:
+    """Ghidra refuses project paths with an element starting with '.' (so not ~/.octov)."""
+    from octov.ext.ghidra.manager import default_project_root
+
+    local = default_project_root({"LOCALAPPDATA": str(tmp_path / "Local")}, tmp_path / "home")
+    assert local == tmp_path / "Local" / "OctoV" / "ghidra-projects"
+    fallback = default_project_root({}, tmp_path / "home")
+    assert fallback == tmp_path / "home" / "OctoV" / "ghidra-projects"
+    for root in (local, fallback, default_project_root()):
+        assert not any(part.startswith(".") for part in root.parts)

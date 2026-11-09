@@ -1,5 +1,6 @@
 import {
   Binary,
+  Braces,
   Code2,
   FileCode2,
   FolderOpen,
@@ -20,6 +21,7 @@ import { GraphView } from "./components/GraphView";
 import { HexView } from "./components/HexView";
 import { MitreView } from "./components/MitreView";
 import { OverviewView } from "./components/OverviewView";
+import { PseudoCView } from "./components/PseudoCView";
 import { Sidebar } from "./components/Sidebar";
 import { StringsView } from "./components/StringsView";
 import { TriageView } from "./components/TriageView";
@@ -39,6 +41,8 @@ function ViewSwitch({ view }: { view: MainView }) {
       return <DisasmView />;
     case "graph":
       return <GraphView />;
+    case "pseudo_c":
+      return <PseudoCView />;
     case "hex":
       return <HexView />;
     case "strings":
@@ -53,6 +57,7 @@ function useViewTabs() {
     { id: "overview" as const, label: t("ui.overview"), icon: LayoutDashboard },
     { id: "disasm" as const, label: t("ui.disassembly"), icon: Code2 },
     { id: "graph" as const, label: t("ui.graph"), icon: Network },
+    { id: "pseudo_c" as const, label: t("ui.pseudo_c"), icon: Braces },
     { id: "hex" as const, label: t("ui.hex"), icon: Binary },
     { id: "strings" as const, label: t("ui.strings"), icon: TextQuote },
   ];

@@ -58,6 +58,17 @@ def worker_command(
     return WorkerCommand([*argv, "--ghidra", str(install), "--max-heap-mb", str(heap)], child_env)
 
 
+def default_project_root(env: Mapping[str, str] | None = None, home: Path | None = None) -> Path:
+    """Where saved Ghidra projects live.
+
+    Not under ``~/.octov``: Ghidra rejects a project path with an element starting with ".".
+    """
+    env = os.environ if env is None else env
+    local = env.get("LOCALAPPDATA")
+    base = Path(local) if local else (home or Path.home())
+    return base / "OctoV" / "ghidra-projects"
+
+
 class GhidraWorker:
     """One worker process with the sample open; one request in flight at a time."""
 

@@ -119,7 +119,7 @@ export interface JobState {
   cached: boolean;
 }
 
-export type EngineId = "capa" | "floss";
+export type EngineId = "capa" | "floss" | "ghidra";
 
 export interface Extension {
   id: EngineId;
@@ -239,4 +239,23 @@ export interface XrefRow {
 
 export interface Capabilities {
   native_dialogs: boolean;
+}
+
+export type LineMark =
+  | { kind: "fact"; fact_id: string; severity: Severity }
+  | { kind: "api"; api: string; family: string };
+
+export interface PseudoLine {
+  text: string;
+  rvas: number[];
+  marks: LineMark[];
+}
+
+export interface Decompiled {
+  entry_rva: number;
+  name: string;
+  lines: PseudoLine[];
+  warnings: string[];
+  octov_function: number | null;
+  cached: boolean;
 }

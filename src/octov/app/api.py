@@ -67,7 +67,13 @@ from octov.ext import capa as capa_ext
 from octov.ext import floss as floss_ext
 from octov.ext.apply import apply_capa, apply_floss
 from octov.ext.ghidra.discover import ghidra_status
-from octov.ext.ghidra.manager import GhidraManager, WorkerCommand, cleanup_projects, worker_command
+from octov.ext.ghidra.manager import (
+    GhidraManager,
+    WorkerCommand,
+    cleanup_projects,
+    default_project_root,
+    worker_command,
+)
 from octov.ext.ghidra.model import (
     DecompiledFunction,
     annotation_hash,
@@ -164,7 +170,7 @@ class WorkbenchApi:
             self._rules = default_rules()
         self._settings = self._load_settings()
         ghidra_cfg = self._config.ghidra
-        self._ghidra_root = ghidra_root or Path.home() / ".octov" / "ghidra-projects"
+        self._ghidra_root = ghidra_root or default_project_root()
         self._ghidra = GhidraManager(
             ghidra_cfg, ghidra_factory or (lambda: worker_command(ghidra_cfg)), self._ghidra_root
         )

@@ -443,6 +443,8 @@ STRINGS: dict[str, str] = {
         "ya disassembly-ni oxuyun."
     ),
     "decomp.failed": "Dekompilyator xəta verdi",
+    "decomp.octov_function": "bu ünvan OctoV-un {name} funksiyasındadır",
+    "decomp.warnings": "{n} dekompilyator qeydi",
     "decomp.mark.fact": "Tapıntı",
     "decomp.mark.api": "Həssas API çağırışı",
     "ext.capa.adds": (

@@ -428,6 +428,8 @@ STRINGS: dict[str, str] = {
         "disassembly instead."
     ),
     "decomp.failed": "The decompiler failed",
+    "decomp.octov_function": "this address is in OctoV function {name}",
+    "decomp.warnings": "{n} decompiler note(s)",
     "decomp.mark.fact": "Finding",
     "decomp.mark.api": "Sensitive API call",
     "ext.capa.adds": (
