@@ -71,7 +71,8 @@ class Iocs(_Base):
                 explain_key="fact.ioc",
             )
             for i in iocs
-            if i.type in FACT_IOC_TYPES and i.benign_hint is None
+            # IOCs seen only in FLOSS-recovered strings (offset -1) are one hidden_ioc fact
+            if i.type in FACT_IOC_TYPES and i.benign_hint is None and min(i.offsets) >= 0
         )
 
 
