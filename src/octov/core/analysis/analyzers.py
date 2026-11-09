@@ -8,7 +8,7 @@ from octov.core.analysis.carve import carve_payloads, payload_facts
 from octov.core.analysis.crypto import find_crypto
 from octov.core.analysis.facts import Evidence, Fact, facts_from_findings, facts_from_indicators
 from octov.core.analysis.iocs import build_iocs
-from octov.core.analysis.naming import suggest_name
+from octov.core.analysis.naming import suggest_name, suggest_name_from_capa
 from octov.core.analysis.packer import packer_fact, packer_verdict
 from octov.core.analysis.pipeline import AnalysisContext, Analyzer
 from octov.core.analysis.scoring import rank_functions
@@ -136,9 +136,22 @@ class Naming(_Base):
 
     def run(self, ctx: AnalysisContext) -> None:
         xrefs: XrefIndex = ctx.results["xrefs"]
+        capa_rules: dict[int, list[tuple[str, str]]] = {}
+        for fact in ctx.facts:
+            if fact.kind != "capability" or ctx.index is None:
+                continue
+            for start in {
+                fn.start
+                for e in fact.evidence
+                if e.rva is not None
+                if (fn := ctx.index.lookup(e.rva)) is not None
+            }:
+                capa_rules.setdefault(start, []).append((fact.source_id, fact.severity))
         names = {}
         for start in ctx.functions:
-            name = suggest_name(start, xrefs.imports_called(start))
+            name = suggest_name_from_capa(start, capa_rules.get(start, [])) or suggest_name(
+                start, xrefs.imports_called(start)
+            )
             if name:
                 names[start] = name
         ctx.results["names"] = names

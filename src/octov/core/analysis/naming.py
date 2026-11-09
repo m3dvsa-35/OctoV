@@ -6,6 +6,7 @@ look first. Names are only *suggested*: the analyst's own names always win.
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from collections.abc import Sequence
 
@@ -138,3 +139,16 @@ def suggest_name(start: int, imports_called: Sequence[str]) -> str | None:
     if count >= MIN_CALLS and count / len(imports_called) >= MIN_SHARE:
         return f"{family}_{start:x}"
     return None
+
+
+_SLUG = re.compile(r"[^a-z0-9]+")
+MAX_SLUG = 32
+
+
+def suggest_name_from_capa(start: int, rules: Sequence[tuple[str, str]]) -> str | None:
+    """``<rule slug>_<start>`` when exactly one medium capa rule matched in the function."""
+    medium = [name for name, severity in rules if severity == "medium"]
+    if len(medium) != 1:
+        return None
+    slug = _SLUG.sub("_", medium[0].lower()).strip("_")[:MAX_SLUG].rstrip("_")
+    return f"{slug}_{start:x}" if slug else None

@@ -95,7 +95,11 @@ def rank_functions(
             hit |= {fn.start for fn in owners if fn is not None}
         for start in hit:
             points[start] += 10 * rank if fact.kind != "crypto_constant" else 4
-            reasons[start].append(f"{fact.source_id}: {fact.title} ({fact.severity})")
+            reasons[start].append(
+                f"capa: {fact.source_id}"
+                if fact.kind == "capability"
+                else f"{fact.source_id}: {fact.title} ({fact.severity})"
+            )
 
     for start in functions:
         families = Counter(
