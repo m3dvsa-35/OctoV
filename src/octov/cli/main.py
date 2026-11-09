@@ -97,6 +97,7 @@ def _serve(args: argparse.Namespace) -> int:
         pass
     finally:
         server.server_close()
+        api.shutdown()  # stop Ghidra workers
     return EXIT_OK
 
 

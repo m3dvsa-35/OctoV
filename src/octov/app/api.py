@@ -18,17 +18,19 @@ import base64
 import contextlib
 import hashlib
 import json
+import shutil
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from octov.core.analysis.analyzers import default_analyzers
 from octov.core.analysis.carve import payload_zip
 from octov.core.analysis.facts import Fact, facts_from_findings, facts_from_indicators
 from octov.core.analysis.iocs import ioc_fact_id, iocs_csv, iocs_json
-from octov.core.analysis.pipeline import AnalysisContext, Pipeline
+from octov.core.analysis.pipeline import AnalysisContext, AnalyzerStatus, Pipeline
 from octov.core.analysis.report import build_triage, ioc_rows
 from octov.core.analysis.scoring import IGNORED_VERDICTS
 from octov.core.config import THEMES, Config
@@ -51,6 +53,7 @@ from octov.core.static.disasm import Disassembler, ImageView, RawView
 from octov.core.static.pe_parser import Hashes, PEParseError, PEReport
 from octov.core.static.rules import Rule, RuleError
 from octov.ext import (
+    ALL_EXTENSIONS,
     DEFAULT_RULES_ROOT,
     DEFAULT_SIGS_ROOT,
     ENGINES,
@@ -63,6 +66,16 @@ from octov.ext import cache as ext_cache
 from octov.ext import capa as capa_ext
 from octov.ext import floss as floss_ext
 from octov.ext.apply import apply_capa, apply_floss
+from octov.ext.ghidra.discover import ghidra_status
+from octov.ext.ghidra.manager import GhidraManager, WorkerCommand, cleanup_projects, worker_command
+from octov.ext.ghidra.model import (
+    DecompiledFunction,
+    annotation_hash,
+    line_marks,
+    suspicious_apis,
+)
+from octov.ext.ghidra.model import cache_path as decomp_cache_path
+from octov.ext.ghidra.protocol import GhidraError
 from octov.ext.queue import QUEUES
 from octov.ext.runner import EngineError, parse_json, run_engine
 
@@ -70,6 +83,9 @@ _SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2, "info": 3}
 MAX_READ = 1 << 20  # largest hex chunk a single call may return
 MAX_STRINGS_PAGE = 2000
 VERDICTS = ("false_positive", "benign", "confirmed")
+PREDECOMPILE = 10  # top-ranked functions decompiled into the cache right after analysis
+_DECOMP_ATTEMPTS = 3  # re-asks when the analyst renamed something while Ghidra was answering
+_REAP_EVERY_S = 30.0
 
 
 class ApiError(Exception):
@@ -85,6 +101,8 @@ class _Sample:
     pipeline: Pipeline
     parent: str | None = None
     store: Session | None = field(default=None, repr=False)  # workspace session, if any
+    ghidra_version: str | None = None  # set when the decompiler was scheduled for this sample
+    decomp_entries: dict[int, int] = field(default_factory=dict)  # address -> Ghidra function
 
     @property
     def hashes(self) -> Hashes:
@@ -128,6 +146,8 @@ class WorkbenchApi:
         cache_dir: Path | None = None,
         rules_root: Path | None = None,
         sigs_root: Path | None = None,
+        ghidra_factory: Callable[[], WorkerCommand] | None = None,
+        ghidra_root: Path | None = None,
     ) -> None:
         self._config = config or Config()
         self._cache_dir = cache_dir or Path.home() / ".octov" / "cache"
@@ -143,6 +163,13 @@ class WorkbenchApi:
         except RuleError:
             self._rules = default_rules()
         self._settings = self._load_settings()
+        ghidra_cfg = self._config.ghidra
+        self._ghidra_root = ghidra_root or Path.home() / ".octov" / "ghidra-projects"
+        self._ghidra = GhidraManager(
+            ghidra_cfg, ghidra_factory or (lambda: worker_command(ghidra_cfg)), self._ghidra_root
+        )
+        self._ghidra_started = False
+        self._ghidra_stop = threading.Event()
 
     # -- settings & strings ------------------------------------------------------
 
@@ -151,7 +178,7 @@ class WorkbenchApi:
             "language": self._config.ui.language,
             "theme": self._config.ui.theme,
             "compact": False,
-            "extensions_auto_run": {e: True for e in ENGINES},
+            "extensions_auto_run": {e: True for e in ALL_EXTENSIONS},
         }
         try:
             stored = json.loads(self._settings_path.read_text(encoding="utf-8"))
@@ -165,7 +192,7 @@ class WorkbenchApi:
             settings["compact"] = stored["compact"]
         auto = stored.get("extensions_auto_run")
         if isinstance(auto, dict):
-            for e in ENGINES:
+            for e in ALL_EXTENSIONS:
                 if isinstance(auto.get(e), bool):
                     settings["extensions_auto_run"][e] = auto[e]
         return settings
@@ -184,7 +211,7 @@ class WorkbenchApi:
             lang not in LANGUAGES
             or theme not in THEMES
             or not isinstance(compact, bool)
-            or set(auto) != set(ENGINES)
+            or set(auto) != set(ALL_EXTENSIONS)
             or not all(isinstance(v, bool) for v in auto.values())
         ):
             raise ApiError(f"invalid settings: {settings}")
@@ -288,6 +315,7 @@ class WorkbenchApi:
                         sample.store = None
         pipeline.start_slow(ctx)
         self._schedule_extensions(sample)
+        self._schedule_ghidra(sample)
         return self._summary(sample)
 
     def _persist(self, session: Session, sample: _Sample) -> None:
@@ -362,6 +390,7 @@ class WorkbenchApi:
             QUEUES[engine].cancel(sha)
         with self._lock:
             sample = self._samples.pop(sha, None)
+        self._ghidra.close(sha)
         if sample is not None and sample.store is not None:
             sample.store.commit()
             sample.store.close()
@@ -743,11 +772,13 @@ class WorkbenchApi:
 
     def get_extensions(self) -> list[dict[str, Any]]:
         auto = self._settings["extensions_auto_run"]
-        return [
-            st.to_dict() | {"auto_run": auto[st.id]} for st in extension_status(self._rules_root)
-        ]
+        statuses = [*extension_status(self._rules_root), ghidra_status(self._config.ghidra)]
+        return [st.to_dict() | {"auto_run": auto[st.id]} for st in statuses]
 
     def run_extension(self, sha: str, ext_id: str, force: bool = False) -> None:
+        if ext_id == "ghidra":
+            self._schedule_ghidra(self._get(sha), explicit=True, force=force)
+            return
         if ext_id not in ENGINES:
             raise ApiError(f"unknown extension {ext_id!r}")
         self._schedule_extensions(self._get(sha), only=ext_id, explicit=True, force=force)
@@ -894,6 +925,148 @@ class WorkbenchApi:
                 ext_cache.store(cache_path, doc)
         s.pipeline.set_state(engine, "done", elapsed_s=elapsed, cached=cached)
 
+    # -- decompiler (Ghidra worker) -----------------------------------------------------
+
+    def _schedule_ghidra(self, s: _Sample, explicit: bool = False, force: bool = False) -> None:
+        """Queue the sample for its Ghidra worker (never blocks: analysis is in the background)."""
+        st = ghidra_status(self._config.ghidra)
+        if not st.ready:
+            reason = st.reason_key or "ext.reason.not_installed"
+            s.pipeline.set_state("ghidra", "unavailable", reason)
+            return
+        if s.report is None:
+            s.pipeline.set_state("ghidra", "unavailable", "ext.reason.pe_only")
+            return
+        s.ghidra_version = st.version or "?"
+        if not explicit and not self._settings["extensions_auto_run"]["ghidra"]:
+            s.pipeline.set_state("ghidra", "idle")
+            return
+        self._start_ghidra_housekeeping()
+        if force:
+            self._ghidra.close(s.sha)
+            shutil.rmtree(self._ghidra_root / s.sha, ignore_errors=True)
+
+        def on_state(state: str, error: str | None, elapsed_s: float) -> None:
+            if self._samples.get(s.sha) is not s:
+                return  # closed meanwhile
+            ended = state in ("done", "failed")
+            s.pipeline.set_state(
+                "ghidra",
+                cast(AnalyzerStatus, state),
+                error,
+                elapsed_s=round(elapsed_s, 1) if ended else None,
+            )
+            if state == "done":
+                threading.Thread(
+                    target=self._predecompile, args=(s,), daemon=True, name="octov-ghidra-ahead"
+                ).start()
+
+        self._ghidra.ensure(s.sha, s.data, on_state)
+
+    def _start_ghidra_housekeeping(self) -> None:
+        """First use only: drop long-unused projects, then stop idle workers now and then."""
+        with self._lock:
+            if self._ghidra_started:
+                return
+            self._ghidra_started = True
+        cleanup_projects(self._ghidra_root, self._config.ghidra.project_keep_days, time.time())
+
+        def reap() -> None:
+            while not self._ghidra_stop.wait(_REAP_EVERY_S):
+                self._ghidra.reap_idle()
+
+        threading.Thread(target=reap, daemon=True, name="octov-ghidra-idle").start()
+
+    def shutdown(self) -> None:
+        """App exit: stop every Ghidra worker (the Job Object would kill them anyway)."""
+        self._ghidra_stop.set()
+        self._ghidra.shutdown_all()
+
+    def _predecompile(self, s: _Sample) -> None:
+        """Entry point and top-ranked functions go into the cache before anyone asks."""
+        while not s.pipeline.wait_slow(0.5):
+            if self._samples.get(s.sha) is not s:
+                return
+        starts = [s.report.entry_point] if s.report is not None else []
+        starts += [fn.start for fn in s.ctx.results.get("ranking", [])[:PREDECOMPILE]]
+        for start in dict.fromkeys(starts):
+            if self._samples.get(s.sha) is not s:
+                return
+            try:
+                self.get_decompiled(s.sha, start)
+            except ApiError:
+                if s.pipeline.status().get("ghidra", {}).get("state") != "done":
+                    return  # the worker is gone: nothing more to do ahead of time
+
+    def _decomp_annotations(self, s: _Sample) -> tuple[dict[int, str], dict[int, str]]:
+        """Analyst names and comments by address: what changes the pseudo-C text."""
+        names = self._names(s)[0]
+        comments = {
+            a.address: a.value for a in self._annotations(s, "comment") if a.address is not None
+        }
+        return names, comments
+
+    def _decomp_cached(
+        self, s: _Sample, ahash: str, rva: int, octov_start: int | None
+    ) -> DecompiledFunction | None:
+        for entry in dict.fromkeys((s.decomp_entries.get(rva), rva, octov_start)):
+            if entry is None:
+                continue
+            path = decomp_cache_path(self._cache_dir, s.sha, s.ghidra_version or "?", ahash, entry)
+            doc = ext_cache.load(path)
+            fn = DecompiledFunction.from_dict(doc) if doc is not None else None
+            if fn is not None and (
+                fn.entry_rva == rva
+                or s.decomp_entries.get(rva) == fn.entry_rva
+                or any(rva in line.rvas for line in fn.lines)
+            ):
+                return fn
+        return None
+
+    def get_decompiled(self, sha: str, rva: int) -> dict[str, Any]:
+        """Pseudo-C of the Ghidra function containing ``rva``, with per-line marks."""
+        s = self._get(sha)
+        job = s.pipeline.status().get("ghidra")
+        if job is None:
+            raise ApiError("decomp.not_ready")
+        if job["state"] == "unavailable":
+            raise ApiError(job["error"] or "decomp.not_ready")
+        octov_fn = s.ctx.index.lookup(rva) if s.ctx.index is not None else None
+        octov_start = octov_fn.start if octov_fn is not None else None
+        version = s.ghidra_version or "?"
+        fn: DecompiledFunction | None = None
+        cached = False
+        for _attempt in range(_DECOMP_ATTEMPTS):
+            names, comments = self._decomp_annotations(s)
+            ahash = annotation_hash(names, comments)
+            hit = self._decomp_cached(s, ahash, rva, octov_start)
+            if hit is not None:
+                fn, cached = hit, True
+                break
+            state = s.pipeline.status()["ghidra"]["state"]
+            if state != "done":
+                analysing = state in ("queued", "running")
+                raise ApiError("decomp.analysing" if analysing else "decomp.not_ready")
+            try:
+                fn = DecompiledFunction.from_reply(
+                    self._ghidra.decompile(sha, rva, names, comments)
+                )
+            except GhidraError as exc:
+                raise ApiError(_decomp_error(exc)) from exc
+            s.decomp_entries[rva] = fn.entry_rva
+            path = decomp_cache_path(self._cache_dir, sha, version, ahash, fn.entry_rva)
+            with contextlib.suppress(OSError):  # an unwritable cache only costs a rerun
+                ext_cache.store(path, fn.to_dict())
+            if annotation_hash(*self._decomp_annotations(s)) == ahash:
+                break  # else: renamed while Ghidra was answering; that text is already stale
+        assert fn is not None
+        verdicts = self._verdicts(s)
+        facts = [f for f in list(s.ctx.facts) if verdicts.get(f.id) not in IGNORED_VERDICTS]
+        out = fn.to_dict()
+        for line, marks in zip(out["lines"], line_marks(fn, facts, suspicious_apis()), strict=True):
+            line["marks"] = marks
+        return out | {"octov_function": octov_start, "cached": cached}
+
     # -- sessions --------------------------------------------------------------------
 
     def new_session(self, path: str) -> dict[str, Any]:
@@ -932,6 +1105,13 @@ class WorkbenchApi:
                 self._session.commit()
                 self._session.close()
             self._session = session
+
+
+def _decomp_error(exc: GhidraError) -> str:
+    """UI message key (the web UI translates it; a detail follows after ``": "``)."""
+    if exc.kind in ("no_function", "timeout", "not_ready"):
+        return f"decomp.{exc.kind}"
+    return f"decomp.failed: {exc.reason}"
 
 
 def _secs(start: float) -> float:

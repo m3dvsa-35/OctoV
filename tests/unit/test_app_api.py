@@ -160,7 +160,7 @@ def test_strings_and_settings_persist(api: WorkbenchApi, tmp_path: Path) -> None
         "language": "az",
         "theme": "light",
         "compact": False,
-        "extensions_auto_run": {"capa": True, "floss": True},
+        "extensions_auto_run": {"capa": True, "floss": True, "ghidra": True},
     }
     with pytest.raises(ApiError):
         api.set_settings({"language": "xx"})
