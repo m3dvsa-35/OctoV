@@ -170,13 +170,13 @@ Key interfaces (stable, use these names):
 - Web: `api.getStrings` (not `strings`, which fetches UI text), store actions `renameFunction`,
   `setComment`, `toggleBookmark`, `promptAnnotation`, `annotationKey`; helpers in `web/src/lib/triage.ts`.
 
-Baselines (Windows 11 System32, 4370 files): rules-only sweep 0 high hits. Full pipeline,
-first sweep (before signal dedupe): 0 high facts, 0 failed jobs, 0 timeouts, 98.8 % low,
-5 high band (MRT, whesvc_assets, dbgeng, services, ntoskrnl); fast analyzers median 0.12 s /
-p99 1.07 s / max 26 s (amd_comgr.dll, 100 MB), slow analyzers median 0.41 s / p99 21.5 s /
-max 49 s. Fix `1bbd994` (each signal counts once, crypto = one signal); simulated result
-99.1 % low, high band only the 3 owner-approved `KNOWN_HIGH` files. **Confirming sweep with
-the final code: pending (step 1a).**
+Baselines (Windows 11 System32, 4370 files, 2026-11-09, `scripts/baseline_sweep.py`):
+rules-only 0 high hits; full pipeline 0 high facts, 0 failed jobs, 0 timeouts, 99.08 % low
+(4330 low / 37 medium / 3 high). High band = only the owner-approved `KNOWN_HIGH` files
+(MRT.exe 88, services.exe 68, dbgeng.dll 64). Before the signal dedupe (`1bbd994`) it was
+98.8 % low with 5 high (also whesvc_assets.dll, ntoskrnl.exe). Timing: fast analyzers median
+0.11 s / p99 1.06 s / max 27 s (amd_comgr.dll, 100 MB); slow analyzers median 0.41 s /
+p99 22.5 s / max 50 s.
 Perf: synthetic 5 MB PE, fast analyzers 0.7 s (budget 3 s, `tests/unit/test_triage_perf.py`).
 CI runs a System32 slice (stride 25 for rules, stride 80 for the full pipeline, ~45 s).
 
