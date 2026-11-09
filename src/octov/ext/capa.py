@@ -28,6 +28,33 @@ MEDIUM_PREFIXES: tuple[str, ...] = (
 )
 
 
+# Top-level namespaces of capa-rules v10 (non-lib rules); each has an EN/AZ explanation.
+CAPA_NAMESPACES: tuple[str, ...] = (
+    "anti-analysis",
+    "collection",
+    "communication",
+    "compiler",
+    "data-manipulation",
+    "executable",
+    "exploitation",
+    "host-interaction",
+    "impact",
+    "internal",
+    "linking",
+    "load-code",
+    "malware-family",
+    "persistence",
+    "runtime",
+    "targeting",
+    "other",
+)
+
+
+def _explain_key(namespace: str) -> str:
+    top = namespace.split("/")[0]
+    return f"capa.ns.{top if top in CAPA_NAMESPACES else 'other'}"
+
+
 @dataclass(frozen=True)
 class CapaMatch:
     rule: str
@@ -108,7 +135,7 @@ def capa_facts(matches: Sequence[CapaMatch], index: FunctionIndex | None) -> lis
                 evidence=tuple(evidence),
                 mitre=m.attack,
                 tags=(*m.mbc, m.namespace) if m.namespace else m.mbc,
-                explain_key=f"capa.ns.{m.namespace.split('/')[0] or 'other'}",
+                explain_key=_explain_key(m.namespace),
             )
         )
     return facts

@@ -295,4 +295,145 @@ STRINGS: dict[str, str] = {
     "strings.cat.wallet": "Pul kisəsi",
     "strings.cat.base64": "Base64",
     "triage.iocs_shown": "{total}-dən ilk {n}; CSV kopyası hamısını ixrac edir",
+    "capa.ns.anti-analysis.explain": (
+        "Kod analizi aşkar etməyə və ya çətinləşdirməyə çalışır: debugger yoxlamaları, virtual "
+        "maşın aşkarlanması, obfuskasiya və ya vaxt hiylələri. Zərərli proqram bununla əsl "
+        "davranışını analitiklərdən və sandbox-lardan gizlədir; bəzi qanuni proqramlar (DRM, "
+        "anti-cheat) da bunu edir. Hansı yoxlamanın edildiyinə və tetiklənəndə kodun nə etdiyinə "
+        "baxın."
+    ),
+    "capa.ns.collection.explain": (
+        "Kod kompüterdən məlumat toplayır: ekran görüntüsü, klaviatura basışları, bufer, brauzer "
+        "və ya sistem məlumatı. Məlumat oğurlayan və casus proqramlar bununla yaşayır; adi "
+        "alətlər çox az şey toplayır. Nəyin toplandığını və saxlanıb-saxlanmadığını, ya da hara "
+        "isə göndərilib-göndərilmədiyini yoxlayın."
+    ),
+    "capa.ns.communication.explain": (
+        "Kod şəbəkə üzərindən və ya proseslər arasında əlaqə qurur: HTTP, soket, DNS, named pipe "
+        "və ya idarəetmə (C2) kanalı. Zərərli proqram əmr almaq və məlumat göndərmək üçün buna "
+        "ehtiyac duyur; bir çox adi proqram da xaricə qoşulur. Əlaqə qurduğu ünvanları IOC "
+        "siyahısında və bərpa olunmuş sətirlərdə axtarın."
+    ),
+    "capa.ns.compiler.explain": (
+        "capa proqramın hansı kompilyator və ya icra mühiti ilə qurulduğunu tanıdı (məsələn, "
+        "MSVC, Go, Rust və ya .NET paketləyici). Bu, zərər əlaməti deyil, kontekstdir: hansı "
+        "kitabxana kodunu ötürə biləcəyinizi və dərin analiz üçün hansı alətlərin uyğun olduğunu "
+        "göstərir."
+    ),
+    "capa.ns.data-manipulation.explain": (
+        "Kod məlumatı çevirir: şifrələmə, heş, kodlaşdırma (Base64, XOR), sıxılma və ya sətir "
+        "emalı. Zərərli proqram bundan konfiqurasiyanı, sətirləri və trafiki gizlətmək üçün "
+        "istifadə edir; adi proqramlar eyni alqoritmlərdən qanuni məqsədlə istifadə edir. Hansı "
+        "məlumatın daxil olduğunu və nəticənin harada işləndiyini yoxlayın."
+    ),
+    "capa.ns.executable.explain": (
+        "Faylın icra olunan fayl kimi xüsusiyyətləri: daxilə qoyulmuş fayllar, resurslar, qeyri-"
+        "adi PE quruluşu və ya quraşdırıcı/paketləyici izləri. Daxilə qoyulmuş icra faylı çox "
+        "vaxt dropper və ya loader deməkdir; quraşdırıcılarda bu qanunidir. Daxili payload-ları "
+        "yeni nümunə kimi açın."
+    ),
+    "capa.ns.exploitation.explain": (
+        "Kod zəiflikdən istifadə (exploit) izləri göstərir, məsələn, shellcode nümunələri və ya "
+        "yaddaşın doldurulması. Qanuni proqramlarda bu nadirdir; uyğun gələn funksiyaya və hədəfə"
+        " nə ötürdüyünə diqqətlə baxmaq lazımdır."
+    ),
+    "capa.ns.host-interaction.explain": (
+        "Kod yerli sistemlə işləyir: fayllar, reyestr, proseslər, axınlar, servislər, "
+        "istifadəçilər və ya avadanlıq. Demək olar ki, hər proqram bunun bir qismini edir, ona "
+        "görə tək uyğunluq az şey deyir; vacib olan birləşmələrdir (servis yaratmaq və reyestrə "
+        "yazmaq, başqa prosesi açıb ona yazmaq)."
+    ),
+    "capa.ns.impact.explain": (
+        "Kod sistemə ziyan vura və ya istifadəni əngəlləyə bilər: faylları silmək və ya "
+        "şifrələmək, servisləri dayandırmaq, sistemi söndürmək. Fidyə proqramları və silicilər "
+        "bunu edir; ehtiyat nüsxə və ya admin alətlərindən kənarda bu güclü xəbərdarlıqdır. Hansı"
+        " faylların və ya servislərin hədəfə alındığını yoxlayın."
+    ),
+    "capa.ns.internal.explain": (
+        "capa-nın daxildə istifadə etdiyi köməkçi uyğunluqlar (məsələn, bir xüsusiyyətin neçə "
+        "dəfə görünə biləcəyinə dair məhdudiyyətlər). Bunlar proqramın davranışını yox, analizin "
+        "daxili hesabını təsvir edir və adətən nəzərə alınmaya bilər."
+    ),
+    "capa.ns.linking.explain": (
+        "Proqramın çağırdığı kodu necə tapması: icra zamanı həll olunan importlar, API heşləmə və"
+        " ya kitabxanaların əl ilə yüklənməsi. API-ləri heş ilə və ya əl ilə həll etmək proqramın"
+        " nəyi çağırdığını statik alətlərdən gizlədir; adi runtime linking geniş yayılıb. Sonda "
+        "hansı API-lərin həll olunduğuna baxın."
+    ),
+    "capa.ns.load-code.explain": (
+        "Kod başqa kodu yükləyir və ya işə salır: DLL-lər, yaddaşdan PE faylları, shellcode və ya"
+        " skriptlər. Loader və dropper-lər bunun üzərində qurulur, xüsusən kod fayldan yox, "
+        "yaddaşdan gəlirsə. Yüklənən kodun haradan gəldiyini yoxlayın."
+    ),
+    "capa.ns.malware-family.explain": (
+        "Məlum zərərli proqram ailəsi üçün yazılmış qayda uyğun gəldi. Bunu hökm yox, güclü ipucu"
+        " kimi qəbul edin: nümunəni həmin ailə kimi bildirməzdən əvvəl ailənin digər əlamətləri "
+        "(sətirlər, konfiqurasiya, şəbəkə indikatorları) ilə təsdiqləyin."
+    ),
+    "capa.ns.persistence.explain": (
+        "Kod yenidən başladıldıqdan və ya sistemə girişdən sonra təkrar işə düşməsini təmin edir:"
+        " Run açarları, servislər, planlaşdırılmış tapşırıqlar, avtoyükləmə qovluqları. Zərərli "
+        "proqram demək olar ki, həmişə buna ehtiyac duyur; quraşdırıcılar da bunu edir, amma açıq"
+        " şəkildə. Dəqiq nəyin işə düşmək üçün qeyd edildiyini yoxlayın."
+    ),
+    "capa.ns.runtime.explain": (
+        "Proqramın istifadə etdiyi dil icra mühitinin xüsusiyyətləri (məsələn, .NET və ya Go "
+        "daxili strukturları). Kompilyator uyğunluqları kimi, bu da düzgün alətləri seçməyə kömək"
+        " edən kontekstdir, zərərli davranış əlaməti deyil."
+    ),
+    "capa.ns.targeting.explain": (
+        "Kod harada işlədiyini yoxlayır: klaviatura dili, regional ayarlar, ölkə və ya müəyyən "
+        "məhsul. Hədəfli zərərli proqram bundan hədəfindən kənarda səssiz qalmaq üçün istifadə "
+        "edir; lokallaşdırma kodu bunu qanuni edir. Yoxlamanın nəticəsinin nəyi dəyişdiyinə "
+        "baxın."
+    ),
+    "capa.ns.other.explain": (
+        "Adi kateqoriyaların heç birinə aid olmayan capa qaydası uyğun gəldi. Qaydanın adını "
+        "oxuyun, uyğun funksiyaya keçin və onu digər tapıntılarla birlikdə qiymətləndirin."
+    ),
+    "fact.capability.next": "Uyğunluğun arxasındakı kodu görmək üçün funksiyaya keçin.",
+    "fact.obfuscated_strings.explain": (
+        "FLOSS faylda açıq mətn kimi olmayan sətirlər tapdı: onlar icra zamanı stack-də yığılır "
+        "və ya deşifrə olunur. Sətirləri bu cür gizlətmək sadə sətir axtarışlarını aldatmaq üçün "
+        "geniş yayılmış zərərli proqram texnikasıdır; bəzi qorunan proqramlar da bunu edir."
+    ),
+    "fact.obfuscated_strings.next": (
+        "Strings tabında Obfuskasiyalı filtrini seçin və bərpa olunmuş dəyərləri oxuyun."
+    ),
+    "fact.hidden_ioc.explain": (
+        "Kompromis indikatorları (URL-lər, domenlər, IP ünvanları, mutex-lər, əmrlər) yalnız "
+        "deobfuskasiyadan sonra görünür. Hara qoşulduğunu və ya nəyi işə saldığını gizlədən "
+        "proqram bunları açıq saxlayan proqramdan xeyli daha şübhəlidir."
+    ),
+    "fact.hidden_ioc.next": (
+        "Gizli indikatorları blok siyahılarınıza əlavə edin və onları jurnallarınızda axtarın."
+    ),
+    "ext.reason.not_installed": "quraşdırılmayıb",
+    "ext.reason.no_rules": "capa qaydaları yoxdur",
+    "ext.reason.in_memory": "yalnız diskdəki fayllar üçün (çıxarılan payload-lar yaddaşda qalır)",
+    "ext.reason.too_large": "fayl çox böyükdür (config.yaml-da max_size_mb-ni artırın)",
+    "ext.capa.adds": (
+        "capa hər funksiyanın nə etdiyini adlandırır (məsələn, 'inject thread', 'encrypt data "
+        "using AES') və ATT&CK, MBC istinadları verir."
+    ),
+    "ext.floss.adds": (
+        "FLOSS stack-də gizlədilmiş və ya icra zamanı deşifrə olunan sətirləri, o cümlədən gizli "
+        "URL və əmrləri bərpa edir."
+    ),
+    "ext.install": "Quraşdır",
+    "ext.setup": "Birdəfəlik quraşdırma",
+    "ext.run": "İşə sal",
+    "ext.rerun": "Yenidən işə sal",
+    "ext.auto_run": "Avtomatik işə sal",
+    "ext.cached": "keşdən",
+    "ext.queued": "növbədə",
+    "ext.idle": "başlanmayıb",
+    "triage.job.idle": "başlanmayıb",
+    "strings.origin": "Mənbə",
+    "strings.origin.static": "faylda",
+    "strings.origin.stack": "stack",
+    "strings.origin.tight": "tight",
+    "strings.origin.decoded": "deşifrə",
+    "strings.obfuscated": "Obfuskasiyalı",
+    "triage.capa_group": "{ns} ({n})",
 }
