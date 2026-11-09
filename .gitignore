@@ -16,3 +16,4 @@ tests/samples/generated/
 .env.*
 web/node_modules/
 src/octov/webui/dist/
+.superpowers/

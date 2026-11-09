@@ -1,13 +1,34 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { api } from "../api/client";
 import type { FunctionData, InstructionData } from "../api/types";
 
 const fnCache = new Map<string, FunctionData>();
 
+/** Drop cached CFGs of a sample (after a rename the function names change). */
+let cacheVersion = 0;
+const versionListeners = new Set<() => void>();
+
+export function invalidateFunctionCache(sha: string): void {
+  for (const key of [...fnCache.keys()]) if (key.startsWith(`${sha}:`)) fnCache.delete(key);
+  cacheVersion += 1;
+  for (const l of versionListeners) l();
+}
+
+function useCacheVersion(): number {
+  return useSyncExternalStore(
+    (l) => {
+      versionListeners.add(l);
+      return () => versionListeners.delete(l);
+    },
+    () => cacheVersion,
+  );
+}
+
 /** Function CFG for (sha, start), cached across views (disassembly and graph share it). */
 export function useFunctionData(sha: string | null, start: number | null): FunctionData | null {
   const key = sha && start !== null ? `${sha}:${start}` : null;
   const [data, setData] = useState<FunctionData | null>(key ? (fnCache.get(key) ?? null) : null);
+  const version = useCacheVersion();
   useEffect(() => {
     if (!key || !sha || start === null) {
       setData(null);
@@ -30,7 +51,7 @@ export function useFunctionData(sha: string | null, start: number | null): Funct
     return () => {
       live = false;
     };
-  }, [key, sha, start]);
+  }, [key, sha, start, version]);
   return data;
 }
 

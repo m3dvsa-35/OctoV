@@ -26,10 +26,14 @@ from typing import Any, Protocol, Self
 
 import msgpack
 
-APPLICATION_ID = 0x4F435456  # "OCTV"
-SCHEMA_VERSION = 1
+from octov.core.analysis.carve import Payload
 
-_SCHEMA = """
+APPLICATION_ID = 0x4F435456  # "OCTV"
+SCHEMA_VERSION = 2
+ANNOTATION_KINDS = ("name", "comment", "bookmark", "verdict")
+
+_SCHEMA = (
+    """
 CREATE TABLE meta (
     key   TEXT PRIMARY KEY,
     value BLOB NOT NULL
@@ -49,14 +53,40 @@ CREATE TABLE artifacts (
     data       BLOB NOT NULL
 );
 CREATE INDEX idx_artifacts_sample_kind ON artifacts(sha256, kind);
-CREATE TABLE notes (
+"""
+    + """
+-- v2 tables (also created by the v1 -> v2 migration)
+"""
+)
+_V2_TABLES = """
+CREATE TABLE annotations (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     sha256     TEXT NOT NULL REFERENCES samples(sha256) ON DELETE CASCADE,
-    offset     INTEGER,
-    text       TEXT NOT NULL,
+    kind       TEXT NOT NULL CHECK (kind IN ('name', 'comment', 'bookmark', 'verdict')),
+    address    INTEGER,
+    target     TEXT,
+    value      TEXT NOT NULL,
     created_at REAL NOT NULL
 );
+CREATE INDEX idx_annotations_sample ON annotations(sha256, kind);
+CREATE TABLE payloads (
+    sha256        TEXT PRIMARY KEY,
+    parent_sha256 TEXT NOT NULL REFERENCES samples(sha256) ON DELETE CASCADE,
+    offset        INTEGER NOT NULL,
+    size          INTEGER NOT NULL,
+    kind          TEXT NOT NULL,
+    location      TEXT NOT NULL,
+    data          BLOB NOT NULL
+);
 """
+_MIGRATE_V1 = (
+    _V2_TABLES
+    + """
+INSERT INTO annotations(sha256, kind, address, target, value, created_at)
+    SELECT sha256, 'comment', offset, NULL, text, created_at FROM notes ORDER BY id;
+DROP TABLE notes;
+"""
+)
 
 
 class SessionError(Exception):
@@ -82,6 +112,17 @@ class Artifact:
     kind: str
     created_at: float
     data: Any
+
+
+@dataclass(frozen=True)
+class Annotation:
+    id: int
+    sha256: str
+    kind: str
+    address: int | None
+    target: str | None
+    value: str
+    created_at: float
 
 
 @dataclass(frozen=True)
@@ -116,9 +157,9 @@ class Session:
         path = Path(path)
         if path.exists():
             raise SessionError(f"session already exists: {path}")
-        con = sqlite3.connect(path)
+        con = sqlite3.connect(path, check_same_thread=False)  # threadsafety 3: serialized
         try:
-            con.executescript(_SCHEMA)
+            con.executescript(_SCHEMA + _V2_TABLES)
             con.execute(f"PRAGMA application_id = {APPLICATION_ID}")
             con.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             con.execute("PRAGMA foreign_keys = ON")
@@ -137,7 +178,7 @@ class Session:
         path = Path(path)
         if not path.is_file():
             raise SessionError(f"session not found: {path}")
-        con = sqlite3.connect(path)
+        con = sqlite3.connect(path, check_same_thread=False)  # threadsafety 3: serialized
         try:
             app_id = con.execute("PRAGMA application_id").fetchone()[0]
             version = con.execute("PRAGMA user_version").fetchone()[0]
@@ -152,6 +193,15 @@ class Session:
             raise SessionError(
                 f"session schema v{version} is newer than supported v{SCHEMA_VERSION}"
             )
+        if version < SCHEMA_VERSION:
+            try:
+                con.executescript(
+                    "BEGIN;" + _MIGRATE_V1 + f"PRAGMA user_version = {SCHEMA_VERSION};COMMIT;"
+                )
+            except sqlite3.DatabaseError as exc:
+                con.rollback()
+                con.close()
+                raise SessionError(f"cannot migrate session {path}: {exc}") from exc
         con.execute("PRAGMA foreign_keys = ON")
         return cls(path, con)
 
@@ -245,19 +295,94 @@ class Session:
         rows = self._db.execute(query + " ORDER BY id", params).fetchall()
         return [Artifact(i, s, k, c, _unpack(d)) for i, s, k, c, d in rows]
 
-    def add_note(self, sha256: str, text: str, offset: int | None = None) -> int:
+    # -- annotations (analyst corrections) ----------------------------------------
+
+    def add_annotation(
+        self,
+        sha256: str,
+        kind: str,
+        value: str,
+        address: int | None = None,
+        target: str | None = None,
+    ) -> int:
+        """Names replace per address and verdicts per target; comments/bookmarks append."""
+        if kind not in ANNOTATION_KINDS:
+            raise SessionError(f"invalid annotation kind {kind!r}")
+        if kind == "name":
+            self._db.execute(
+                "DELETE FROM annotations WHERE sha256 = ? AND kind = 'name' AND address IS ?",
+                (sha256, address),
+            )
+        elif kind == "verdict":
+            self._db.execute(
+                "DELETE FROM annotations WHERE sha256 = ? AND kind = 'verdict' AND target IS ?",
+                (sha256, target),
+            )
         try:
             cur = self._db.execute(
-                "INSERT INTO notes(sha256, offset, text, created_at) VALUES (?, ?, ?, ?)",
-                (sha256, offset, text, time.time()),
+                "INSERT INTO annotations(sha256, kind, address, target, value, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (sha256, kind, address, target, value, time.time()),
             )
         except sqlite3.IntegrityError as exc:
             raise SessionError(f"unknown sample {sha256}") from exc
         return int(cur.lastrowid or 0)
 
+    def annotations(self, sha256: str, kind: str | None = None) -> list[Annotation]:
+        query = (
+            "SELECT id, sha256, kind, address, target, value, created_at FROM annotations "
+            "WHERE sha256 = ?"
+        )
+        params: tuple[str, ...] = (sha256,)
+        if kind is not None:
+            query += " AND kind = ?"
+            params += (kind,)
+        rows = self._db.execute(query + " ORDER BY id", params).fetchall()
+        return [Annotation(*r) for r in rows]
+
+    def delete_annotation(self, annotation_id: int) -> None:
+        self._db.execute("DELETE FROM annotations WHERE id = ?", (annotation_id,))
+
+    def add_note(self, sha256: str, text: str, offset: int | None = None) -> int:
+        """Backwards-compatible alias for a ``comment`` annotation."""
+        return self.add_annotation(sha256, "comment", text, address=offset)
+
     def notes(self, sha256: str) -> list[Note]:
+        return [
+            Note(a.id, a.sha256, a.address, a.value, a.created_at)
+            for a in self.annotations(sha256, kind="comment")
+        ]
+
+    # -- carved payloads ---------------------------------------------------------------
+
+    def add_payload(self, parent_sha256: str, payload: Payload, data: bytes) -> None:
+        try:
+            self._db.execute(
+                "INSERT OR REPLACE INTO payloads(sha256, parent_sha256, offset, size, kind, "
+                "location, data) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    payload.sha256,
+                    parent_sha256,
+                    payload.offset,
+                    payload.size,
+                    payload.kind,
+                    payload.where,
+                    data,
+                ),
+            )
+        except sqlite3.IntegrityError as exc:
+            raise SessionError(f"unknown sample {parent_sha256}") from exc
+
+    def payload_bytes(self, sha256: str) -> bytes | None:
+        row = self._db.execute("SELECT data FROM payloads WHERE sha256 = ?", (sha256,)).fetchone()
+        return bytes(row[0]) if row else None
+
+    def payloads(self, parent_sha256: str) -> list[dict[str, Any]]:
         rows = self._db.execute(
-            "SELECT id, sha256, offset, text, created_at FROM notes WHERE sha256 = ? ORDER BY id",
-            (sha256,),
+            "SELECT sha256, offset, size, kind, location FROM payloads WHERE parent_sha256 = ? "
+            "ORDER BY offset",
+            (parent_sha256,),
         ).fetchall()
-        return [Note(*r) for r in rows]
+        return [
+            {"sha256": s, "offset": o, "size": n, "kind": k, "where": w} for s, o, n, k, w in rows
+        ]

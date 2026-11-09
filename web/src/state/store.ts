@@ -1,6 +1,9 @@
 import { useRef, useSyncExternalStore } from "react";
 import { api, ApiError } from "../api/client";
+import { annotationIndex, type AnnotationIndex } from "../lib/triage";
+import { invalidateFunctionCache } from "./hooks";
 import type {
+  Annotation,
   Capabilities,
   DiscoveryStatus,
   FindingRow,
@@ -9,9 +12,11 @@ import type {
   Overview,
   SampleSummary,
   Settings,
+  Triage,
+  Verdict,
 } from "../api/types";
 
-export type MainView = "overview" | "disasm" | "graph" | "hex";
+export type MainView = "triage" | "overview" | "disasm" | "graph" | "hex" | "strings";
 export type BottomView = "findings" | "mitre";
 
 export interface Nav {
@@ -26,6 +31,12 @@ export interface Toast {
   text: string;
 }
 
+/** Where a context menu / popover was opened (viewport coordinates). */
+export interface Anchor {
+  x: number;
+  y: number;
+}
+
 export interface State {
   ready: boolean;
   settings: Settings;
@@ -34,6 +45,7 @@ export interface State {
   samples: SampleSummary[];
   active: string | null;
   overview: Overview | null;
+  triage: Triage | null;
   findings: FindingRow[];
   mitre: MitreRow[];
   functions: FunctionSummary[];
@@ -45,21 +57,29 @@ export interface State {
   side: MainView;
   bottom: BottomView;
   busy: boolean;
-  dialog: null | { kind: "open"; raw: boolean } | { kind: "session"; mode: "new" | "open" } | {
-    kind: "export";
-  };
+  annotationList: Annotation[];
+  annotations: AnnotationIndex;
+  menu: null | (Anchor & { address: number; fn: number | null });
+  xref: null | (Anchor & { rva: number; label: string });
+  dialog:
+    | null
+    | { kind: "open"; raw: boolean }
+    | { kind: "session"; mode: "new" | "open" }
+    | { kind: "export" }
+    | { kind: "annotate"; mode: "name" | "comment"; address: number; initial: string };
   palette: boolean;
   toasts: Toast[];
 }
 
 let state: State = {
   ready: false,
-  settings: { language: "en", theme: "dark" },
+  settings: { language: "en", theme: "dark", compact: false },
   strings: {},
   caps: { native_dialogs: false },
   samples: [],
   active: null,
   overview: null,
+  triage: null,
   findings: [],
   mitre: [],
   functions: [],
@@ -67,10 +87,14 @@ let state: State = {
   nav: null,
   history: [],
   future: [],
-  main: "overview",
+  main: "triage",
   side: "graph",
   bottom: "findings",
   busy: false,
+  annotationList: [],
+  annotations: { comments: {}, bookmarks: {}, names: {} },
+  menu: null,
+  xref: null,
   dialog: null,
   palette: false,
   toasts: [],
@@ -202,6 +226,7 @@ export async function selectSample(sha: string): Promise<void> {
   setState({
     active: sha,
     overview: null,
+    triage: null,
     findings: [],
     mitre: [],
     functions: [],
@@ -209,16 +234,24 @@ export async function selectSample(sha: string): Promise<void> {
     nav: null,
     history: [],
     future: [],
+    main: "triage",
+    annotationList: [],
+    annotations: { comments: {}, bookmarks: {}, names: {} },
+    menu: null,
+    xref: null,
   });
   try {
-    const [overview, findings, mitre] = await Promise.all([
+    const [overview, findings, mitre, triage] = await Promise.all([
       api.overview(sha),
       api.findings(sha),
       api.mitre(sha),
+      api.triage(sha),
     ]);
     if (state.active !== sha) return;
-    setState({ overview, findings, mitre });
+    setState({ overview, findings, mitre, triage });
+    void loadAnnotations(sha);
     void pollDiscovery(sha);
+    void pollJobs(sha);
   } catch (err) {
     reportError(err);
   }
@@ -238,11 +271,117 @@ async function pollDiscovery(sha: string): Promise<void> {
       if (state.active !== sha) return;
       setState({ functions });
       const entry = functions.find((f) => f.is_entry) ?? functions[0];
-      if (entry && !state.nav) await navigate(entry.start, { record: false });
+      // Background navigation must not pull the analyst away from the tab they are on.
+      if (entry && !state.nav) await navigate(entry.start, { record: false, view: state.main });
     }
   } catch (err) {
     reportError(err);
   }
+}
+
+/** Re-read the triage report until every background analyzer has finished. */
+async function pollJobs(sha: string): Promise<void> {
+  try {
+    const jobs = await api.jobStatus(sha);
+    if (state.active !== sha) return;
+    const busy = Object.values(jobs).some((j) => j.state === "queued" || j.state === "running");
+    if (busy) {
+      window.setTimeout(() => void pollJobs(sha), 400);
+      setState((s) => (s.triage ? { triage: { ...s.triage, jobs } } : {}));
+      return;
+    }
+    await refreshAnalysis(sha);
+  } catch (err) {
+    reportError(err);
+  }
+}
+
+export async function refreshAnalysis(sha: string): Promise<void> {
+  const [triage, findings, mitre, samples] = await Promise.all([
+    api.triage(sha),
+    api.findings(sha),
+    api.mitre(sha),
+    api.listSamples(),
+  ]);
+  if (state.active === sha) setState({ triage, findings, mitre, samples });
+}
+
+export async function setVerdict(factId: string, verdict: Verdict | null): Promise<void> {
+  const sha = state.active;
+  if (!sha) return;
+  try {
+    await api.setVerdict(sha, factId, verdict);
+    await refreshAnalysis(sha);
+  } catch (err) {
+    reportError(err);
+  }
+}
+
+async function loadAnnotations(sha: string): Promise<void> {
+  const list = await api.listAnnotations(sha);
+  if (state.active === sha) setState({ annotationList: list, annotations: annotationIndex(list) });
+}
+
+/** Replace (or with an empty value, remove) the analyst's name/comment at ``address``. */
+async function replaceAnnotation(kind: "name" | "comment", address: number, value: string): Promise<void> {
+  const sha = state.active;
+  if (!sha) return;
+  try {
+    for (const a of state.annotationList) {
+      if (a.kind === kind && a.address === address) await api.deleteAnnotation(sha, a.id);
+    }
+    if (value.trim()) await api.annotate(sha, kind, value.trim(), address);
+    await loadAnnotations(sha);
+    if (kind === "name") {
+      invalidateFunctionCache(sha);
+      const functions = await api.functions(sha);
+      if (state.active === sha) setState({ functions, nav: state.nav ? { ...state.nav } : null });
+      await refreshAnalysis(sha);
+    }
+  } catch (err) {
+    reportError(err);
+  }
+}
+
+export const renameFunction = (start: number, name: string) => replaceAnnotation("name", start, name);
+export const setComment = (address: number, text: string) => replaceAnnotation("comment", address, text);
+
+export async function toggleBookmark(address: number): Promise<void> {
+  const sha = state.active;
+  if (!sha) return;
+  try {
+    const existing = state.annotations.bookmarks[address];
+    if (existing !== undefined) await api.deleteAnnotation(sha, existing);
+    else await api.annotate(sha, "bookmark", "", address);
+    await loadAnnotations(sha);
+  } catch (err) {
+    reportError(err);
+  }
+}
+
+/** Open the rename / comment prompt for ``address`` (rename targets the containing function). */
+export function promptAnnotation(mode: "name" | "comment", address: number, fn: number | null): void {
+  if (mode === "name") {
+    if (fn === null) return;
+    const current = state.functions.find((f) => f.start === fn);
+    const initial = state.annotations.names[fn] ?? (current && !current.suggested ? current.name : "");
+    setState({ menu: null, dialog: { kind: "annotate", mode, address: fn, initial } });
+    return;
+  }
+  setState({ menu: null, dialog: { kind: "annotate", mode, address, initial: state.annotations.comments[address]?.value ?? "" } });
+}
+
+/** Keyboard shortcuts shared by the code views: n = rename, ; = comment, b = bookmark, x = xrefs. */
+export function annotationKey(e: { key: string; ctrlKey: boolean; altKey: boolean; metaKey: boolean; preventDefault(): void }): void {
+  const nav = state.nav;
+  if (!nav || e.ctrlKey || e.altKey || e.metaKey || state.dialog) return;
+  if (e.key === "n") promptAnnotation("name", nav.rva, nav.fn);
+  else if (e.key === ";") promptAnnotation("comment", nav.rva, nav.fn);
+  else if (e.key === "b") void toggleBookmark(nav.rva);
+  else if (e.key === "x")
+    setState({ xref: { x: window.innerWidth / 2 - 160, y: window.innerHeight / 3, rva: nav.rva, label: `0x${nav.rva.toString(16)}` } });
+  else return;
+  e.preventDefault();
 }
 
 export async function closeSample(sha: string): Promise<void> {
@@ -268,7 +407,7 @@ export async function navigate(
       nav,
       history: opts.record === false || !s.nav ? s.history : [...s.history.slice(-99), s.nav],
       future: opts.record === false ? s.future : [],
-      main: opts.view ?? (s.main === "overview" ? "disasm" : s.main),
+      main: opts.view ?? (s.main === "overview" || s.main === "triage" ? "disasm" : s.main),
     }));
   } catch (err) {
     reportError(err);

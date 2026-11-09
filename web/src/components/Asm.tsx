@@ -1,5 +1,6 @@
 import type { InstructionData } from "../api/types";
 import { hex, tokenizeOperands } from "../lib/format";
+import { useStore } from "../state/store";
 
 const TOKEN_CLASS = {
   keyword: "text-muted",
@@ -17,6 +18,7 @@ export function AsmText({
   insn: InstructionData;
   onFollow?: (target: number) => void;
 }) {
+  const note = useStore((s) => s.annotations.comments[insn.address]?.value);
   const isFlow = /^(?:j|call|loop|ret)/.test(insn.mnemonic.split(" ").at(-1) ?? "");
   return (
     <>
@@ -40,6 +42,7 @@ export function AsmText({
         ))
       )}
       {insn.comment && <span className="text-asm-comment"> ; {insn.comment}</span>}
+      {note && <span className="italic text-accent"> ; {note}</span>}
     </>
   );
 }

@@ -24,6 +24,7 @@ dependencies = [
     "msgpack>=1.0",
     "pyyaml>=6.0",
     "pywebview>=6.2.1",
+    "pyzipper>=0.3.6",
 ]
 
 [project.optional-dependencies]
@@ -72,7 +73,7 @@ mypy_path = "src"
 packages = ["octov"]
 
 [[tool.mypy.overrides]]
-module = ["pefile", "msgpack", "capstone", "lief", "lief.*"]
+module = ["pefile", "msgpack", "capstone", "lief", "lief.*", "pyzipper"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

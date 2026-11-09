@@ -87,7 +87,7 @@ def test_findings_unify_indicators_and_rules_with_evidence(
 ) -> None:
     sha = api.open_sample(str(_sample(tmp_path)))["sha256"]
     rows = api.get_findings(sha)
-    rule = next(r for r in rows if r["id"] == "EVA-001")
+    rule = next(r for r in rows if r["source_id"] == "EVA-001")
     assert rule["kind"] == "rule" and rule["severity"] == "high"
     assert rule["rva"] == 0x2000 + 32
     assert rule["evidence"][0]["offset"] is not None
@@ -140,7 +140,7 @@ def test_raw_blob_mode(api: WorkbenchApi, tmp_path: Path) -> None:
     summary = api.open_sample(str(blob), raw=True, bits=64)
     assert summary["format"] == "raw"
     sha = summary["sha256"]
-    assert any(r["id"] == "PIC-003" for r in api.get_findings(sha))
+    assert any(r["source_id"] == "PIC-003" for r in api.get_findings(sha))
     assert _wait_done(api, sha)["state"] == "done"
     assert api.list_functions(sha)[0]["start"] == 0
     assert api.export_sigma(sha) is None
@@ -156,9 +156,18 @@ def test_strings_and_settings_persist(api: WorkbenchApi, tmp_path: Path) -> None
     assert api.strings("az")["menu.file"] == "Fayl"
     api.set_settings({"language": "az", "theme": "light"})
     again = WorkbenchApi(Config(), settings_path=tmp_path / "ui.json")
-    assert again.get_settings() == {"language": "az", "theme": "light"}
+    assert again.get_settings() == {"language": "az", "theme": "light", "compact": False}
     with pytest.raises(ApiError):
         api.set_settings({"language": "xx"})
+
+
+def test_compact_setting_persists(api: WorkbenchApi, tmp_path: Path) -> None:
+    assert api.get_settings()["compact"] is False
+    api.set_settings({"compact": True})
+    again = WorkbenchApi(Config(), settings_path=tmp_path / "ui.json")
+    assert again.get_settings()["compact"] is True
+    with pytest.raises(ApiError):
+        api.set_settings({"compact": "yes"})
 
 
 def test_session_autosave_and_reopen(api: WorkbenchApi, tmp_path: Path) -> None:
@@ -257,5 +266,21 @@ def test_api_honours_configured_rule_paths(tmp_path: Path) -> None:
     cfg.rules.paths = [*cfg.rules.paths, custom]
     api = WorkbenchApi(cfg, settings_path=tmp_path / "ui.json")
     sha = api.open_sample(str(_sample(tmp_path, tag=b"octov-test-marker")))["sha256"]
-    ids = {r["id"] for r in api.get_findings(sha)}
+    ids = {r["source_id"] for r in api.get_findings(sha)}
     assert {"CUST-1", "EVA-001"} <= ids
+
+
+def test_devserver_reports_unexpected_errors(
+    api: WorkbenchApi, server: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An internal bug must reach the UI as an error message, not an empty response."""
+
+    def boom(sha: str) -> None:
+        raise RuntimeError("kaboom")
+
+    monkeypatch.setattr(api, "_get", boom)  # rpc methods are bound at server start
+    base, token = server
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _rpc(base, token, "get_overview", {"sha": "0" * 64})
+    assert exc.value.code == 500
+    assert "kaboom" in json.loads(exc.value.read())["error"]

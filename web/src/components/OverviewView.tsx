@@ -103,7 +103,7 @@ export function OverviewView() {
               {top.map((f) => (
                 <li key={f.id} className="flex items-center gap-3 py-2">
                   <SeverityBadge severity={f.severity} label={t(`sev.${f.severity}`)} />
-                  <span className="font-mono text-[11.5px] text-muted">{f.id}</span>
+                  <span className="font-mono text-[11.5px] text-muted">{f.source_id}</span>
                   <span className="truncate text-[12.5px]">{f.kind === "rule" ? f.name : f.description}</span>
                   {f.rva !== null && (
                     <button

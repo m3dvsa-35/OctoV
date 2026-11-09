@@ -4,6 +4,7 @@ import { FileBox, Loader2, Search, SquareFunction, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { formatBytes, hex } from "../lib/format";
 import { closeSample, navigate, selectSample, useStore, useT } from "../state/store";
+import { openAnnotateMenu } from "./AnnotateMenu";
 import { Tabs } from "./ui";
 
 type SideTab = "samples" | "functions";
@@ -132,13 +133,16 @@ function FunctionList() {
                 key={fn.start}
                 type="button"
                 onClick={() => void navigate(fn.start)}
+                onContextMenu={(e) => openAnnotateMenu(e, fn.start, fn.start)}
+                title={fn.suggested ? t("functions.suggested_hint") : undefined}
                 style={{ transform: `translateY(${row.start}px)`, height: row.size }}
                 className={clsx(
                   "absolute inset-x-0 flex cursor-pointer items-center gap-2 rounded-md px-2 text-left font-mono text-[12px] transition-colors",
                   fn.start === current ? "bg-accent/15 text-fg" : "text-muted hover:bg-raised/60 hover:text-fg",
                 )}
               >
-                <span className="truncate">{fn.name}</span>
+                <span className={clsx("truncate", fn.suggested && "italic")}>{fn.name}</span>
+                {fn.suggested && <span className="text-[10px] text-faint">{t("functions.suggested")}</span>}
                 {fn.is_entry && (
                   <span className="rounded bg-accent/15 px-1 text-[10px] text-accent">
                     {t("functions.entry")}

@@ -83,7 +83,7 @@ export function FindingsView() {
                       <SeverityBadge severity={f.severity} label={t(`sev.${f.severity}`)} />
                     </td>
                     <td className="truncate font-mono text-[11.5px]">
-                      <span className="text-fg">{f.id}</span>
+                      <span className="text-fg">{f.source_id}</span>
                     </td>
                     <td className="truncate pr-3">
                       {f.kind === "rule" && <span className="mr-2 font-medium">{f.name}</span>}

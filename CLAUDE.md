@@ -24,10 +24,12 @@ ever receives extracted evidence, never the binary.
 | Dynamic (M3) | Frida 16.x pinned + frida-compile TS agent; Job Object + AppContainer (no admin) |
 | Symbols | Microsoft Symbol Server + local PDB cache (`~/.octov/symbols`) |
 | AI (M5) | OpenRouter `nvidia/nemotron-3-ultra-550b-a55b:free`; fallback any OpenAI-compatible endpoint (Ollama/LM Studio) |
-| Decompiler (M4) | MVP first (structured asm + CFG + type hints), pseudo-C later |
+| Decompiler | Ghidra headless via `pyghidra` as an optional extension (approach C, 2026-11-08); own decompiler = long-term option only |
 | Telemetry | none |
 | Test samples | synthetic & benign only (`tests/samples/builder.py`, `tests/samples/corpus.py`) |
 | License | MIT |
+
+| Product direction | Assisted (not fully automatic) malware analysis for beginners **and** pros: auto triage on open, every result explained (EN/AZ) and evidence-backed, analyst can correct. Design: `docs/superpowers/specs/2026-11-08-assisted-analysis-design.md` |
 
 ## Secrets
 
@@ -83,17 +85,20 @@ src/octov/
   core/static/analysis.py   analyze() = parse + rules; rule_set(paths) cached
   core/static/disasm.py     ImageView (RVA reads) + Disassembler (Capstone lite, IAT comments)
   core/static/cfg.py        build_function / discover_functions (basic blocks, edges)
+  core/analysis/            triage pipeline: facts, pipeline, strings, iocs, xrefs, crypto,
+                            carve, packer, naming, scoring, analyzers, report
   core/export/              yara_gen.py, sigma_gen.py
   core/mitre.py             offline technique name/tactic table (test enforces coverage)
-  core/session/session.py   .octov = SQLite + msgpack (samples, artifacts, notes, meta)
+  core/session/session.py   .octov = SQLite + msgpack (samples, artifacts, annotations, payloads, meta; schema v2)
   app/api.py                WorkbenchApi: the ONLY UI<->core contract (JSON in/out)
   app/devserver.py          loopback RPC + static server (token, allowlist, no CORS)
   app/desktop.py            pywebview window; DesktopApi adds native file dialogs
   webui/dist/               built frontend (git-ignored)
 web/src/                    React UI: api/client.ts (bridge or /rpc), state/store.ts,
-                            components/* (Overview, Findings, Mitre, Disasm, Graph, Hex,
-                            CommandPalette, Dialogs), lib/format.ts, lib/cfgLayout.ts
-  cli/main.py               `octov analyze`
+                            components/* (Triage, Overview, Findings, Mitre, Disasm, Graph,
+                            Hex, Strings, XrefPopover, AnnotateMenu, CommandPalette, Dialogs),
+                            lib/format.ts, lib/cfgLayout.ts, lib/triage.ts
+  cli/main.py, cli/triage.py `octov analyze`, `octov triage`
 rules/                      evasion_patterns.yaml (EVA-xxx), pic_patterns.yaml (PIC-xxx)
 tests/samples/builder.py    synthetic PE32+ builder (sections, imports, overlay, dll flag)
 tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
@@ -120,39 +125,77 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 - Installed plugins the user wants used: superpowers (TDD, verification, code review),
   caveman (commit messages, review), ui-ux-pro-max (visual panels), karpathy guidelines.
 
-## Status / where we stopped
+## Status / where we stopped  (updated 2026-11-09, end of chat 3)
 
-**M1 — done** (commit 965d7c2 on `main`, CI green).
+### How to resume in a new chat (read this first)
+1. `git switch feat/assisted-triage && git pull` — everything is pushed. **PR #5**
+   (https://github.com/m3dvsa-35/OctoV/pull/5, base `feat/web-ui`) is open; check its CI first.
+2. Phase 1 is **implementation-complete** (Tasks 1-14 done, see ledger
+   `.superpowers/sdd/2026-11-08-assisted-triage-phase1/progress.md`, git-ignored, local only).
+   Final review (fresh opus reviewer): 0 Critical, 4 Important — all fixed in `980b86c` with
+   RED→GREEN tests; 13 minors deferred (listed in the ledger and the PR description).
+3. Next: land the PR chain (see "Other open work"), then Phase 2 (capa, FLOSS) — start with
+   `superpowers:brainstorming` against the spec's Phase 2 section, then `writing-plans`.
 
-**M2 — implemented on branch `feat/m2-static-engine`, PR open against `main`** (Issue #2):
-- [x] Rule engine `core/static/rules.py` (bytes/string/import/export/section, any/all/N,
-      `unless`; exporters of an API never count as its consumer).
-- [x] Catalog tuned on System32: 0 high hits across 4370 binaries (full sweep:
-      `OCTOV_FULL_BASELINE=1 pytest tests/unit/test_baseline_fp.py`, ~2 min).
-- [x] Every catalog rule detects its synthetic sample (30/30) and respects its threshold.
-- [x] Disassembler (`disasm.py`, Capstone `disasm_lite`, IAT annotation) + CFG (`cfg.py`,
-      recursive descent, block splitting, seeds: EP/exports/.pdata).
-      Timing: notepad 0.36 s, kernel32 1.5 s, shell32 13 s (20k-function cap).
-- [x] Exporters `core/export/yara_gen.py` (compiles + matches sample, misses benign) and
-      `sigma_gen.py` (pySigma-valid). CLI: `--yara`, `--sigma`, `--rules`, `--config`.
-- [x] Pipeline `core/static/analysis.py` (`analyze`, `rule_set` cached; config `rules.paths`
-      honoured by GUI and CLI).
-- [x] GUI: Disassembly (+function list), native CFG graph (QGraphicsView — chosen over
-      Cytoscape.js to stay offline/no bundled JS), Hex, MITRE heat table; background
-      discovery (QThreadPool); synced navigation; LRU of 8 loaded samples.
-- [x] Code review (9 findings) fixed with regression tests (`tests/unit/test_review_fixes.py`).
-- [x] Raw (non-PE) input mode: `analyze_raw()`, `RawView` (32/64-bit), `discover_from()`,
-      YARA without MZ anchor; CLI `--raw [--bits 32|64]` (Sigma refused for raw).
-      GUI raw mode not done (the GUI is being replaced, see below).
-- [ ] After PR merge: close #2, open M3 issue (dynamic analysis).
+### Assisted triage — Phase 1 (branch `feat/assisted-triage`)
+Spec: `docs/superpowers/specs/2026-11-08-assisted-analysis-design.md` (owner-approved).
+Plan: `docs/superpowers/plans/2026-11-08-assisted-triage-phase1.md` (14 tasks, all done).
 
-**GUI rewrite — branch `feat/web-ui` (stacked on `feat/m2-static-engine`), PR open:**
-- [x] WorkbenchApi + dev server (tests: `test_app_api.py`), desktop shell (`octov-gui`).
-- [x] React UI: samples/functions sidebar, Overview, Disassembly, CFG graph (React Flow + ELK
-      worker, orthogonal edges), Hex (virtual, chunked), Findings, MITRE tiles, Ctrl+K palette,
-      export dialog (YARA/Sigma), sessions, back/forward history, EN/AZ + Night/Normal.
-- [x] Qt GUI and PySide6 removed.
-- Next ideas: drag-and-drop open in desktop shell, AI panel (M5), dynamic views (M3).
+Modules: `core/analysis/{facts,pipeline,strings,iocs,xrefs,crypto,carve,packer,naming,scoring,
+analyzers,report}.py`; session schema v2 (`annotations`, `payloads`, v1 auto-migrates);
+`cli/triage.py` (`octov triage`); EN/AZ explanations for every fact kind; web UI tabs
+`Triage | Overview | Disassembly | Graph | Hex | Strings`, xref popover, annotate menu
+(`n` rename, `;` comment, `b` bookmark, `x` xrefs, or right-click), Compact toggle
+(`settings.compact`).
 
-Known limitation: tail jumps (`jmp` to another function) are followed as intra-function
-edges, so CRT entry functions absorb their tail-called body.
+Key interfaces (stable, use these names):
+- `facts.Fact(kind, source_id, severity, title, evidence, mitre, tags, confidence, explain_key)`,
+  `.id` = `kind:source_id:<lowest rva|offset hex|value>`; `facts.Evidence(detail, offset, rva, type, value)`.
+- `pipeline.AnalysisContext` + `Pipeline(analyzers).run_fast(ctx)` / `.start_slow(ctx, on_done)` /
+  `.status()`; fast = pe_indicators, rules, strings, iocs, crypto, carve, packer;
+  slow = functions → xrefs → naming → ranking.
+- `WorkbenchApi`: `get_triage, job_status, get_strings, get_iocs, export_iocs, xrefs_to, annotate,
+  delete_annotation, list_annotations, set_verdict, list_payloads, open_payload, export_payload`;
+  `get_settings/set_settings` include `compact: bool`.
+- Annotations live in the open session, else in `~/.octov/workspaces/<sha256>.octov`
+  (SQLite opened with `check_same_thread=False`: the dev server/pywebview call from worker threads).
+- Web: `api.getStrings` (not `strings`, which fetches UI text), store actions `renameFunction`,
+  `setComment`, `toggleBookmark`, `promptAnnotation`, `annotationKey`; helpers in `web/src/lib/triage.ts`.
+
+Baselines (Windows 11 System32, 4370 files, 2026-11-09, `scripts/baseline_sweep.py`):
+rules-only 0 high hits; full pipeline 0 high facts, 0 failed jobs, 0 timeouts, 99.08 % low
+(4330 low / 37 medium / 3 high). High band = only the owner-approved `KNOWN_HIGH` files
+(MRT.exe 88, services.exe 68, dbgeng.dll 64). Before the signal dedupe (`1bbd994`) it was
+98.8 % low with 5 high (also whesvc_assets.dll, ntoskrnl.exe). Timing: fast analyzers median
+0.11 s / p99 1.06 s / max 27 s (amd_comgr.dll, 100 MB); slow analyzers median 0.41 s /
+p99 22.5 s / max 50 s.
+Perf: synthetic 5 MB PE, fast analyzers 0.7 s (budget 3 s, `tests/unit/test_triage_perf.py`).
+CI runs a System32 slice (stride 25 for rules, stride 80 for the full pipeline, ~45 s).
+
+Known limitations: tail jumps are followed as intra-function edges (CRT entry functions absorb
+their tail-called body); the Strings tab has no chip for uncategorised strings ("All" only).
+
+### Other open work
+- PR #3 (M2, base `main`) — CI green, Auto-fix ON.
+- PR #4 (web UI, base `feat/m2-static-engine`) — Auto-fix ON.
+- PR #5 triage (base `feat/web-ui`). Merge order: #3 → retarget #4 to `main` → merge → retarget
+  #5 to `main` (rebase if needed) → merge.
+- After Phase 1: Phase 2 (capa, FLOSS), Phase 3 (Ghidra decompiler), Phase 4 (symbol tree,
+  call graph, memory map, search), Phase 5 (FLIRT-like, PDB, binary diff); M3 dynamic; M5 AI.
+
+### Environment notes learned in chats 1-2
+- Bash heredocs that contain `\0`/`\x00`/`\\` escapes can be mangled. For non-trivial edits
+  use the Write/Edit tools, or a Python script that edits with `read_bytes`/`write_bytes`.
+- **`Path.write_text` on Windows writes CRLF** — the repo is LF. Use `write_bytes` (or
+  `newline="\n"`). Check before committing: `git ls-files --eol | grep w/crlf` must print nothing.
+- Desktop window screenshot: `PrintWindow(hwnd, hdc, 2)` via PowerShell Add-Type; the window
+  handle is `(Get-Process python | ? MainWindowTitle -eq "OctoV").MainWindowHandle`.
+  The UI settings file is `~/.octov/ui.json` (language/theme/compact) — set it before launching
+  to capture other languages/modes, and restore it afterwards.
+- Interactive UI checks are easiest in the browser pane: `octov serve --port 8765`, open the
+  printed token URL, drive the page with JS (React inputs need the native value setter).
+- In chat 2 the project folder had lost `.git` and `.venv` (it was a copy). `.git` was restored
+  from a fresh clone after verifying identical content; git identity is set **repo-locally**
+  (`m3dvsa-35`, noreply address). Recreate the venv with `python -m uv sync --all-extras` and
+  web deps with `scripts/npm.py ci`.
+- Rebuild the web UI after any `web/` change before testing the desktop app.

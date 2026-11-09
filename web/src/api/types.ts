@@ -50,17 +50,56 @@ export interface Evidence {
   rva?: number | null;
 }
 
+export type FactKind = "rule" | "indicator" | "crypto_constant" | "embedded_payload" | "packer" | "ioc";
+export type Verdict = "false_positive" | "benign" | "confirmed";
+
+/** A fact (one automatic result) as served by get_findings / triage capabilities. */
 export interface FindingRow {
-  id: string;
-  kind: "indicator" | "rule";
+  id: string; // stable fact id, e.g. "rule:EVA-001:0x2000"
+  source_id: string; // rule / indicator id shown to the analyst
+  kind: FactKind;
+  title: string;
   name: string;
+  description: string;
   severity: Severity;
   mitre: string[];
   mitre_names: Record<string, string>;
-  description: string;
   rva: number | null;
   offset: number | null;
   evidence: Evidence[];
+  explain_key: string | null;
+  confidence: number;
+  verdict: Verdict | null;
+}
+
+/** Triage capability rows are raw fact dicts (no derived location/name fields). */
+export type CapabilityRow = Omit<FindingRow, "rva" | "offset" | "mitre_names" | "name" | "description">;
+
+export interface Contribution {
+  fact_id: string;
+  points: number;
+  title: string;
+  severity: Severity;
+}
+
+export interface Triage {
+  score: { score: number; band: "low" | "medium" | "high"; contributions: Contribution[] };
+  packer: { packed: boolean; confidence: number; packer: string | null; reasons: string[] } | null;
+  capabilities: CapabilityRow[];
+  iocs: {
+    type: string;
+    value: string;
+    offsets: number[];
+    benign_hint: string | null;
+    fact_id: string | null;
+    verdict: Verdict | null;
+  }[];
+  iocs_total: number;
+  payloads: { offset: number; size: number; kind: string; where: string; sha256: string }[];
+  top_functions: { start: number; name: string; score: number; reasons: string[] }[];
+  attack: MitreRow[];
+  orphaned_verdicts: { fact_id: string; verdict: Verdict }[];
+  jobs: Record<string, { state: string; error: string | null }>;
 }
 
 export interface MitreRow {
@@ -81,6 +120,7 @@ export interface DiscoveryStatus {
 export interface FunctionSummary {
   start: number;
   name: string;
+  suggested: boolean;
   blocks: number;
   size: number;
   is_entry: boolean;
@@ -128,6 +168,39 @@ export interface ByteChunk {
 export interface Settings {
   language: "en" | "az";
   theme: "dark" | "light";
+  compact: boolean;
+}
+
+export type AnnotationKind = "name" | "comment" | "bookmark" | "verdict";
+
+export interface Annotation {
+  id: number;
+  kind: AnnotationKind;
+  address: number | null;
+  target: string | null;
+  value: string;
+}
+
+export interface StringRow {
+  value: string;
+  encoding: string;
+  offset: number;
+  rva: number | null;
+  section: string | null;
+  category: string | null;
+  xrefs: number | null;
+}
+
+export interface StringsPage {
+  total: number;
+  items: StringRow[];
+}
+
+export interface XrefRow {
+  src: number;
+  kind: string;
+  func: number | null;
+  func_name: string | null;
 }
 
 export interface Capabilities {
