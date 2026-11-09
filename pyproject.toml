@@ -81,6 +81,15 @@ packages = ["octov"]
 module = ["pefile", "msgpack", "capstone", "lief", "lief.*", "pyzipper"]
 ignore_missing_imports = true
 
+# Ghidra/JVM modules exist only inside the worker process (JPype); untyped.
+[[tool.mypy.overrides]]
+module = ["octov.ext.ghidra.worker"]
+disallow_untyped_calls = false
+
+[[tool.mypy.overrides]]
+module = ["ghidra", "ghidra.*", "java.*", "jpype", "jpype.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
