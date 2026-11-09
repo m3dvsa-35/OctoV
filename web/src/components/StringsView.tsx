@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { StringRow } from "../api/types";
 import { hex } from "../lib/format";
+import { offsetLabel } from "../lib/triage";
 import { setState, useStore, useT } from "../state/store";
 
 const PAGE = 1000;
@@ -29,6 +30,7 @@ export function StringsView() {
   const t = useT();
   const sha = useStore((s) => s.active);
   const [category, setCategory] = useState<string | null>(null);
+  const [recovered, setRecovered] = useState(false);
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [rows, setRows] = useState<StringRow[]>([]);
@@ -45,7 +47,7 @@ export function StringsView() {
     if (!sha || loading.current) return;
     loading.current = true;
     try {
-      const page = await api.getStrings(sha, category, debounced, offset, PAGE);
+      const page = await api.getStrings(sha, category, debounced, offset, PAGE, recovered ? "recovered" : null);
       if (gen !== generation.current) return;
       setTotal(page.total);
       setRows((prev) => (offset === 0 ? page.items : [...prev, ...page.items]));
@@ -62,7 +64,7 @@ export function StringsView() {
     setRows([]);
     setTotal(null);
     void load(0, gen);
-  }, [sha, category, debounced]);
+  }, [sha, category, debounced, recovered]);
 
   const parent = useRef<HTMLDivElement>(null);
   const virtual = useVirtualizer({
@@ -90,6 +92,17 @@ export function StringsView() {
             className="w-full bg-transparent text-[12.5px] text-fg outline-none placeholder:text-faint"
           />
         </label>
+        <button
+          type="button"
+          aria-pressed={recovered}
+          onClick={() => setRecovered((v) => !v)}
+          className={clsx(
+            "h-6 cursor-pointer rounded-full border px-2 text-[11px] transition-colors",
+            recovered ? "border-accent bg-accent text-accent-fg" : "border-dashed border-line text-muted hover:text-fg",
+          )}
+        >
+          {t("strings.obfuscated")}
+        </button>
         {[null, ...CATEGORIES].map((c) => (
           <button
             key={c ?? "all"}
@@ -113,6 +126,7 @@ export function StringsView() {
         <span className="w-[86px]">RVA</span>
         <span className="w-[64px]">{t("strings.section")}</span>
         <span className="w-[56px]">{t("strings.encoding")}</span>
+        <span className="w-[64px]">{t("strings.origin")}</span>
         <span className="w-[88px]">{t("strings.category")}</span>
         <span className="w-[48px] text-right">xref</span>
         <span className="pl-4">{t("strings.value")}</span>
@@ -134,10 +148,13 @@ export function StringsView() {
                 style={{ transform: `translateY(${item.start}px)`, height: ROW_HEIGHT }}
                 className="absolute inset-x-0 flex items-center px-3 hover:bg-raised/50"
               >
-                <span className="w-[86px] shrink-0 text-asm-addr">{hex(r.offset, 6)}</span>
+                <span className="w-[86px] shrink-0 text-asm-addr">{offsetLabel(r.offset)}</span>
                 <span className="w-[86px] shrink-0 text-faint">{r.rva !== null ? hex(r.rva, 6) : "—"}</span>
                 <span className="w-[64px] shrink-0 truncate text-faint">{r.section ?? "—"}</span>
                 <span className="w-[56px] shrink-0 text-faint">{r.encoding}</span>
+                <span className={clsx("w-[64px] shrink-0 truncate font-sans text-[11px]", r.origin === "static" ? "text-faint" : "text-accent")}>
+                  {t(`strings.origin.${r.origin}`)}
+                </span>
                 <span className="w-[88px] shrink-0 truncate font-sans text-[11px] text-muted">
                   {r.category ? t(`strings.cat.${r.category}`) : ""}
                 </span>

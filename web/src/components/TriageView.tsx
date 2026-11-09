@@ -1,11 +1,22 @@
 import clsx from "clsx";
-import { Check, Copy, Crosshair, ExternalLink, Loader2, PackageOpen, ShieldOff, X } from "lucide-react";
+import { Check, Copy, Crosshair, ExternalLink, Loader2, PackageOpen, RotateCw, ShieldOff, X } from "lucide-react";
 import { useState } from "react";
 import { api } from "../api/client";
-import type { CapabilityRow, Verdict } from "../api/types";
+import type { CapabilityRow, EngineId, Verdict } from "../api/types";
 import { hex } from "../lib/format";
-import { formatScoreBand, groupContributions, verdictCounts } from "../lib/triage";
-import { getState, navigate, notify, selectSample, setState, setVerdict, useStore, useT } from "../state/store";
+import { formatScoreBand, groupByNamespace, groupContributions, jobLabel, verdictCounts } from "../lib/triage";
+import {
+  getState,
+  navigate,
+  notify,
+  runExtension,
+  selectSample,
+  setState,
+  setVerdict,
+  useStore,
+  useT,
+} from "../state/store";
+import { EngineCard } from "./EngineCard";
 import { SeverityBadge } from "./ui";
 
 const BAND_COLOR = { low: "var(--sev-low)", medium: "var(--sev-medium)", high: "var(--sev-high)" };
@@ -89,11 +100,12 @@ function Capability({ c, compact }: { c: CapabilityRow; compact: boolean }) {
 
 export function TriageView() {
   const t = useT();
-  const { tri, sha, caps, compact } = useStore((s) => ({
+  const { tri, sha, caps, compact, extensions } = useStore((s) => ({
     tri: s.triage,
     sha: s.active,
     caps: s.caps,
     compact: s.settings.compact,
+    extensions: s.extensions,
   }));
   const [copied, setCopied] = useState(false);
   if (!tri || !sha) {
@@ -104,6 +116,8 @@ export function TriageView() {
     );
   }
   const jobs = Object.entries(tri.jobs);
+  const capa = tri.capabilities.filter((c) => c.kind === "capability");
+  const own = tri.capabilities.filter((c) => c.kind !== "capability");
   const groups = groupContributions(tri.score.contributions);
   const facts = new Map(tri.capabilities.map((c) => [c.id, c]));
   const review = verdictCounts(tri.capabilities);
@@ -178,7 +192,18 @@ export function TriageView() {
                       )}
                     >
                       {busy ? <Loader2 size={10} className="animate-spin" aria-hidden /> : j.state === "failed" ? <X size={10} aria-hidden /> : <Check size={10} aria-hidden />}
-                      {id} · {t(`triage.job.${j.state}`)}
+                      {id} · {jobLabel(j, t)}
+                      {(id === "capa" || id === "floss") && !busy && j.state !== "unavailable" && (
+                        <button
+                          type="button"
+                          title={j.state === "idle" ? t("ext.run") : t("ext.rerun")}
+                          aria-label={`${j.state === "idle" ? t("ext.run") : t("ext.rerun")} ${id}`}
+                          onClick={() => void runExtension(id as EngineId, j.state !== "idle")}
+                          className="cursor-pointer text-muted hover:text-fg"
+                        >
+                          <RotateCw size={10} aria-hidden />
+                        </button>
+                      )}
                     </li>
                   );
                 })}
@@ -199,9 +224,28 @@ export function TriageView() {
           </section>
         )}
 
-        <Card title={`${t("triage.capabilities")} (${tri.capabilities.length})`}>
-          <ul>{tri.capabilities.map((c) => <Capability key={c.id} c={c} compact={compact} />)}</ul>
+        {extensions
+          .filter((e) => !e.ready)
+          .map((e) => (
+            <EngineCard key={e.id} ext={e} />
+          ))}
+
+        <Card title={`${t("triage.capabilities")} (${own.length})`}>
+          <ul>{own.map((c) => <Capability key={c.id} c={c} compact={compact} />)}</ul>
         </Card>
+
+        {capa.length > 0 && (
+          <Card title={`${t("triage.capabilities")} · capa (${capa.length})`}>
+            {groupByNamespace(capa).map((g) => (
+              <details key={g.namespace} open={g.rows.some((c) => c.severity !== "info")} className="border-t border-line py-1 first:border-t-0">
+                <summary className="cursor-pointer py-1 text-[12.5px] font-medium">
+                  {t("triage.capa_group", { ns: g.namespace, n: g.rows.length })}
+                </summary>
+                <ul className="pl-3">{g.rows.map((c) => <Capability key={c.id} c={c} compact={compact} />)}</ul>
+              </details>
+            ))}
+          </Card>
+        )}
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <Card

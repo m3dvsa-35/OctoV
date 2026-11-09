@@ -1,3 +1,4 @@
+import { hex } from "./format";
 import type { Annotation, Contribution, Severity } from "../api/types";
 
 export type Band = "low" | "medium" | "high";
@@ -61,4 +62,44 @@ export function annotationIndex(list: Annotation[]): AnnotationIndex {
     else if (a.kind === "name") idx.names[a.address] = a.value;
   }
   return idx;
+}
+
+const MBC_ID = /^[A-Z]\d{4}/;
+
+/** capa facts grouped by top-level namespace (the namespace is the non-MBC tag). */
+export function groupByNamespace<T extends { source_id: string; tags: string[] }>(
+  rows: T[],
+): { namespace: string; rows: T[] }[] {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const tag = [...row.tags].reverse().find((t) => !MBC_ID.test(t));
+    const namespace = tag ? tag.split("/")[0] || "other" : "other";
+    groups.set(namespace, [...(groups.get(namespace) ?? []), row]);
+  }
+  return [...groups.entries()]
+    .map(([namespace, items]) => ({ namespace, rows: items }))
+    .sort((a, b) =>
+      a.namespace === "other" ? 1 : b.namespace === "other" ? -1 : b.rows.length - a.rows.length || a.namespace.localeCompare(b.namespace),
+    );
+}
+
+export interface JobInfo {
+  state: string;
+  elapsed_s: number | null;
+  cached: boolean;
+}
+
+/** Short chip text: state, then "cached" or the elapsed seconds when known. */
+export function jobLabel(job: JobInfo, t: (key: string) => string): string {
+  const state = t(`triage.job.${job.state}`);
+  if (job.cached) return `${state} · ${t("ext.cached")}`;
+  if (job.elapsed_s !== null && (job.state === "running" || job.state === "done")) {
+    return `${state} · ${Math.round(job.elapsed_s)} s`;
+  }
+  return state;
+}
+
+/** File offset column: recovered (FLOSS) strings have none (-1). */
+export function offsetLabel(offset: number): string {
+  return offset < 0 ? "—" : hex(offset, 6);
 }

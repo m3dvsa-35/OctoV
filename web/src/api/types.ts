@@ -50,7 +50,16 @@ export interface Evidence {
   rva?: number | null;
 }
 
-export type FactKind = "rule" | "indicator" | "crypto_constant" | "embedded_payload" | "packer" | "ioc";
+export type FactKind =
+  | "rule"
+  | "indicator"
+  | "crypto_constant"
+  | "embedded_payload"
+  | "packer"
+  | "ioc"
+  | "capability"
+  | "obfuscated_strings"
+  | "hidden_ioc";
 export type Verdict = "false_positive" | "benign" | "confirmed";
 
 /** A fact (one automatic result) as served by get_findings / triage capabilities. */
@@ -63,6 +72,7 @@ export interface FindingRow {
   description: string;
   severity: Severity;
   mitre: string[];
+  tags: string[];
   mitre_names: Record<string, string>;
   rva: number | null;
   offset: number | null;
@@ -99,7 +109,28 @@ export interface Triage {
   top_functions: { start: number; name: string; score: number; reasons: string[] }[];
   attack: MitreRow[];
   orphaned_verdicts: { fact_id: string; verdict: Verdict }[];
-  jobs: Record<string, { state: string; error: string | null }>;
+  jobs: Record<string, JobState>;
+}
+
+export interface JobState {
+  state: string;
+  error: string | null;
+  elapsed_s: number | null;
+  cached: boolean;
+}
+
+export type EngineId = "capa" | "floss";
+
+export interface Extension {
+  id: EngineId;
+  installed: boolean;
+  ready: boolean;
+  version: string | null;
+  rules_version: string | null;
+  reason_key: string | null;
+  install_cmd: string;
+  setup_cmd: string | null;
+  auto_run: boolean;
 }
 
 export interface MitreRow {
@@ -169,6 +200,7 @@ export interface Settings {
   language: "en" | "az";
   theme: "dark" | "light";
   compact: boolean;
+  extensions_auto_run: Record<EngineId, boolean>;
 }
 
 export type AnnotationKind = "name" | "comment" | "bookmark" | "verdict";
@@ -188,6 +220,8 @@ export interface StringRow {
   rva: number | null;
   section: string | null;
   category: string | null;
+  origin: "static" | "stack" | "tight" | "decoded";
+  function: number | null;
   xrefs: number | null;
 }
 

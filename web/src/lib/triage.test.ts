@@ -4,7 +4,10 @@ import {
   bandOf,
   filterStrings,
   formatScoreBand,
+  groupByNamespace,
   groupContributions,
+  jobLabel,
+  offsetLabel,
   positiveContributions,
   verdictCounts,
 } from "./triage";
@@ -91,5 +94,42 @@ describe("annotationIndex", () => {
     expect(idx.comments).toEqual({ 16: { id: 2, value: "new" } });
     expect(idx.bookmarks).toEqual({ 32: 3 });
     expect(idx.names).toEqual({ 64: "decrypt_cfg" });
+  });
+});
+
+describe("groupByNamespace", () => {
+  const row = (source_id: string, tags: string[]) => ({ source_id, tags });
+  it("groups capa facts by top-level namespace, biggest first, other last", () => {
+    const groups = groupByNamespace([
+      row("a", ["C0038", "host-interaction/thread/create"]),
+      row("b", ["persistence/registry/run"]),
+      row("c", ["host-interaction/file-system/write"]),
+      row("d", []),
+    ]);
+    expect(groups.map((g) => [g.namespace, g.rows.map((r) => r.source_id)])).toEqual([
+      ["host-interaction", ["a", "c"]],
+      ["persistence", ["b"]],
+      ["other", ["d"]],
+    ]);
+  });
+});
+
+describe("jobLabel", () => {
+  const t = (key: string) => ({ "ext.cached": "cached", "ext.queued": "queued" })[key] ?? key;
+  it.each([
+    [{ state: "running", elapsed_s: 42.3, cached: false }, "running · 42 s"],
+    [{ state: "done", elapsed_s: 3.1, cached: true }, "done · cached"],
+    [{ state: "done", elapsed_s: 12, cached: false }, "done · 12 s"],
+    [{ state: "queued", elapsed_s: null, cached: false }, "queued"],
+    [{ state: "failed", elapsed_s: null, cached: false }, "failed"],
+  ])("%o -> %s", (job, label) => {
+    expect(jobLabel(job, (k) => (k.startsWith("triage.job.") ? k.slice(11) : t(k)))).toBe(label);
+  });
+});
+
+describe("offsetLabel", () => {
+  it("shows a dash for strings with no file offset (recovered at run time)", () => {
+    expect(offsetLabel(-1)).toBe("—");
+    expect(offsetLabel(0x40)).toBe("000040");
   });
 });

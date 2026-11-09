@@ -86,11 +86,20 @@ function SampleList() {
 
 function FunctionList() {
   const t = useT();
-  const { functions, discovery, current } = useStore((s) => ({
+  const { functions, discovery, current, findings } = useStore((s) => ({
     functions: s.functions,
     discovery: s.discovery,
     current: s.nav?.fn ?? null,
+    findings: s.findings,
   }));
+  const capaCount = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const f of findings) {
+      const start = f.kind === "capability" ? f.evidence[0]?.rva : null;
+      if (start != null) counts.set(start, (counts.get(start) ?? 0) + 1);
+    }
+    return counts;
+  }, [findings]);
   const [query, setQuery] = useState("");
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -148,7 +157,12 @@ function FunctionList() {
                     {t("functions.entry")}
                   </span>
                 )}
-                <span className="ml-auto text-[10.5px] text-faint">{fn.blocks}b</span>
+                {capaCount.get(fn.start) && (
+                  <span className="ml-auto rounded bg-raised px-1 text-[10px] text-muted" title="capa">
+                    capa {capaCount.get(fn.start)}
+                  </span>
+                )}
+                <span className={clsx("text-[10.5px] text-faint", !capaCount.get(fn.start) && "ml-auto")}>{fn.blocks}b</span>
               </button>
             );
           })}

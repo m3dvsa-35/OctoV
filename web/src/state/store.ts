@@ -5,6 +5,8 @@ import { invalidateFunctionCache } from "./hooks";
 import type {
   Annotation,
   Capabilities,
+  EngineId,
+  Extension,
   DiscoveryStatus,
   FindingRow,
   FunctionSummary,
@@ -40,6 +42,7 @@ export interface Anchor {
 export interface State {
   ready: boolean;
   settings: Settings;
+  extensions: Extension[];
   strings: Record<string, string>;
   caps: Capabilities;
   samples: SampleSummary[];
@@ -73,7 +76,8 @@ export interface State {
 
 let state: State = {
   ready: false,
-  settings: { language: "en", theme: "dark", compact: false },
+  settings: { language: "en", theme: "dark", compact: false, extensions_auto_run: { capa: true, floss: true } },
+  extensions: [],
   strings: {},
   caps: { native_dialogs: false },
   samples: [],
@@ -173,8 +177,8 @@ export async function boot(): Promise<void> {
     const strings = await api.strings(settings.language);
     document.documentElement.dataset.theme = settings.theme;
     document.documentElement.lang = settings.language;
-    const samples = await api.listSamples();
-    setState({ settings, caps, strings, samples, ready: true });
+    const [samples, extensions] = await Promise.all([api.listSamples(), api.extensions()]);
+    setState({ settings, caps, strings, samples, extensions, ready: true });
     if (samples[0]) await selectSample(samples[0].sha256);
   } catch (err) {
     setState({ ready: true });
@@ -280,20 +284,40 @@ async function pollDiscovery(sha: string): Promise<void> {
 }
 
 /** Re-read the triage report until every background analyzer has finished. */
-async function pollJobs(sha: string): Promise<void> {
+const FINISHED = new Set(["done", "failed", "unavailable", "idle"]);
+
+/** Poll job states; refresh the report each time a job finishes, not only when all have. */
+async function pollJobs(sha: string, seen: Set<string> = new Set()): Promise<void> {
   try {
     const jobs = await api.jobStatus(sha);
     if (state.active !== sha) return;
+    const finished = Object.entries(jobs)
+      .filter(([, j]) => FINISHED.has(j.state))
+      .map(([id, j]) => `${id}:${j.state}:${j.cached}`);
+    const changed = finished.some((key) => !seen.has(key));
     const busy = Object.values(jobs).some((j) => j.state === "queued" || j.state === "running");
-    if (busy) {
-      window.setTimeout(() => void pollJobs(sha), 400);
-      setState((s) => (s.triage ? { triage: { ...s.triage, jobs } } : {}));
-      return;
-    }
-    await refreshAnalysis(sha);
+    if (changed) await refreshAnalysis(sha);
+    else setState((s) => (s.triage ? { triage: { ...s.triage, jobs } } : {}));
+    if (busy) window.setTimeout(() => void pollJobs(sha, new Set(finished)), 500);
   } catch (err) {
     reportError(err);
   }
+}
+
+export async function runExtension(id: EngineId, force: boolean): Promise<void> {
+  const sha = state.active;
+  if (!sha) return;
+  try {
+    await api.runExtension(sha, id, force);
+    void pollJobs(sha);
+  } catch (err) {
+    reportError(err);
+  }
+}
+
+export async function setAutoRun(id: EngineId, value: boolean): Promise<void> {
+  await updateSettings({ extensions_auto_run: { ...state.settings.extensions_auto_run, [id]: value } });
+  setState({ extensions: await api.extensions().catch(() => state.extensions) });
 }
 
 export async function refreshAnalysis(sha: string): Promise<void> {
@@ -303,7 +327,13 @@ export async function refreshAnalysis(sha: string): Promise<void> {
     api.mitre(sha),
     api.listSamples(),
   ]);
-  if (state.active === sha) setState({ triage, findings, mitre, samples });
+  if (state.active !== sha) return;
+  setState({ triage, findings, mitre, samples });
+  if (state.discovery?.state === "done") {
+    // capa can rename functions (suggested names) after the code views loaded
+    const functions = await api.functions(sha);
+    if (state.active === sha) setState({ functions });
+  }
 }
 
 export async function setVerdict(factId: string, verdict: Verdict | null): Promise<void> {
