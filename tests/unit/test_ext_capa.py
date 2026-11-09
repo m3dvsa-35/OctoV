@@ -76,10 +76,13 @@ def test_capa_addresses_outside_image_are_skipped() -> None:
 @pytest.mark.parametrize(
     ("namespace", "severity"),
     [
-        ("host-interaction/process/inject", "medium"),
-        ("persistence/registry/run", "medium"),
-        ("anti-analysis/anti-vm/vm-detection", "medium"),
+        # calibrated on System32 (2026-11-09): only C2 never matched a benign file
         ("communication/c2/command", "medium"),
+        ("communication/c2/file-transfer", "medium"),
+        ("host-interaction/process/inject", "info"),
+        ("persistence/registry/run", "info"),
+        ("anti-analysis/anti-vm/vm-detection", "info"),
+        ("collection/keylog", "info"),
         ("anti-analysis/anti-debugging/debugger-detection", "info"),
         ("data-manipulation/encryption/aes", "info"),
         ("collection", "info"),
@@ -90,16 +93,8 @@ def test_severity_mapping(namespace: str, severity: str) -> None:
     assert capa_severity(namespace) == severity
 
 
-def test_medium_prefixes_match_spec() -> None:
-    assert MEDIUM_PREFIXES == (
-        "host-interaction/process/inject",
-        "persistence/",
-        "collection/keylog",
-        "anti-analysis/anti-vm",
-        "anti-analysis/obfuscation",
-        "impact/",
-        "communication/c2",
-    )
+def test_medium_prefixes_after_calibration() -> None:
+    assert MEDIUM_PREFIXES == ("communication/c2",)
 
 
 def test_never_high_and_notepad_all_info() -> None:
@@ -121,14 +116,14 @@ def test_unknown_schema_rejected() -> None:
 def test_facts_attach_to_containing_function() -> None:
     insn = Instruction(0x1000, 0x40, "nop", "", bytes([0x90]) * 0x40)
     index = FunctionIndex({0x1000: Function(0x1000, {0x1000: BasicBlock(0x1000, [insn])}, [])})
-    match = CapaMatch("inject thread", "host-interaction/process/inject", ("T1055",), (), (0x1010,))
+    match = CapaMatch("receive data", "communication/c2/command", ("T1071",), (), (0x1010,))
     fact = capa_facts([match], index)[0]
     assert fact.severity == "medium"
     assert fact.evidence[0].rva == 0x1000
     assert 0x1010 in [e.rva for e in fact.evidence]
-    assert fact.mitre == ("T1055",)
-    assert "host-interaction/process/inject" in fact.tags
-    assert fact.explain_key == "capa.ns.host-interaction"
+    assert fact.mitre == ("T1071",)
+    assert "communication/c2/command" in fact.tags
+    assert fact.explain_key == "capa.ns.communication"
 
 
 def test_match_without_address_has_value_evidence() -> None:

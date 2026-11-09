@@ -18,6 +18,7 @@ and turn findings into defender artifacts (YARA, Sigma, STIX 2.1, IOCs).
 | **M1** | Skeleton, PE parser + packing indicators, `.octov` sessions, GUI shell, i18n (EN/AZ), CLI `analyze`, CI | ✅ |
 | **M2** | Static rule engine (evasion/PIC catalogs), Capstone disassembly, CFG graph, hex, MITRE table, YARA/Sigma export | ✅ |
 | **Triage P1** | Assisted triage: fact pipeline, risk score, strings/IOCs, xrefs, crypto constants, payload carving, packer verdict, function ranking, verdicts + annotations, `triage` CLI | ✅ |
+| **Triage P2** | Optional engines: capa (capabilities per function, ATT&CK/MBC) and FLOSS (stack/tight/decoded strings, hidden IOCs), isolated, cached, offline | ✅ |
 | M3 | Dynamic analysis: Frida 16.x agent, ETW, Job Object + AppContainer sandbox, VAD/memory forensics, network IOCs | planned |
 | M4 | MIL (SSA IL) decompiler MVP → pseudo-C, synced asm/pseudo/graph views | planned |
 | M5 | AI assistant (OpenRouter / OpenAI-compatible fallback), evidence-cited reports, guided workflows | planned |
@@ -107,6 +108,34 @@ ranking) continue in the background and the report refreshes when they finish.
 - **Function ranking** with API-based suggested names (`thread_inject_1000`); rename with `n`,
   comment with `;`, bookmark with `b`, cross-references with `x` or right-click.
 
+## Optional engines: capa and FLOSS
+
+Two open-source engines from Mandiant add depth when installed; OctoV works without them.
+
+| Engine | Adds |
+|--------|------|
+| [capa](https://github.com/mandiant/capa) | Names what each function does ("inject thread", "encrypt data using AES") with ATT&CK and MBC references; feeds the Triage tab, function ranking and suggested names |
+| [FLOSS](https://github.com/mandiant/flare-floss) | Recovers strings built on the stack or decoded at run time; hidden URLs, domains, mutexes and commands become a `hidden_ioc` finding |
+
+```bash
+python -m uv sync --extra capa --extra floss
+uv run octov ext setup capa      # one-time: pinned capa rules + signatures (sha256-checked)
+uv run octov ext status
+```
+
+`ext setup capa --from-zip rules.zip --sigs-from sigs/` installs from local files on machines
+without internet. The workbench itself never downloads anything.
+
+- Engines run as separate processes (below-normal priority, Windows Job Object memory limit,
+  timeout), one capa and one FLOSS process at a time, in the background: the first view never
+  waits for them. Limits: `extensions.<engine>` in `config.yaml`.
+- Results are cached in `~/.octov/cache/` (per sample, engine and rules version), so reopening
+  a sample is instant. "Run again" in the Triage tab ignores the cache.
+- Most capa matches are informational (a benign DLL matches 20-40 rules); only a short list of
+  behaviours that rarely appear in benign software (process injection, persistence, keylogging,
+  anti-VM, obfuscation, impact, C2) count towards the risk score.
+- Carved payloads are never written to disk to be scanned: engines run on files only.
+
 ## Workbench UI
 
 A modern desktop UI (React + TypeScript in an Edge WebView2 window): samples and functions
@@ -122,6 +151,7 @@ API calls use pywebview's in-process bridge; the browser mode (`octov serve`) bi
 src/octov/
   core/static/    PE parser, indicators, rule engine, disassembler, CFG
   core/analysis/  triage pipeline: facts, strings, IOCs, xrefs, crypto, carving, packer, scoring
+  ext/            optional engines: runner (Job Object), queue, cache, capa + FLOSS adapters
   core/dynamic/   Frida/ETW instrumentation (M3)
   core/ai/        evidence bundler + AI client (M5)
   core/session/   SQLite + msgpack .octov sessions

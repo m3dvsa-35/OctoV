@@ -15,17 +15,12 @@ from octov.ext.runner import EngineError
 
 SUPPORTED_MAJOR = "10"
 
-# Behaviours that rarely appear in benign software. Everything else is ``info``:
-# a benign DLL matches 20-40 capa rules. Tuned only via the System32 calibration.
-MEDIUM_PREFIXES: tuple[str, ...] = (
-    "host-interaction/process/inject",
-    "persistence/",
-    "collection/keylog",
-    "anti-analysis/anti-vm",
-    "anti-analysis/obfuscation",
-    "impact/",
-    "communication/c2",
-)
+# Behaviours that count towards the risk score. Everything else is ``info`` (listed,
+# explained, used for ranking and names, 0 points). Calibrated on a System32 slice
+# (2026-11-09): keylogging, anti-VM, stack strings, persistence, RWX allocation and
+# impact rules all matched benign Windows components (Magnify, msctf, dxgi, services...);
+# only C2 never did. Tuned only via scripts/baseline_sweep.py --ext.
+MEDIUM_PREFIXES: tuple[str, ...] = ("communication/c2",)
 
 
 # Top-level namespaces of capa-rules v10 (non-lib rules); each has an EN/AZ explanation.
