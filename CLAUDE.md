@@ -125,17 +125,18 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 - Installed plugins the user wants used: superpowers (TDD, verification, code review),
   caveman (commit messages, review), ui-ux-pro-max (visual panels), karpathy guidelines.
 
-## Status / where we stopped  (updated 2026-11-09, end of chat 3)
+## Status / where we stopped  (updated 2026-11-09, chat 4)
 
 ### How to resume in a new chat (read this first)
-1. `git switch feat/assisted-triage && git pull` — everything is pushed. **PR #5**
-   (https://github.com/m3dvsa-35/OctoV/pull/5, base `feat/web-ui`) is open; check its CI first.
-2. Phase 1 is **implementation-complete** (Tasks 1-14 done, see ledger
-   `.superpowers/sdd/2026-11-08-assisted-triage-phase1/progress.md`, git-ignored, local only).
-   Final review (fresh opus reviewer): 0 Critical, 4 Important — all fixed in `980b86c` with
-   RED→GREEN tests; 13 minors deferred (listed in the ledger and the PR description).
-3. Next: land the PR chain (see "Other open work"), then Phase 2 (capa, FLOSS) — start with
-   `superpowers:brainstorming` against the spec's Phase 2 section, then `writing-plans`.
+1. **M1, M2, web UI and assisted-triage Phase 1 are all merged into `main`** (PR #3 → `0329058`,
+   #4 → `dc20e65`, #5 → `4571254`, merge commits; `main` CI green). Start from `main`:
+   `git switch main && git pull`. This status update lives on local branch
+   `docs/phase1-landed` (not pushed) — carry it into the next phase's branch.
+2. Next: **Phase 2 (capa, FLOSS)** — start with `superpowers:brainstorming` against the spec's
+   Phase 2 section, then `superpowers:writing-plans`; new branch `feat/assisted-triage-phase2`.
+3. Phase 1 record: ledger `.superpowers/sdd/2026-11-08-assisted-triage-phase1/progress.md`
+   (git-ignored, local only; rulings + 13 deferred minors, also listed in PR #5's description).
+   The deferred minors are good first tasks for Phase 2 or a cleanup PR.
 
 ### Assisted triage — Phase 1 (branch `feat/assisted-triage`)
 Spec: `docs/superpowers/specs/2026-11-08-assisted-analysis-design.md` (owner-approved).
@@ -176,10 +177,8 @@ Known limitations: tail jumps are followed as intra-function edges (CRT entry fu
 their tail-called body); the Strings tab has no chip for uncategorised strings ("All" only).
 
 ### Other open work
-- PR #3 (M2, base `main`) — CI green, Auto-fix ON.
-- PR #4 (web UI, base `feat/m2-static-engine`) — Auto-fix ON.
-- PR #5 triage (base `feat/web-ui`). Merge order: #3 → retarget #4 to `main` → merge → retarget
-  #5 to `main` (rebase if needed) → merge.
+- Remote branches `feat/m2-static-engine`, `feat/web-ui`, `feat/assisted-triage` are merged and
+  can be deleted (not done: the owner did not ask).
 - After Phase 1: Phase 2 (capa, FLOSS), Phase 3 (Ghidra decompiler), Phase 4 (symbol tree,
   call graph, memory map, search), Phase 5 (FLIRT-like, PDB, binary diff); M3 dynamic; M5 AI.
 
