@@ -12,7 +12,7 @@ from octov.core.static.cfg import Function, FunctionIndex
 from octov.core.static.pe_parser import PEReport
 from octov.core.static.rules import Finding
 
-AnalyzerStatus = Literal["queued", "running", "done", "failed", "unavailable"]
+AnalyzerStatus = Literal["queued", "running", "done", "failed", "unavailable", "idle"]
 
 
 @dataclass
@@ -72,12 +72,35 @@ class Pipeline:
         self._analyzers = _ordered(analyzers)
         self._lock = threading.Lock()
         self._status: dict[str, dict[str, Any]] = {
-            a.id: {"state": "queued", "error": None} for a in self._analyzers
+            a.id: self._entry("queued") for a in self._analyzers
         }
+        self._slow_done = threading.Event()
+
+    @staticmethod
+    def _entry(
+        state: AnalyzerStatus,
+        error: str | None = None,
+        elapsed_s: float | None = None,
+        cached: bool = False,
+    ) -> dict[str, Any]:
+        return {"state": state, "error": error, "elapsed_s": elapsed_s, "cached": cached}
 
     def _set(self, analyzer_id: str, state: AnalyzerStatus, error: str | None = None) -> None:
         with self._lock:
-            self._status[analyzer_id] = {"state": state, "error": error}
+            self._status[analyzer_id] = self._entry(state, error)
+
+    def set_state(
+        self,
+        analyzer_id: str,
+        state: AnalyzerStatus,
+        error: str | None = None,
+        *,
+        elapsed_s: float | None = None,
+        cached: bool = False,
+    ) -> None:
+        """Status of a job run outside this pipeline (the capa / FLOSS extension lane)."""
+        with self._lock:
+            self._status[analyzer_id] = self._entry(state, error, elapsed_s, cached)
 
     def status(self) -> dict[str, dict[str, Any]]:
         with self._lock:
@@ -112,7 +135,19 @@ class Pipeline:
             for a in self._analyzers:
                 if a.cost == "slow":
                     self._run_one(a, ctx)
+            self._slow_done.set()
             if on_done is not None:
                 on_done()
 
         threading.Thread(target=work, daemon=True, name="octov-analysis").start()
+
+    def wait_slow(self, timeout: float | None = None) -> bool:
+        """Block until the slow lane has finished (True) or ``timeout`` passed (False)."""
+        return self._slow_done.wait(timeout)
+
+    def rerun(self, ids: Sequence[str], ctx: AnalysisContext) -> None:
+        """Run the named analyzers again, synchronously, in dependency order."""
+        wanted = set(ids)
+        for a in self._analyzers:
+            if a.id in wanted:
+                self._run_one(a, ctx)

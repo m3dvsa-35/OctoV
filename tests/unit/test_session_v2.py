@@ -120,3 +120,26 @@ def test_newer_schema_still_rejected(tmp_path: Path) -> None:
     con.close()
     with pytest.raises(SessionError):
         Session.open(path)
+
+
+def test_concurrent_writes_on_one_session_are_serialized(tmp_path: Path) -> None:
+    import threading
+
+    s = _session(tmp_path)
+    errors: list[BaseException] = []
+
+    def write(i: int) -> None:
+        try:
+            s.add_annotation(SHA, "comment", f"c{i}", address=0x1000 + i)
+            s.commit()
+            s.annotations(SHA)
+        except BaseException as exc:  # surfaced by the assertion below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=write, args=(i,)) for i in range(40)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert errors == []
+    assert len(s.annotations(SHA, "comment")) == 40

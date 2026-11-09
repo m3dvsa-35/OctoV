@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from octov.core.analysis import strings as strings_mod
-from octov.core.analysis.strings import classify, extract_strings
+from octov.core.analysis.strings import FoundString, classify, extract_strings
 from octov.core.static.pe_parser import parse_pe
 from tests.samples.builder import DATA, TEXT, PESpec, SectionSpec, build_pe
 
@@ -74,3 +74,8 @@ def test_raw_blob_strings_have_offsets_no_rva() -> None:
 
 def test_min_length_filters_short_runs() -> None:
     assert extract_strings(b"\x00abc\x00abcd\x00", None, min_len=4)[0].value == "abcd"
+
+
+def test_found_string_defaults() -> None:
+    s = FoundString("abcd", "ascii", 0, None, None, None)
+    assert s.origin == "static" and s.function is None

@@ -68,12 +68,25 @@ class RulesConfig:
 
 
 @dataclass
+class ExtensionConfig:
+    timeout_s: int = 600
+    max_size_mb: int = 64
+    max_memory_mb: int = 4096
+
+
+EXTENSION_IDS = ("capa", "floss")
+
+
+@dataclass
 class Config:
     ai: AIConfig = field(default_factory=AIConfig)
     ui: UIConfig = field(default_factory=UIConfig)
     static: StaticConfig = field(default_factory=StaticConfig)
     dynamic: DynamicConfig = field(default_factory=DynamicConfig)
     rules: RulesConfig = field(default_factory=RulesConfig)
+    extensions: dict[str, ExtensionConfig] = field(
+        default_factory=lambda: {e: ExtensionConfig() for e in EXTENSION_IDS}
+    )
 
 
 def _section(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
@@ -130,4 +143,17 @@ def load_config(path: str | Path | None, env: Mapping[str, str] | None = None) -
     rules = _section(raw, "rules")
     if "paths" in rules:
         cfg.rules.paths = [base_dir / p for p in rules["paths"]]
+
+    for ext_id, values in _section(raw, "extensions").items():
+        if ext_id not in cfg.extensions:
+            raise ConfigError(f"unknown extension {ext_id!r}; use one of {EXTENSION_IDS}")
+        if not isinstance(values, dict):
+            raise ConfigError(f"'extensions.{ext_id}' must be a mapping")
+        target = cfg.extensions[ext_id]
+        for key, value in values.items():
+            if not hasattr(target, key):
+                raise ConfigError(f"unknown setting extensions.{ext_id}.{key}")
+            if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+                raise ConfigError(f"extensions.{ext_id}.{key} must be a positive integer")
+            setattr(target, key, value)
     return cfg

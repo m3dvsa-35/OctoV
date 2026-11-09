@@ -76,8 +76,13 @@ def _url_host(url: str) -> str | None:
 
 
 def ioc_fact_id(ioc: Ioc) -> str:
-    """Id of the ``ioc`` fact the analyzer emits for ``ioc`` (keyed by its first offset)."""
-    return f"ioc:{ioc.type}:{hex(min(ioc.offsets))}"
+    """Id of the ``ioc`` fact for ``ioc``: keyed by its lowest file offset.
+
+    FLOSS-recovered strings have offset -1; they only count when nothing else is known,
+    so an IOC seen in the file keeps its id (and its verdict) after FLOSS ran.
+    """
+    in_file = [o for o in ioc.offsets if o >= 0]
+    return f"ioc:{ioc.type}:{hex(min(in_file or ioc.offsets))}"
 
 
 def build_iocs(strings: Sequence[FoundString]) -> list[Ioc]:

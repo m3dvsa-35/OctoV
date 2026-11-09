@@ -288,4 +288,138 @@ STRINGS: dict[str, str] = {
     "strings.cat.wallet": "Wallet",
     "strings.cat.base64": "Base64",
     "triage.iocs_shown": "first {n} of {total}; Copy CSV exports all",
+    "capa.ns.anti-analysis.explain": (
+        "The code tries to notice or slow down analysis: debugger checks, virtual-machine "
+        "detection, obfuscation or timing tricks. Malware uses this to hide its real behaviour "
+        "from analysts and sandboxes; some legitimate software (DRM, anti-cheat) does it too. "
+        "Check which check is made and what the code does when it fires."
+    ),
+    "capa.ns.collection.explain": (
+        "The code gathers data from the computer: screenshots, keystrokes, clipboard, browser or "
+        "system information. Info-stealers and spyware live on this; ordinary tools collect far "
+        "less. Check what is collected and whether it is stored or sent somewhere."
+    ),
+    "capa.ns.communication.explain": (
+        "The code talks over the network or between processes: HTTP, sockets, DNS, named pipes, "
+        "or a command-and-control channel. Malware needs this to receive orders and send data; "
+        "many normal programs also connect out. Look for the addresses it contacts in the IOC "
+        "list and in recovered strings."
+    ),
+    "capa.ns.compiler.explain": (
+        "capa recognised the compiler or runtime the program was built with (for example MSVC, "
+        "Go, Rust or a .NET packer stub). This is context, not a sign of malice: it tells you "
+        "which library code to skip and which tools fit best for deeper analysis."
+    ),
+    "capa.ns.data-manipulation.explain": (
+        "The code transforms data: encryption, hashing, encoding (Base64, XOR), compression or "
+        "string handling. Malware uses it to hide configuration, strings and traffic; normal "
+        "programs use the same algorithms for legitimate reasons. Check what data goes in and "
+        "where the result is used."
+    ),
+    "capa.ns.executable.explain": (
+        "Findings about the file as an executable: embedded files, resources, unusual PE "
+        "structure or installer/packer traits. An embedded executable often means a dropper or "
+        "loader; installers have them legitimately. Open embedded payloads as new samples."
+    ),
+    "capa.ns.exploitation.explain": (
+        "The code shows traits of exploiting a vulnerability, such as shellcode patterns or "
+        "spraying memory. This is rare in legitimate software and deserves a close look at the "
+        "matched function and what it feeds the target."
+    ),
+    "capa.ns.host-interaction.explain": (
+        "The code works with the local system: files, registry, processes, threads, services, "
+        "users or hardware. Almost every program does some of this, so a single match means "
+        "little; combinations (create a service and write the registry, open another process and "
+        "write into it) are what matter."
+    ),
+    "capa.ns.impact.explain": (
+        "The code can damage or deny use of the system: wiping or encrypting files, stopping "
+        "services, shutting down. Ransomware and wipers do this; outside backup or admin tools it"
+        " is a strong warning sign. Check which files or services are targeted."
+    ),
+    "capa.ns.internal.explain": (
+        "Helper matches capa uses internally (for example limits on how often a feature may "
+        "appear). They describe analysis bookkeeping rather than program behaviour and can "
+        "usually be ignored."
+    ),
+    "capa.ns.linking.explain": (
+        "How the program finds the code it calls: imports resolved at run time, API hashing, or "
+        "loading libraries manually. Resolving APIs by hash or by hand hides what a program calls"
+        " from static tools; plain runtime linking is common. Check which APIs end up being "
+        "resolved."
+    ),
+    "capa.ns.load-code.explain": (
+        "The code loads or runs other code: DLLs, PE files from memory, shellcode or scripts. "
+        "Loaders and droppers are built on this, especially when the code comes from memory "
+        "instead of a file. Check where the loaded code comes from."
+    ),
+    "capa.ns.malware-family.explain": (
+        "A rule written for a known malware family matched. Treat it as a strong lead, not a "
+        "verdict: confirm it with the family's other traits (strings, configuration, network "
+        "indicators) before reporting the sample as that family."
+    ),
+    "capa.ns.persistence.explain": (
+        "The code makes sure it runs again after a reboot or logon: Run keys, services, scheduled"
+        " tasks, startup folders. Malware almost always needs this; installers set up persistence"
+        " too, but openly. Check what exactly is registered to start."
+    ),
+    "capa.ns.runtime.explain": (
+        "Traits of the language runtime the program uses (for example .NET or Go internals). Like"
+        " compiler matches, this is context that helps you pick the right tools, not a sign of "
+        "malicious behaviour."
+    ),
+    "capa.ns.targeting.explain": (
+        "The code checks where it runs: keyboard language, locale, country or a specific product "
+        "before acting. Targeted malware uses this to stay quiet outside its target; localisation"
+        " code does it legitimately. Check what the result of the check changes."
+    ),
+    "capa.ns.other.explain": (
+        "A capa rule matched that does not belong to one of the usual categories. Read the rule "
+        "name, jump to the matched function and judge it together with the other findings."
+    ),
+    "fact.capability.next": "Jump to the function to see the code behind the match.",
+    "fact.obfuscated_strings.explain": (
+        "FLOSS found strings that do not exist in the file as plain text: they are assembled on "
+        "the stack or decoded at run time. Hiding strings this way is a common malware technique "
+        "to defeat simple string scans; some protected software does it as well."
+    ),
+    "fact.obfuscated_strings.next": (
+        "Filter the Strings tab by Obfuscated and read the recovered values."
+    ),
+    "fact.hidden_ioc.explain": (
+        "Indicators of compromise (URLs, domains, IP addresses, mutexes, commands) appear only "
+        "after deobfuscation. A program that hides where it connects or what it runs is much more"
+        " suspicious than one that stores these openly."
+    ),
+    "fact.hidden_ioc.next": (
+        "Add the hidden indicators to your blocklists and search for them in your logs."
+    ),
+    "ext.reason.not_installed": "not installed",
+    "ext.reason.no_rules": "capa rules missing",
+    "ext.reason.in_memory": "only for files on disk (carved payloads stay in memory)",
+    "ext.reason.too_large": "file too large (raise max_size_mb in config.yaml)",
+    "ext.capa.adds": (
+        "capa names what each function does (for example 'inject thread', 'encrypt data using "
+        "AES') with ATT&CK and MBC references."
+    ),
+    "ext.floss.adds": (
+        "FLOSS recovers strings hidden on the stack or decoded at run time, including hidden URLs"
+        " and commands."
+    ),
+    "ext.install": "Install",
+    "ext.setup": "One-time setup",
+    "ext.run": "Run",
+    "ext.rerun": "Run again",
+    "ext.auto_run": "Run automatically",
+    "ext.cached": "cached",
+    "ext.queued": "queued",
+    "ext.idle": "not started",
+    "triage.job.idle": "not started",
+    "strings.origin": "Origin",
+    "strings.origin.static": "in file",
+    "strings.origin.stack": "stack",
+    "strings.origin.tight": "tight",
+    "strings.origin.decoded": "decoded",
+    "strings.obfuscated": "Obfuscated",
+    "triage.capa_group": "{ns} ({n})",
 }

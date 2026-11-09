@@ -106,3 +106,20 @@ def test_false_positive_on_counted_duplicate_lets_the_next_one_count() -> None:
 
 def test_distinct_detectors_still_add_up() -> None:
     assert risk_score([_fact("medium", 1), _fact("medium", 2), _fact("low", 3)], {}).score == 28
+
+
+def test_capa_reason_in_ranking() -> None:
+    from octov.core.analysis.xrefs import XrefIndex
+
+    fn = _fn(0x1000, 0x20)
+    fact = Fact("capability", "contain loop", "info", "contain loop", (Evidence("f", rva=0x1000),))
+    medium = Fact(
+        "capability", "inject thread", "medium", "inject thread", (Evidence("f", rva=0x1000),)
+    )
+    xrefs = XrefIndex.build({0x1000: fn}, {})
+    only_info = rank_functions({0x1000: fn}, xrefs, [fact], [], {})
+    assert only_info == []  # info adds no points, so the function is not ranked on it
+    ranked = rank_functions({0x1000: fn}, xrefs, [fact, medium], [], {})
+    assert "capa: contain loop" in ranked[0].reasons
+    assert "capa: inject thread" in ranked[0].reasons
+    assert ranked[0].score == 20

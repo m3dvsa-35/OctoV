@@ -101,6 +101,9 @@ class FoundString:
     rva: int | None
     section: str | None
     category: str | None
+    # Recovered by FLOSS (stack/tight/decoded): offset -1, ``function`` built/decoded it.
+    origin: Literal["static", "stack", "tight", "decoded"] = "static"
+    function: int | None = None
 
 
 def _is_ip(value: str) -> bool:

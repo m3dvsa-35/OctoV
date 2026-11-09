@@ -85,10 +85,8 @@ def test_pipeline_runs_fast_in_dependency_order() -> None:
     pipeline = Pipeline([a, b])
     pipeline.run_fast(_ctx())
     assert log == ["b", "a"]
-    assert pipeline.status() == {
-        "a": {"state": "done", "error": None},
-        "b": {"state": "done", "error": None},
-    }
+    done = {"state": "done", "error": None, "elapsed_s": None, "cached": False}
+    assert pipeline.status() == {"a": done, "b": done}
 
 
 def test_slow_analyzers_report_status_and_errors() -> None:
@@ -103,7 +101,7 @@ def test_slow_analyzers_report_status_and_errors() -> None:
     assert done.wait(10)
     status = pipeline.status()
     assert status["ok"]["state"] == "done"
-    assert status["bad"] == {"state": "failed", "error": "bad broke"}
+    assert (status["bad"]["state"], status["bad"]["error"]) == ("failed", "bad broke")
     assert status["after"]["state"] == "unavailable"
     assert "after" not in log
 
@@ -126,3 +124,35 @@ def test_context_add_dedupes_by_id() -> None:
 def test_cyclic_dependencies_are_rejected() -> None:
     with pytest.raises(ValueError):
         Pipeline([_Probe("a", depends_on=("b",)), _Probe("b", depends_on=("a",))])
+
+
+def test_status_has_elapsed_and_cached() -> None:
+    pipeline = Pipeline([_Probe("a")])
+    pipeline.set_state("capa", "running")
+    assert pipeline.status()["capa"]["state"] == "running"
+    pipeline.set_state("capa", "done", elapsed_s=12.5, cached=True)
+    assert pipeline.status()["capa"] == {
+        "state": "done",
+        "error": None,
+        "elapsed_s": 12.5,
+        "cached": True,
+    }
+
+
+def test_rerun_respects_dependencies() -> None:
+    log: list[str] = []
+    a = _Probe("a", log=log)
+    b = _Probe("b", depends_on=("a",), log=log)
+    c = _Probe("c", cost="slow", depends_on=("b",), log=log)
+    pipeline = Pipeline([a, b, c])
+    ctx = _ctx()
+    pipeline.rerun(["c", "a"], ctx)
+    assert log == ["a", "c"]
+    assert pipeline.status()["c"]["state"] == "done"
+
+
+def test_wait_slow() -> None:
+    pipeline = Pipeline([_Probe("s", cost="slow")])
+    assert not pipeline.wait_slow(0.05)
+    pipeline.start_slow(_ctx())
+    assert pipeline.wait_slow(10)

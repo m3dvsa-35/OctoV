@@ -23,7 +23,7 @@ FULL = bool(os.environ.get("OCTOV_FULL_BASELINE"))
 STRIDE = 1 if FULL else 25
 # The full pipeline (strings, xrefs, ranking) is ~1 s per file: sample fewer in CI.
 PIPELINE_STRIDE = 1 if FULL else 80
-JOB_TIMEOUT = 120.0
+JOB_TIMEOUT = 700.0  # engine jobs may run up to their 600 s timeout
 # Owner-approved exceptions (2026-11-09): system binaries whose job *is* what the detectors
 # describe. Each has 4-6 distinct medium capabilities; lowering weights enough to clear them
 # would also drop real injectors to "low". Every other file must stay out of the high band.
@@ -102,3 +102,45 @@ def test_system32_full_pipeline_baseline(tmp_path: Path) -> None:
     assert offenders == [], "\n".join(offenders)
     assert bands["low"] / scanned >= 0.95, f"{bands}; not low: {raised}"
     assert bands["high"] == 0, f"{bands}; not low: {raised}"
+
+
+ENGINE_STRIDE = 400  # ~11 files: capa/FLOSS take seconds to minutes per file
+
+
+def _engines_ready() -> bool:
+    from octov.ext import DEFAULT_RULES_ROOT, extension_status
+
+    return all(s.ready for s in extension_status(DEFAULT_RULES_ROOT.expanduser()))
+
+
+@pytest.mark.skipif(
+    not SYSTEM32.is_dir() or not _engines_ready(), reason="needs System32 and capa + FLOSS"
+)
+def test_system32_slice_with_engines(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from octov.app import api as api_mod
+    from octov.ext import extension_status
+
+    monkeypatch.setattr(api_mod, "extension_status", extension_status)  # undo the conftest stub
+    api = WorkbenchApi(
+        Config(),
+        settings_path=tmp_path / "ui.json",
+        workspace_dir=tmp_path / "ws",
+        cache_dir=tmp_path / "cache",
+    )
+    offenders: list[str] = []
+    states: set[str] = set()
+    scanned = 0
+    for path in _baseline_files(ENGINE_STRIDE):
+        report = _full_triage(api, path)
+        if report is None:
+            continue
+        scanned += 1
+        caps, score, jobs = report["capabilities"], report["score"], report["jobs"]
+        assert isinstance(caps, list) and isinstance(score, dict) and isinstance(jobs, dict)
+        offenders += [f"{path.name}: {c['source_id']}" for c in caps if c["severity"] == "high"]
+        if score["band"] == "high" and path.name not in KNOWN_HIGH:
+            offenders.append(f"{path.name}: band high ({score['score']})")
+        states |= {jobs[e]["state"] for e in ("capa", "floss")}
+    assert scanned >= 8
+    assert offenders == [], "\n".join(offenders)
+    assert states <= {"done", "unavailable"}, states

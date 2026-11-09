@@ -1,6 +1,8 @@
 import type {
   Annotation,
   AnnotationKind,
+  EngineId,
+  Extension,
   ByteChunk,
   Capabilities,
   DiscoveryStatus,
@@ -112,8 +114,17 @@ export const api = {
     call<SampleSummary>("open_payload", { sha, payload_sha: payloadSha }),
   exportPayload: (sha: string, payloadSha: string, path: string) =>
     call<null>("export_payload", { sha, payload_sha: payloadSha, path }),
-  getStrings: (sha: string, category: string | null, query: string, offset: number, limit: number) =>
-    call<StringsPage>("get_strings", { sha, category, query, offset, limit }),
+  getStrings: (
+    sha: string,
+    category: string | null,
+    query: string,
+    offset: number,
+    limit: number,
+    origin: string | null = null,
+  ) => call<StringsPage>("get_strings", { sha, category, query, offset, limit, origin }),
+  extensions: () => call<Extension[]>("get_extensions"),
+  runExtension: (sha: string, extId: EngineId, force = false) =>
+    call<null>("run_extension", { sha, ext_id: extId, force }),
   xrefsTo: (sha: string, rva: number) => call<XrefRow[]>("xrefs_to", { sha, rva }),
   annotate: (sha: string, kind: AnnotationKind, value: string, address: number | null, target: string | null = null) =>
     call<Annotation>("annotate", { sha, kind, value, address, target }),

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from octov.core.analysis.naming import API_FAMILIES, suggest_name
+from octov.core.analysis.naming import API_FAMILIES, suggest_name, suggest_name_from_capa
 from octov.core.analysis.packer import packer_fact, packer_verdict
 from octov.core.static.pe_parser import parse_pe
 from tests.samples.builder import RWX, TEXT, PESpec, SectionSpec, build_pe
@@ -91,3 +91,22 @@ def test_suggest_name_needs_two_calls_and_majority() -> None:
         "advapi32.dll!RegSetValueExW",
     ]
     assert suggest_name(0x1000, mixed) is None
+
+
+def test_capa_name_single_medium() -> None:
+    rules = [("inject thread", "medium"), ("contain loop", "info")]
+    assert suggest_name_from_capa(0x1000, rules) == "inject_thread_1000"
+
+
+def test_capa_name_two_medium_is_none() -> None:
+    assert suggest_name_from_capa(0x1000, [("a", "medium"), ("b", "medium")]) is None
+    assert suggest_name_from_capa(0x1000, [("contain loop", "info")]) is None
+
+
+def test_capa_name_slug_is_short_and_safe() -> None:
+    name = suggest_name_from_capa(
+        0x2000, [("Write Process Memory (via NtWrite...) / v2", "medium")]
+    )
+    assert name is not None and name.endswith("_2000")
+    stem = name[: -len("_2000")]
+    assert len(stem) <= 32 and stem.replace("_", "").isalnum() and stem == stem.lower()

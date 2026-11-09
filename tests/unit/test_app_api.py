@@ -156,7 +156,12 @@ def test_strings_and_settings_persist(api: WorkbenchApi, tmp_path: Path) -> None
     assert api.strings("az")["menu.file"] == "Fayl"
     api.set_settings({"language": "az", "theme": "light"})
     again = WorkbenchApi(Config(), settings_path=tmp_path / "ui.json")
-    assert again.get_settings() == {"language": "az", "theme": "light", "compact": False}
+    assert again.get_settings() == {
+        "language": "az",
+        "theme": "light",
+        "compact": False,
+        "extensions_auto_run": {"capa": True, "floss": True},
+    }
     with pytest.raises(ApiError):
         api.set_settings({"language": "xx"})
 

@@ -16,13 +16,15 @@ it raises.
 
 from __future__ import annotations
 
+import functools
 import sqlite3
+import threading
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Protocol, Self
+from typing import Any, Concatenate, ParamSpec, Protocol, Self, TypeVar
 
 import msgpack
 
@@ -89,6 +91,19 @@ DROP TABLE notes;
 )
 
 
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+def _serialized(fn: Callable[Concatenate[Session, P], R]) -> Callable[Concatenate[Session, P], R]:
+    @functools.wraps(fn)
+    def wrapper(session: Session, /, *args: P.args, **kwargs: P.kwargs) -> R:
+        with session._lock:
+            return fn(session, *args, **kwargs)
+
+    return wrapper
+
+
 class SessionError(Exception):
     """Raised for invalid session files or misuse of a session."""
 
@@ -149,6 +164,8 @@ class Session:
     def __init__(self, path: Path, connection: sqlite3.Connection) -> None:
         self.path = path
         self._con: sqlite3.Connection | None = connection
+        # One connection is shared by the UI/dev-server threads: one call at a time.
+        self._lock = threading.RLock()
 
     # -- lifecycle -------------------------------------------------------
 
@@ -205,9 +222,11 @@ class Session:
         con.execute("PRAGMA foreign_keys = ON")
         return cls(path, con)
 
+    @_serialized
     def commit(self) -> None:
         self._db.commit()
 
+    @_serialized
     def close(self) -> None:
         if self._con is not None:
             self._con.close()
@@ -237,6 +256,7 @@ class Session:
 
     # -- metadata --------------------------------------------------------
 
+    @_serialized
     def set_meta(self, key: str, value: Any) -> None:
         self._db.execute(
             "INSERT INTO meta(key, value) VALUES (?, ?) "
@@ -244,12 +264,14 @@ class Session:
             (key, _pack(value)),
         )
 
+    @_serialized
     def get_meta(self, key: str, default: Any = None) -> Any:
         row = self._db.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
         return _unpack(row[0]) if row else default
 
     # -- samples ---------------------------------------------------------
 
+    @_serialized
     def add_sample(self, report: Mapping[str, Any] | _HasToDict) -> str:
         """Store (or replace) a sample report. Returns its SHA-256."""
         data: Mapping[str, Any] = report.to_dict() if hasattr(report, "to_dict") else report
@@ -264,10 +286,12 @@ class Session:
         )
         return sha
 
+    @_serialized
     def get_sample(self, sha256: str) -> dict[str, Any] | None:
         row = self._db.execute("SELECT report FROM samples WHERE sha256 = ?", (sha256,)).fetchone()
         return _unpack(row[0]) if row else None
 
+    @_serialized
     def list_samples(self) -> list[SampleRow]:
         rows = self._db.execute(
             "SELECT sha256, path, size, added_at FROM samples ORDER BY added_at, sha256"
@@ -276,6 +300,7 @@ class Session:
 
     # -- artifacts & notes ----------------------------------------------
 
+    @_serialized
     def add_artifact(self, sha256: str, kind: str, data: Any) -> int:
         try:
             cur = self._db.execute(
@@ -286,6 +311,7 @@ class Session:
             raise SessionError(f"unknown sample {sha256}") from exc
         return int(cur.lastrowid or 0)
 
+    @_serialized
     def artifacts(self, sha256: str, kind: str | None = None) -> list[Artifact]:
         query = "SELECT id, sha256, kind, created_at, data FROM artifacts WHERE sha256 = ?"
         params: tuple[str, ...] = (sha256,)
@@ -297,6 +323,7 @@ class Session:
 
     # -- annotations (analyst corrections) ----------------------------------------
 
+    @_serialized
     def add_annotation(
         self,
         sha256: str,
@@ -328,6 +355,7 @@ class Session:
             raise SessionError(f"unknown sample {sha256}") from exc
         return int(cur.lastrowid or 0)
 
+    @_serialized
     def annotations(self, sha256: str, kind: str | None = None) -> list[Annotation]:
         query = (
             "SELECT id, sha256, kind, address, target, value, created_at FROM annotations "
@@ -340,13 +368,16 @@ class Session:
         rows = self._db.execute(query + " ORDER BY id", params).fetchall()
         return [Annotation(*r) for r in rows]
 
+    @_serialized
     def delete_annotation(self, annotation_id: int) -> None:
         self._db.execute("DELETE FROM annotations WHERE id = ?", (annotation_id,))
 
+    @_serialized
     def add_note(self, sha256: str, text: str, offset: int | None = None) -> int:
         """Backwards-compatible alias for a ``comment`` annotation."""
         return self.add_annotation(sha256, "comment", text, address=offset)
 
+    @_serialized
     def notes(self, sha256: str) -> list[Note]:
         return [
             Note(a.id, a.sha256, a.address, a.value, a.created_at)
@@ -355,6 +386,7 @@ class Session:
 
     # -- carved payloads ---------------------------------------------------------------
 
+    @_serialized
     def add_payload(self, parent_sha256: str, payload: Payload, data: bytes) -> None:
         try:
             self._db.execute(
@@ -373,10 +405,12 @@ class Session:
         except sqlite3.IntegrityError as exc:
             raise SessionError(f"unknown sample {parent_sha256}") from exc
 
+    @_serialized
     def payload_bytes(self, sha256: str) -> bytes | None:
         row = self._db.execute("SELECT data FROM payloads WHERE sha256 = ?", (sha256,)).fetchone()
         return bytes(row[0]) if row else None
 
+    @_serialized
     def payloads(self, parent_sha256: str) -> list[dict[str, Any]]:
         rows = self._db.execute(
             "SELECT sha256, offset, size, kind, location FROM payloads WHERE parent_sha256 = ? "

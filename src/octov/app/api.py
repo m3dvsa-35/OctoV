@@ -15,8 +15,11 @@ workspace session under ``workspace_dir``.
 from __future__ import annotations
 
 import base64
+import contextlib
+import hashlib
 import json
 import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -47,6 +50,21 @@ from octov.core.static.cfg import Function
 from octov.core.static.disasm import Disassembler, ImageView, RawView
 from octov.core.static.pe_parser import Hashes, PEParseError, PEReport
 from octov.core.static.rules import Rule, RuleError
+from octov.ext import (
+    DEFAULT_RULES_ROOT,
+    DEFAULT_SIGS_ROOT,
+    ENGINES,
+    ExtensionStatus,
+    capa_rules_dir,
+    capa_sigs_dir,
+    extension_status,
+)
+from octov.ext import cache as ext_cache
+from octov.ext import capa as capa_ext
+from octov.ext import floss as floss_ext
+from octov.ext.apply import apply_capa, apply_floss
+from octov.ext.queue import QUEUES
+from octov.ext.runner import EngineError, parse_json, run_engine
 
 _SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2, "info": 3}
 MAX_READ = 1 << 20  # largest hex chunk a single call may return
@@ -107,8 +125,14 @@ class WorkbenchApi:
         config: Config | None = None,
         settings_path: Path | None = None,
         workspace_dir: Path | None = None,
+        cache_dir: Path | None = None,
+        rules_root: Path | None = None,
+        sigs_root: Path | None = None,
     ) -> None:
         self._config = config or Config()
+        self._cache_dir = cache_dir or Path.home() / ".octov" / "cache"
+        self._rules_root = rules_root or DEFAULT_RULES_ROOT.expanduser()
+        self._sigs_root = sigs_root or DEFAULT_SIGS_ROOT.expanduser()
         self._settings_path = settings_path or Path.home() / ".octov" / "ui.json"
         self._workspace_dir = workspace_dir or Path.home() / ".octov" / "workspaces"
         self._lock = threading.RLock()
@@ -127,6 +151,7 @@ class WorkbenchApi:
             "language": self._config.ui.language,
             "theme": self._config.ui.theme,
             "compact": False,
+            "extensions_auto_run": {e: True for e in ENGINES},
         }
         try:
             stored = json.loads(self._settings_path.read_text(encoding="utf-8"))
@@ -138,18 +163,37 @@ class WorkbenchApi:
             settings["theme"] = stored["theme"]
         if isinstance(stored.get("compact"), bool):
             settings["compact"] = stored["compact"]
+        auto = stored.get("extensions_auto_run")
+        if isinstance(auto, dict):
+            for e in ENGINES:
+                if isinstance(auto.get(e), bool):
+                    settings["extensions_auto_run"][e] = auto[e]
         return settings
 
     def get_settings(self) -> dict[str, Any]:
-        return dict(self._settings)
+        out = dict(self._settings)
+        out["extensions_auto_run"] = dict(self._settings["extensions_auto_run"])
+        return out
 
     def set_settings(self, settings: dict[str, Any]) -> dict[str, Any]:
         lang = settings.get("language", self._settings["language"])
         theme = settings.get("theme", self._settings["theme"])
         compact = settings.get("compact", self._settings["compact"])
-        if lang not in LANGUAGES or theme not in THEMES or not isinstance(compact, bool):
+        auto = {**self._settings["extensions_auto_run"], **settings.get("extensions_auto_run", {})}
+        if (
+            lang not in LANGUAGES
+            or theme not in THEMES
+            or not isinstance(compact, bool)
+            or set(auto) != set(ENGINES)
+            or not all(isinstance(v, bool) for v in auto.values())
+        ):
             raise ApiError(f"invalid settings: {settings}")
-        self._settings = {"language": lang, "theme": theme, "compact": compact}
+        self._settings = {
+            "language": lang,
+            "theme": theme,
+            "compact": compact,
+            "extensions_auto_run": auto,
+        }
         try:
             self._settings_path.parent.mkdir(parents=True, exist_ok=True)
             self._settings_path.write_text(json.dumps(self._settings), encoding="utf-8")
@@ -228,6 +272,9 @@ class WorkbenchApi:
         pipeline.run_fast(ctx)
         sample = _Sample(file, data, analysis, ctx, pipeline, parent=parent)
         with self._lock:
+            existing = self._samples.get(sha)  # opened concurrently meanwhile: keep the first
+            if existing is not None:
+                return self._summary(existing)
             self._samples[sha] = sample
             if self._session is not None:
                 self._persist(self._session, sample)
@@ -240,6 +287,7 @@ class WorkbenchApi:
                     except SessionError:
                         sample.store = None
         pipeline.start_slow(ctx)
+        self._schedule_extensions(sample)
         return self._summary(sample)
 
     def _persist(self, session: Session, sample: _Sample) -> None:
@@ -310,6 +358,8 @@ class WorkbenchApi:
         return [self._summary(s) for s in samples]
 
     def close_sample(self, sha: str) -> None:
+        for engine in ENGINES:
+            QUEUES[engine].cancel(sha)
         with self._lock:
             sample = self._samples.pop(sha, None)
         if sample is not None and sample.store is not None:
@@ -365,14 +415,16 @@ class WorkbenchApi:
         if self._session is not None:
             return self._session
         if s.store is None and create:
-            self._workspace_dir.mkdir(parents=True, exist_ok=True)
-            path = self._workspace_dir / f"{s.sha}.octov"
-            try:
-                s.store = Session.open(path) if path.is_file() else Session.create(path)
-                if s.store.get_sample(s.sha) is None:
-                    self._persist(s.store, s)
-            except SessionError as exc:
-                raise ApiError(str(exc)) from exc
+            with self._lock:  # one workspace connection per sample, even for parallel calls
+                if s.store is None:
+                    self._workspace_dir.mkdir(parents=True, exist_ok=True)
+                    path = self._workspace_dir / f"{s.sha}.octov"
+                    try:
+                        s.store = Session.open(path) if path.is_file() else Session.create(path)
+                        if s.store.get_sample(s.sha) is None:
+                            self._persist(s.store, s)
+                    except SessionError as exc:
+                        raise ApiError(str(exc)) from exc
         return s.store
 
     def _annotations(self, s: _Sample, kind: str | None = None) -> list[Any]:
@@ -478,9 +530,14 @@ class WorkbenchApi:
         query: str = "",
         offset: int = 0,
         limit: int = 500,
+        origin: str | None = None,
     ) -> dict[str, Any]:
         s = self._get(sha)
         items = list(s.ctx.results.get("strings", []))
+        if origin == "recovered":
+            items = [x for x in items if x.origin != "static"]
+        elif origin:
+            items = [x for x in items if x.origin == origin]
         if category:
             items = [x for x in items if x.category == category]
         if query:
@@ -498,6 +555,8 @@ class WorkbenchApi:
                     "rva": x.rva,
                     "section": x.section,
                     "category": x.category,
+                    "origin": x.origin,
+                    "function": x.function,
                     "xrefs": len(xrefs.to(x.rva))
                     if xrefs is not None and x.rva is not None
                     else None,
@@ -680,6 +739,161 @@ class WorkbenchApi:
         ]
         return generate_sigma(s.report, self._kept_findings(s), indicators)
 
+    # -- optional engines (capa, FLOSS) ------------------------------------------------
+
+    def get_extensions(self) -> list[dict[str, Any]]:
+        auto = self._settings["extensions_auto_run"]
+        return [
+            st.to_dict() | {"auto_run": auto[st.id]} for st in extension_status(self._rules_root)
+        ]
+
+    def run_extension(self, sha: str, ext_id: str, force: bool = False) -> None:
+        if ext_id not in ENGINES:
+            raise ApiError(f"unknown extension {ext_id!r}")
+        self._schedule_extensions(self._get(sha), only=ext_id, explicit=True, force=force)
+
+    def _schedule_extensions(
+        self,
+        s: _Sample,
+        only: str | None = None,
+        explicit: bool = False,
+        force: bool = False,
+    ) -> None:
+        for st in extension_status(self._rules_root):
+            if only is not None and st.id != only:
+                continue
+            reason = self._unavailable_reason(s, st)
+            if reason is not None:
+                s.pipeline.set_state(st.id, "unavailable", reason)
+                continue
+            path = ext_cache.cache_file(
+                self._cache_dir, s.sha, st.id, st.version or "?", st.rules_version
+            )
+            doc = None if force else ext_cache.load(path)
+            if doc is not None:
+                s.pipeline.set_state(st.id, "running")
+                threading.Thread(
+                    target=self._finish_engine,
+                    args=(s, st.id, doc, None, True, None),
+                    daemon=True,
+                    name=f"octov-{st.id}-cached",
+                ).start()
+                continue
+            if not explicit and not self._settings["extensions_auto_run"][st.id]:
+                s.pipeline.set_state(st.id, "idle")
+                continue
+            before = s.pipeline.status().get(st.id)
+            s.pipeline.set_state(st.id, "queued")
+            accepted = QUEUES[st.id].submit(s.sha, self._engine_job(s, st, path), owner=s)
+            if not accepted and before is not None:
+                # already queued or running for this very sample: keep its real state
+                s.pipeline.set_state(
+                    st.id,
+                    before["state"],
+                    before["error"],
+                    elapsed_s=before["elapsed_s"],
+                    cached=before["cached"],
+                )
+
+    def _unavailable_reason(self, s: _Sample, st: ExtensionStatus) -> str | None:
+        if not st.ready:
+            return st.reason_key or "ext.reason.not_installed"
+        if s.parent is not None or not s.path.is_file():
+            return "ext.reason.in_memory"
+        if len(s.data) > self._config.extensions[st.id].max_size_mb * 1024 * 1024:
+            return "ext.reason.too_large"
+        return None
+
+    def _engine_command(self, s: _Sample, st: ExtensionStatus) -> list[str]:
+        raw = s.report is None
+        if st.id == "floss":
+            return floss_ext.floss_command(s.path, raw=raw, bits=s.ctx.bits)
+        rules = capa_rules_dir(self._rules_root)
+        if rules is None:
+            raise EngineError("crash", "capa rules missing")
+        sigs = capa_sigs_dir(self._sigs_root, rules[0])
+        if sigs is None:  # run without library recognition rather than not at all
+            sigs = self._cache_dir / "empty-sigs"
+            sigs.mkdir(parents=True, exist_ok=True)
+        return capa_ext.capa_command(s.path, rules[1], sigs, raw=raw, bits=s.ctx.bits)
+
+    def _file_unchanged(self, s: _Sample) -> bool:
+        """Engines read the file from disk: it must still be the bytes that were opened."""
+        try:
+            return hashlib.sha256(s.path.read_bytes()).hexdigest() == s.sha
+        except OSError:
+            return False
+
+    def _engine_job(self, s: _Sample, st: ExtensionStatus, cache_path: Path) -> Any:
+        limits = self._config.extensions[st.id]
+
+        def job(cancel: threading.Event) -> None:
+            if self._samples.get(s.sha) is not s:
+                return  # closed while queued
+            s.pipeline.set_state(st.id, "running")
+            start = time.monotonic()
+            try:
+                if not self._file_unchanged(s):
+                    raise EngineError("crash", "file changed on disk")
+                run = run_engine(
+                    self._engine_command(s, st),
+                    timeout_s=limits.timeout_s,
+                    max_memory_mb=limits.max_memory_mb,
+                    cancel=cancel,
+                )
+                doc = parse_json(run)
+                if not self._file_unchanged(s):
+                    raise EngineError("crash", "file changed on disk")
+            except EngineError as exc:
+                s.pipeline.set_state(st.id, "failed", exc.reason, elapsed_s=_secs(start))
+                return
+            except Exception as exc:  # every job must end in a terminal state
+                s.pipeline.set_state(st.id, "failed", f"internal error: {exc}")
+                return
+            if st.id == "capa" and not s.pipeline.wait_slow(0):
+                # capa attaches to discovered functions: wait for the slow lane, but not
+                # inside the engine queue, which would hold up every other sample's capa run
+                threading.Thread(
+                    target=self._finish_engine,
+                    args=(s, st.id, doc, cache_path, False, _secs(start)),
+                    daemon=True,
+                    name="octov-capa-apply",
+                ).start()
+                return
+            self._finish_engine(s, st.id, doc, cache_path, False, _secs(start))
+
+        return job
+
+    def _finish_engine(
+        self,
+        s: _Sample,
+        engine: str,
+        doc: dict[str, Any],
+        cache_path: Path | None,
+        cached: bool,
+        elapsed: float | None,
+    ) -> None:
+        """Apply an engine result; always ends in ``done`` or ``failed`` (or drops it if closed)."""
+        try:
+            if engine == "capa":
+                while not s.pipeline.wait_slow(0.5):
+                    if self._samples.get(s.sha) is not s:
+                        return  # closed while waiting
+            if self._samples.get(s.sha) is not s:
+                return  # closed meanwhile: drop the result
+            (apply_capa if engine == "capa" else apply_floss)(s.ctx, s.pipeline, doc)
+        except EngineError as exc:
+            s.pipeline.set_state(engine, "failed", exc.reason, elapsed_s=elapsed)
+            return
+        except Exception as exc:  # an adapter bug must not leave the job "running"
+            s.pipeline.set_state(engine, "failed", f"internal error: {exc}", elapsed_s=elapsed)
+            return
+        if cache_path is not None:
+            # a cache that cannot be written only costs a rerun next time
+            with contextlib.suppress(OSError):
+                ext_cache.store(cache_path, doc)
+        s.pipeline.set_state(engine, "done", elapsed_s=elapsed, cached=cached)
+
     # -- sessions --------------------------------------------------------------------
 
     def new_session(self, path: str) -> dict[str, Any]:
@@ -718,3 +932,7 @@ class WorkbenchApi:
                 self._session.commit()
                 self._session.close()
             self._session = session
+
+
+def _secs(start: float) -> float:
+    return round(time.monotonic() - start, 1)

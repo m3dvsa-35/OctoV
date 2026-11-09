@@ -191,3 +191,29 @@ def build_pe(spec: PESpec | None = None) -> bytes:
     headers = bytes(dos) + b"PE\x00\x00" + coff + optional + bytes(headers_tbl)
     assert len(headers) <= HEADERS_SIZE, "too many sections for header area"
     return headers.ljust(HEADERS_SIZE, b"\x00") + bytes(body) + spec.overlay
+
+
+def stack_string_pe(value: str) -> bytes:
+    """PE64 whose only function writes ``value`` byte by byte onto the stack, then calls an
+    import with it (a classic stack string; FLOSS recovers it, a static scan cannot)."""
+    from octov.core.static.pe_parser import parse_pe
+
+    def code(iat: int) -> bytes:
+        out = bytes.fromhex("4883EC48")  # sub rsp, 0x48
+        for i, ch in enumerate(value.encode() + b"\x00"):
+            out += bytes.fromhex("C64424") + bytes([0x20 + i, ch])  # mov byte [rsp+0x20+i], ch
+        out += bytes.fromhex("488D4C2420")  # lea rcx, [rsp+0x20]
+        pc = 0x1000 + len(out)
+        out += bytes.fromhex("FF15") + struct.pack("<i", iat - (pc + 6))  # call [iat]
+        return out + bytes.fromhex("4883C448C3")  # add rsp, 0x48; ret
+
+    def build(iat: int) -> bytes:
+        return build_pe(
+            PESpec(
+                sections=[SectionSpec(".text", code(iat), TEXT)],
+                imports={"kernel32.dll": ["OutputDebugStringA"]},
+            )
+        )
+
+    assert len(value) < 0x27, "stack frame holds at most 38 characters"
+    return build(sorted(parse_pe(build(0)).import_addresses)[0])
