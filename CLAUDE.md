@@ -154,6 +154,7 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
   matched benign System32 components (Magnify, Narrator, msctf, dxgi, services) and pushed
   them to the high band (83-file run: 83 % low, 4 high). capa matches are otherwise `info`
   (explained, used for ranking reasons). `hidden_ioc` (FLOSS) stays medium, one per sample.
+- Confirming sweep (199 files, every 22nd System32 file, both engines, final scoring): 98.49 % low (196), 3 medium, 0 high band, 0 high-severity facts; capa done on 189 (10 timeouts), FLOSS done on 177 (22 timeouts); median capa 43 s / FLOSS 70 s, p90 209 s / 315 s.
 - **Engine speed:** vivisect is slow on big DLLs: 2–6 min for 2–7 MB files, some hit the
   600 s timeout (they end `failed`, by design). Small files: seconds. The first view never
   waits; results are cached.
@@ -204,8 +205,9 @@ their tail-called body); the Strings tab has no chip for uncategorised strings (
 ### Other open work
 - Phase 2 PR (`feat/assisted-triage-phase2` → `main`): open, not merged. Deferred minors are
   listed in its description and the ledger.
-- Calibration sweep numbers with engines: see the PR description / ledger (200-file slice,
-  `scripts/baseline_sweep.py --ext --stride 22 --cache-dir ~/.octov/calib-cache`).
+- Re-run the engine calibration with
+  `scripts/baseline_sweep.py out.jsonl --ext --stride 22 --cache-dir ~/.octov/calib-cache`
+  (~1.5 h; the cache makes reruns after scoring changes fast).
 - Remote branches `feat/m2-static-engine`, `feat/web-ui`, `feat/assisted-triage` are merged and
   can be deleted (not done: the owner did not ask).
 - Roadmap: Phase 3 (Ghidra decompiler), Phase 4 (symbol tree,
