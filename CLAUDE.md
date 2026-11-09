@@ -54,7 +54,8 @@ ever receives extracted evidence, never the binary.
 - No system Node.js: `nodejs-wheel-binaries` (dev dep) provides it; always run npm as
   `.venv/Scripts/python scripts/npm.py <args>` (cwd is switched to `web/`).
 - Built UI goes to `src/octov/webui/dist/` (git-ignored). Rebuild after any `web/` change.
-- Browser-pane screenshots can lag one frame or time out; verify DOM state with JS, and
+- Browser-pane screenshots can lag one frame or time out (a hidden pane is 0x0: virtualised
+  lists render no rows until `resize_window`); verify DOM state with JS, and
   capture the desktop window with Win32 `PrintWindow(hwnd, hdc, 2)` (see session notes).
 
 ## Commands
@@ -85,8 +86,11 @@ src/octov/
   core/static/analysis.py   analyze() = parse + rules; rule_set(paths) cached
   core/static/disasm.py     ImageView (RVA reads) + Disassembler (Capstone lite, IAT comments)
   core/static/cfg.py        build_function / discover_functions (basic blocks, edges)
-  ext/                      optional engines: runner (Job Object), queue, cache, capa_rules,
-                            capa, floss, apply (see Phase 2 notes)
+  ext/                      optional engines: runner (Job Object, spawn_isolated), queue, cache,
+                            capa_rules, capa, floss, apply (see Phase 2 notes)
+  ext/ghidra/               decompiler: discover (JDK/Ghidra), setup, protocol, worker (the only
+                            place pyghidra is imported; own process), manager, model
+  core/apidoc.py            API -> `api.<Name>` explanation keys (texts: i18n/{en,az}_api.py)
   core/analysis/            triage pipeline: facts, pipeline, strings, iocs, xrefs, crypto,
                             carve, packer, naming, scoring, analyzers, report
   core/export/              yara_gen.py, sigma_gen.py
@@ -98,8 +102,8 @@ src/octov/
   webui/dist/               built frontend (git-ignored)
 web/src/                    React UI: api/client.ts (bridge or /rpc), state/store.ts,
                             components/* (Triage, Overview, Findings, Mitre, Disasm, Graph,
-                            Hex, Strings, XrefPopover, AnnotateMenu, CommandPalette, Dialogs),
-                            lib/format.ts, lib/cfgLayout.ts, lib/triage.ts
+                            PseudoC, Hex, Strings, XrefPopover, AnnotateMenu, CommandPalette, Dialogs),
+                            lib/format.ts, lib/cfgLayout.ts, lib/triage.ts, lib/pseudoc.ts
   cli/main.py, cli/triage.py `octov analyze`, `octov triage`
 rules/                      evasion_patterns.yaml (EVA-xxx), pic_patterns.yaml (PIC-xxx)
 tests/samples/builder.py    synthetic PE32+ builder (sections, imports, overlay, dll flag)
@@ -127,35 +131,53 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 - Installed plugins the user wants used: superpowers (TDD, verification, code review),
   caveman (commit messages, review), ui-ux-pro-max (visual panels), karpathy guidelines.
 
-## Status / where we stopped  (updated 2026-11-10, chat 4)
+## Status / where we stopped  (updated 2026-11-10, chat 5)
 
 ### How to resume in a new chat (read this first)
-1. `main` has M1, M2, web UI, assisted-triage Phase 1 and **Phase 2 (capa + FLOSS, PR #6
-   merged as `332e457`)**.
-2. **Phase 3 (Ghidra decompiler) is in progress on `feat/decompiler-phase3`** (pushed).
-   Design (owner-approved): `docs/superpowers/specs/2026-11-10-decompiler-phase3-design.md`;
-   plan: `docs/superpowers/plans/2026-11-10-decompiler-phase3.md` (9 tasks).
-   Executed inline with `superpowers:executing-plans` (owner chose it, same as Phase 2):
-   invoke it with the plan, read the ledger
-   `.superpowers/sdd/2026-11-10-decompiler-phase3/progress.md` (git-ignored; if missing,
-   trust `git log`: one `feat(ghidra|app|ui|i18n): ...` commit per task) and continue at the
-   first task without a `Task N: complete` line. Helper scripts:
-   `bash C:/Users/Fexreddin/.claude/plugins/cache/superpowers-dev/superpowers/7.0.2/skills/executing-plans/scripts/task-start <PLAN_ABS> <N>`
-   and `.../task-done <PLAN_ABS> <N> <BASE> -- <test cmd>` (run task-done only after the
-   commit succeeded). After Task 9: final review (fresh opus subagent), ONE fix pass, push,
-   PR to `main` (do not merge without the owner's yes), turn on Auto-fix if the owner asks.
+1. `main` has M1, M2, web UI, assisted-triage Phase 1 and Phase 2 (capa + FLOSS, PR #6
+   merged as `332e457`).
+2. **Phase 3 (Ghidra decompiler) is implemented on `feat/decompiler-phase3`** (all 9 plan
+   tasks, final review + one fix pass done, pushed, PR to `main` open). **Do not merge
+   without the owner's yes.** Design: `docs/superpowers/specs/2026-11-10-decompiler-phase3-design.md`;
+   plan: `docs/superpowers/plans/2026-11-10-decompiler-phase3.md`. The PR description lists
+   the rulings (deviations) and the deferred minors.
 3. Owner priorities (2026-11-10): fast and trouble-free, PE files first, help beginners;
    later AI must show visually what it found suspicious and how parts are linked. Roadmap:
-   Phase 3 decompiler → Phase 4 relations/call graph → M5 AI overlay.
-4. Engines on this machine: capa 10.0.0 (rules v10.0.0 + sigs) and FLOSS 3.2.0 ready;
-   pyghidra 3.2.0 installed; JDK 25.0.1 at `C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot`
-   (PATH java is 8, ignored); Ghidra 12.2 not yet installed (Task 2 runs
-   `octov ext setup ghidra`, ~570 MB, owner-approved in the design).
+   Phase 4 relations/call graph (symbol tree, memory map, search) -> M5 AI overlay.
+4. Engines on this machine: capa 10.0.0 (rules v10.0.0 + sigs), FLOSS 3.2.0, pyghidra 3.2.0,
+   Ghidra 12.2 at `~/.octov/ghidra/12.2/ghidra_12.2_PUBLIC`, JDK 25.0.1 at
+   `C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot` (PATH java is 8, ignored).
 5. `python -m uv sync` sometimes fails with "Access is denied" removing
    `.venv/Lib/site-packages/octov-0.1.0.dist-info` — delete that folder (PowerShell
    `Remove-Item -Recurse -Force`) and rerun.
 6. `git push` may hang in git-credential-manager (sign-in window): push with
    `git -c credential.helper= -c "credential.helper=!gh auth git-credential" push`.
+
+### Decompiler — Phase 3 (Ghidra) facts worth knowing
+- `octov/ext/ghidra/`: `discover` (JDK >= 21 from `release` files, Ghidra 12.x, status),
+  `setup` (pinned zip), `protocol` (JSON lines, `GhidraError`), `worker` (child process, the
+  only pyghidra import; stdout is the protocol, JVM output goes to stderr), `manager`
+  (`GhidraWorker`, `GhidraManager`: one `open` at a time app-wide, `max_workers`, crash ->
+  restart once then `failed`, request timeout -> kill, no retry, sample stays usable; idle
+  reaper; `cleanup_projects`), `model` (`DecompiledFunction`, `annotation_hash`, `line_marks`).
+- API: `get_decompiled(sha, rva)`, `job_status()["ghidra"]`, `run_extension(sha, "ghidra",
+  force)`, `shutdown()`; settings `extensions_auto_run.ghidra`. Error messages are i18n keys
+  (`decomp.no_function`, `decomp.analysing`, `decomp.not_ready`, `decomp.timeout`,
+  `decomp.failed: <detail>`). Pseudo-C cache: `~/.octov/cache/<sha>/ghidra-<ver>-<annotation
+  hash>/<entry>.json.gz`; entry point + top 10 ranked functions are decompiled ahead.
+- **Ghidra refuses a project path with an element starting with "."** -> saved projects are in
+  `%LOCALAPPDATA%\OctoV\ghidra-projects` (not `~/.octov`, a deviation from the design).
+- Unit tests use `tests/fixtures/fake_ghidra_worker.py` and the conftest stub of
+  `api.ghidra_status`; two real-Ghidra tests run only when Ghidra + JDK + pyghidra are present
+  (~25 s each). The full suite takes ~9 min on this machine (real capa/FLOSS/Ghidra tests).
+- Speed (`scripts/ghidra_speed.py`, 2026-11-10, System32): analysis 25 s (50 KB), 37 s
+  (0.3 MB), 94 s (1 MB), 224 s (5 MB twinui.dll), 223 s (10 MB), 354 s (18.5 MB); reopen from
+  the saved project 8-13 s; decompile p50 0.29-0.31 s, p95 0.35-2.4 s; cached p50 5-6 ms.
+- `scripts/baseline_sweep.py` switches Ghidra off (it adds no facts and no score).
+- Web: tab id `pseudo_c` (`PseudoCView.tsx`, helpers `lib/pseudoc.ts`); API hover texts come
+  from the `api.<Name>` strings (127 APIs, EN/AZ, test-enforced coverage).
+- Known gap (pre-existing, Phase 2 runner): a process exiting in the middle of spawning an
+  engine can leave a suspended child outside its Job Object (seen with a throwaway script).
 
 ### Assisted triage — Phase 2 (capa + FLOSS) facts worth knowing
 - `octov/ext/`: `__init__` (status probe, never imports engines), `runner` (child process in a
@@ -223,8 +245,10 @@ their tail-called body); the Strings tab has no chip for uncategorised strings (
   (~1.5 h; the cache makes reruns after scoring changes fast).
 - Remote branches `feat/m2-static-engine`, `feat/web-ui`, `feat/assisted-triage` are merged and
   can be deleted (not done: the owner did not ask).
-- Roadmap: Phase 3 (Ghidra decompiler), Phase 4 (symbol tree,
-  call graph, memory map, search), Phase 5 (FLIRT-like, PDB, binary diff); M3 dynamic; M5 AI.
+- Roadmap: Phase 4 (symbol tree, call graph, memory map, search), Phase 5 (FLIRT-like, PDB,
+  binary diff); M3 dynamic; M5 AI.
+- Phase 3 not done: desktop-window (pywebview) visual check of the Pseudo-C tab; it was
+  checked in the browser pane (`octov serve`) in EN and AZ with real Ghidra.
 
 ### Environment notes learned in chats 1-2
 - Bash heredocs that contain `\0`/`\x00`/`\\` escapes can be mangled. For non-trivial edits

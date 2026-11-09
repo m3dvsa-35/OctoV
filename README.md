@@ -19,6 +19,7 @@ and turn findings into defender artifacts (YARA, Sigma, STIX 2.1, IOCs).
 | **M2** | Static rule engine (evasion/PIC catalogs), Capstone disassembly, CFG graph, hex, MITRE table, YARA/Sigma export | ✅ |
 | **Triage P1** | Assisted triage: fact pipeline, risk score, strings/IOCs, xrefs, crypto constants, payload carving, packer verdict, function ranking, verdicts + annotations, `triage` CLI | ✅ |
 | **Triage P2** | Optional engines: capa (capabilities per function, ATT&CK/MBC) and FLOSS (stack/tight/decoded strings, hidden IOCs), isolated, cached, offline | ✅ |
+| **Decompiler P3** | Optional Ghidra decompiler: Pseudo-C view per function synced with disassembly/graph, marked lines, API explanations (EN/AZ), isolated worker, cached | ✅ |
 | M3 | Dynamic analysis: Frida 16.x agent, ETW, Job Object + AppContainer sandbox, VAD/memory forensics, network IOCs | planned |
 | M4 | MIL (SSA IL) decompiler MVP → pseudo-C, synced asm/pseudo/graph views | planned |
 | M5 | AI assistant (OpenRouter / OpenAI-compatible fallback), evidence-cited reports, guided workflows | planned |
@@ -136,6 +137,39 @@ without internet. The workbench itself never downloads anything.
   anti-VM, obfuscation, impact, C2) count towards the risk score.
 - Carved payloads are never written to disk to be scanned: engines run on files only.
 
+## Optional decompiler: Ghidra
+
+The **Pseudo-C** tab shows each function as readable C-like code, produced by
+[Ghidra](https://github.com/NationalSecurityAgency/ghidra) running as a separate worker process.
+
+```bash
+python -m uv sync --extra ghidra
+uv run octov ext setup ghidra    # one-time: pinned Ghidra 12.2 (~570 MB, sha256-checked)
+uv run octov ext status          # shows the Ghidra version and the JDK that will be used
+```
+
+Ghidra needs a **JDK 21 or newer** (for example Eclipse Temurin). OctoV finds it from
+`extensions.ghidra.java_home`, `JAVA_HOME`, the usual `C:\Program Files` vendor folders or
+`PATH`; an existing Ghidra 12.x can be used with `extensions.ghidra.install_dir` or
+`GHIDRA_INSTALL_DIR` (`ext setup ghidra --from-zip` installs from a local zip).
+
+- Opening a PE starts Ghidra's analysis in the background (one analysis at a time, at most
+  `max_workers` workers, memory-limited Job Object). The first view never waits for it; the tab
+  shows the elapsed time until the code is ready. Raw shellcode blobs are not decompiled.
+- Clicking a line jumps to its instructions in the disassembly and graph; the line of the
+  current address is highlighted. Your function names and comments appear in the pseudo-C.
+- Help for beginners: lines that call sensitive APIs or carry a finding are marked (icon and
+  text, never colour alone), hovering a Windows API shows what it does and why malware uses it,
+  and "How to read this" explains `param_1`, `local_10`, `DAT_...`, `FUN_...`.
+- Measured on Windows 11 System32 files: first analysis 25 s (50 KB) to about 4 min (5 MB)
+  and 6 min (18 MB); afterwards a function decompiles in about 0.3 s, a cached one in
+  about 5 ms, and reopening an analysed sample takes 8-13 s.
+- The sample is sent to the worker over a pipe and imported from memory, so carved payloads can
+  be decompiled without ever being written to disk as an executable.
+- Analysed projects are kept in `%LOCALAPPDATA%\OctoV\ghidra-projects` (deleted after
+  `project_keep_days` without use) and pseudo-C in `~/.octov/cache/`, so reopening is fast.
+  Idle workers stop after `idle_minutes` and restart on demand.
+
 ## Workbench UI
 
 A modern desktop UI (React + TypeScript in an Edge WebView2 window): samples and functions
@@ -152,6 +186,7 @@ src/octov/
   core/static/    PE parser, indicators, rule engine, disassembler, CFG
   core/analysis/  triage pipeline: facts, strings, IOCs, xrefs, crypto, carving, packer, scoring
   ext/            optional engines: runner (Job Object), queue, cache, capa + FLOSS adapters
+  ext/ghidra/     decompiler: discovery, setup, worker process, manager, pseudo-C model
   core/dynamic/   Frida/ETW instrumentation (M3)
   core/ai/        evidence bundler + AI client (M5)
   core/session/   SQLite + msgpack .octov sessions
