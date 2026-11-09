@@ -27,3 +27,15 @@ rules:
   paths:                # relative to this file
     - rules/evasion_patterns.yaml
     - rules/pic_patterns.yaml
+
+# Optional engines (assisted triage phase 2). Install: python -m uv sync --extra capa --extra floss
+# capa also needs its rules once: octov ext setup capa
+extensions:
+  capa:
+    timeout_s: 600        # a run longer than this is stopped and reported as failed
+    max_size_mb: 64       # larger samples are skipped (unavailable)
+    max_memory_mb: 4096   # memory limit for the engine process (Job Object)
+  floss:
+    timeout_s: 600
+    max_size_mb: 64
+    max_memory_mb: 4096

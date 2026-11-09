@@ -47,3 +47,33 @@ def test_invalid_language_rejected(tmp_path: Path) -> None:
 def test_missing_explicit_file_rejected(tmp_path: Path) -> None:
     with pytest.raises(ConfigError):
         load_config(tmp_path / "nope.yaml", env={})
+
+
+def test_extension_defaults() -> None:
+    cfg = load_config(None, env={})
+    assert set(cfg.extensions) == {"capa", "floss"}
+    capa = cfg.extensions["capa"]
+    assert (capa.timeout_s, capa.max_size_mb, capa.max_memory_mb) == (600, 64, 4096)
+
+
+def test_extension_overrides(tmp_path: Path) -> None:
+    path = tmp_path / "config.yaml"
+    path.write_text("extensions:\n  capa:\n    timeout_s: 30\n", encoding="utf-8")
+    cfg = load_config(path, env={})
+    assert cfg.extensions["capa"].timeout_s == 30
+    assert cfg.extensions["floss"].timeout_s == 600
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "extensions:\n  capa:\n    colour: red\n",
+        "extensions:\n  capa:\n    timeout_s: 0\n",
+        "extensions:\n  ghidra:\n    timeout_s: 5\n",
+    ],
+)
+def test_bad_extension_config_rejected(tmp_path: Path, body: str) -> None:
+    path = tmp_path / "config.yaml"
+    path.write_text(body, encoding="utf-8")
+    with pytest.raises(ConfigError):
+        load_config(path, env={})

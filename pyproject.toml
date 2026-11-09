@@ -30,6 +30,9 @@ dependencies = [
 [project.optional-dependencies]
 # Dynamic analysis (M3). Pinned to Frida 16.x per project decision.
 dynamic = ["frida>=16.5,<17", "frida-tools>=12,<14"]
+# Optional analysis engines (assisted triage phase 2), run as child processes.
+capa = ["flare-capa>=10,<11"]
+floss = ["flare-floss>=3.2,<4"]
 
 [project.scripts]
 octov = "octov.cli.main:main"

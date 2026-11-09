@@ -61,15 +61,24 @@ def test_missing_engine_is_not_installed(tmp_path):
     assert st["capa"].reason_key == "ext.reason.not_installed"
     assert st["capa"].install_cmd == "python -m uv sync --extra capa"
 
+
 def test_capa_without_rules_is_not_ready(tmp_path):
-    st = {s.id: s for s in extension_status(tmp_path, finder=lambda n: object(), version_of=lambda n: "10.0.0")}
+    st = {
+        s.id: s
+        for s in extension_status(
+            tmp_path, finder=lambda n: object(), version_of=lambda n: "10.0.0"
+        )
+    }
     assert st["capa"].installed and not st["capa"].ready
     assert st["capa"].reason_key == "ext.reason.no_rules"
     assert st["floss"].ready  # FLOSS needs no rules
 
+
 def test_capa_rules_dir_picks_newest_with_yml(tmp_path):
-    (tmp_path / "v9.0.0").mkdir(); (tmp_path / "v9.0.0" / "a.yml").write_text("x")
-    (tmp_path / "v10.0.0").mkdir(); (tmp_path / "v10.0.0" / "b.yml").write_text("x")
+    (tmp_path / "v9.0.0").mkdir()
+    (tmp_path / "v9.0.0" / "a.yml").write_text("x")
+    (tmp_path / "v10.0.0").mkdir()
+    (tmp_path / "v10.0.0" / "b.yml").write_text("x")
     (tmp_path / "v11.0.0").mkdir()  # empty -> ignored
     assert capa_rules_dir(tmp_path)[0] == "v10.0.0"
 ```
