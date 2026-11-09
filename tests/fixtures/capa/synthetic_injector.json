@@ -1,0 +1,175 @@
+{
+ "meta": {
+  "analysis": {
+   "arch": "amd64",
+   "base_address": {
+    "type": "absolute",
+    "value": 5368709120
+   },
+   "extractor": "VivisectFeatureExtractor",
+   "feature_counts": {
+    "file": 0,
+    "functions": []
+   },
+   "format": "pe",
+   "layout": {
+    "functions": []
+   },
+   "library_functions": [],
+   "os": "windows",
+   "rules": []
+  },
+  "argv": [],
+  "flavor": "static",
+  "sample": {
+   "md5": "a752a9acc6981660c67fac01a4991079",
+   "path": "",
+   "sha1": "a71bf505f3346330af17cdbd8d294951ba2fd2f3",
+   "sha256": "4f35e55abd9f19bf97709729cc102b15190e96309199f1d337af08b4b98b2636"
+  },
+  "timestamp": "2026-11-09T16:40:35.246953",
+  "version": "10.0.0"
+ },
+ "rules": {
+  "contain an embedded PE file": {
+   "matches": [
+    [
+     {
+      "type": "no address"
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "moritz.raabe@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "Practical Malware Analysis Lab 01-04.exe_:0x4060"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Install Additional Program",
+      "id": "B0023",
+      "method": "",
+      "objective": "Execution",
+      "parts": [
+       "Execution",
+       "Install Additional Program"
+      ]
+     }
+    ],
+    "name": "contain an embedded PE file",
+    "namespace": "executable/subfile/pe",
+    "references": [],
+    "scopes": {
+     "dynamic": "file",
+     "static": "file"
+    }
+   },
+   "source": ""
+  },
+  "create thread": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368713216
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "moritz.raabe@mandiant.com",
+     "michael.hunhoff@mandiant.com",
+     "joakim@intezer.com",
+     "anushka.virgaonkar@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "946A99F36A46D335DEC080D9A4371940:0x10001DA0",
+     "B5F85C26D7AA5A1FB4AF5821B6B5AB9B:0x408020"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Create Thread",
+      "id": "C0038",
+      "method": "",
+      "objective": "Process",
+      "parts": [
+       "Process",
+       "Create Thread"
+      ]
+     }
+    ],
+    "name": "create thread",
+    "namespace": "host-interaction/thread/create",
+    "references": [],
+    "scopes": {
+     "dynamic": "span of calls",
+     "static": "basic block"
+    }
+   },
+   "source": ""
+  },
+  "write process memory": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368713223
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [
+     {
+      "id": "T1055",
+      "parts": [
+       "Defense Evasion",
+       "Process Injection"
+      ],
+      "subtechnique": "",
+      "tactic": "Defense Evasion",
+      "technique": "Process Injection"
+     }
+    ],
+    "authors": [
+     "moritz.raabe@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "2D3EDC218A90F03089CC01715A9F047F:0x4027CF"
+    ],
+    "is_subscope_rule": false,
+    "lib": true,
+    "maec": {},
+    "mbc": [],
+    "name": "write process memory",
+    "references": [],
+    "scopes": {
+     "dynamic": "call",
+     "static": "instruction"
+    }
+   },
+   "source": ""
+  }
+ }
+}

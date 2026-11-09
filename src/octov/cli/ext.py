@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from octov.ext import DEFAULT_RULES_ROOT, extension_status
+from octov.ext import DEFAULT_RULES_ROOT, DEFAULT_SIGS_ROOT, extension_status
 
 EXIT_SETUP_FAILED = 2
 
@@ -22,8 +22,11 @@ def add_parser(sub: Any) -> None:
     setup.add_argument(
         "--allow-unpinned", action="store_true", help="accept a rules archive with another hash"
     )
+    setup.add_argument("--sigs-from", type=Path, help="copy the signature files from this folder")
+    setup.add_argument("--no-sigs", action="store_true", help="skip the signature files")
     for p in (status, setup):
         p.add_argument("--rules-root", type=Path, default=None, help=argparse.SUPPRESS)
+        p.add_argument("--sigs-root", type=Path, default=None, help=argparse.SUPPRESS)
 
 
 def _rules_root(args: argparse.Namespace) -> Path:
@@ -44,14 +47,18 @@ def run(args: argparse.Namespace) -> int:
             print(f"{st.id:<6} {state}")
         return 0
 
-    from octov.ext.capa_rules import RulesError, install_rules
+    from octov.ext.capa_rules import RulesError, install_rules, install_sigs
 
     try:
         target = install_rules(
             _rules_root(args), zip_path=args.from_zip, allow_unpinned=args.allow_unpinned
         )
+        print(f"capa rules installed in {target}")
+        if not args.no_sigs:
+            sigs_root: Path = (args.sigs_root or DEFAULT_SIGS_ROOT).expanduser()
+            sigs = install_sigs(sigs_root, from_dir=args.sigs_from)
+            print(f"capa signatures installed in {sigs}")
     except (RulesError, OSError) as exc:
         print(f"capa rules setup failed: {exc}", file=sys.stderr)
         return EXIT_SETUP_FAILED
-    print(f"capa rules installed in {target}")
     return 0

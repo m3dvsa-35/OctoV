@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from octov.ext import ENGINES, capa_rules_dir, extension_status
+from octov.ext import ENGINES, capa_rules_dir, capa_sigs_dir, extension_status
 
 
 def _status(tmp_path: Path, **kw: object) -> dict[str, object]:
@@ -58,3 +58,11 @@ def test_local_rules_dir_wins(tmp_path: Path) -> None:
         (tmp_path / name / "rule.yml").write_text("x", encoding="utf-8")
     found = capa_rules_dir(tmp_path)
     assert found is not None and found[0] == "local-0123456789ab"
+
+
+def test_capa_sigs_dir(tmp_path: Path) -> None:
+    assert capa_sigs_dir(tmp_path, None) is None
+    assert capa_sigs_dir(tmp_path, "v10.0.0") is None
+    (tmp_path / "v10.0.0").mkdir()
+    (tmp_path / "v10.0.0" / "a.sig").write_bytes(b"x")
+    assert capa_sigs_dir(tmp_path, "v10.0.0") == tmp_path / "v10.0.0"

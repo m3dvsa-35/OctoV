@@ -86,3 +86,42 @@ def install_rules(
             shutil.rmtree(target)
         staged.replace(target)
     return target
+
+
+# FLIRT signatures for library-function recognition (also not in the wheel), capa v10.0.0.
+CAPA_SIGS_URL = "https://raw.githubusercontent.com/mandiant/capa/v10.0.0/sigs/{name}"
+CAPA_SIGS: dict[str, str] = {
+    "1_flare_msvc_rtf_32_64.sig": (
+        "e0042918fa80d432a1914680816996ac397afc30b05d3161192f29de63e66e79"
+    ),
+    "2_flare_msvc_atlmfc_32_64.sig": (
+        "c6f6084f1553f3a4a515bcefe7a72fe2b3564c8338c01fa9add1166276bf09f1"
+    ),
+    "3_flare_common_libs.sig": ("6fa7dda3ffb523d2f555348db47c67b9820a40153bfacd543c9ea02a1ecd83a8"),
+}
+
+
+def install_sigs(
+    sigs_root: Path,
+    from_dir: Path | None = None,
+    fetch: Callable[[str, Path], None] = _download,
+) -> Path:
+    """Install the pinned signature files into ``sigs_root/<rules version>/``."""
+    sigs_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=sigs_root, prefix=".setup-") as tmp:
+        staged = Path(tmp) / "staged"
+        staged.mkdir()
+        for name, expected in CAPA_SIGS.items():
+            dest = staged / name
+            if from_dir is not None:
+                shutil.copyfile(from_dir / name, dest)
+            else:
+                fetch(CAPA_SIGS_URL.format(name=name), dest)
+            digest = _sha256(dest)
+            if digest != expected:
+                raise RulesError(f"checksum mismatch for {name}: expected {expected}, got {digest}")
+        target = sigs_root / CAPA_RULES_VERSION
+        if target.exists():
+            shutil.rmtree(target)
+        staged.replace(target)
+    return target

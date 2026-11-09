@@ -20,6 +20,7 @@ _DISTRIBUTION = {"capa": "flare-capa", "floss": "flare-floss"}
 _VERSION_DIR = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 _LOCAL_DIR = re.compile(r"^local-[0-9a-f]{12}$")  # installed with --allow-unpinned
 DEFAULT_RULES_ROOT = Path("~/.octov/capa-rules")
+DEFAULT_SIGS_ROOT = Path("~/.octov/capa-sigs")
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,14 @@ def capa_rules_dir(rules_root: Path) -> tuple[str, Path] | None:
         return None
     _, name, path = max(found)
     return name, path
+
+
+def capa_sigs_dir(sigs_root: Path, rules_version: str | None) -> Path | None:
+    """Signature folder installed next to ``rules_version`` (``None`` = run without sigs)."""
+    if rules_version is None:
+        return None
+    path = sigs_root / rules_version
+    return path if path.is_dir() and next(path.glob("*.sig"), None) is not None else None
 
 
 def _version(version_of: Callable[[str], str], engine: str) -> str | None:

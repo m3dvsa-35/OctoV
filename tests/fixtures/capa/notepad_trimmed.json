@@ -1,0 +1,2830 @@
+{
+ "meta": {
+  "analysis": {
+   "arch": "amd64",
+   "base_address": {
+    "type": "absolute",
+    "value": 5368709120
+   },
+   "extractor": "VivisectFeatureExtractor",
+   "feature_counts": {
+    "file": 0,
+    "functions": []
+   },
+   "format": "pe",
+   "layout": {
+    "functions": []
+   },
+   "library_functions": [],
+   "os": "windows",
+   "rules": []
+  },
+  "argv": [],
+  "flavor": "static",
+  "sample": {
+   "md5": "8a1d8175ccca97054cdb25acbb4cc07e",
+   "path": "",
+   "sha1": "76cd26b59923157e09d2bc927ba8fb059f3155dc",
+   "sha256": "468ffe129c395abf6b21a09efdf261910a95fb98aa982ead73caa7b2b684577e"
+  },
+  "timestamp": "2026-11-09T16:41:09.857548",
+  "version": "10.0.0"
+ },
+ "rules": {
+  "PEB access": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368791940
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "michael.hunhoff@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "al-khaser_x86.exe_:0x420D20"
+    ],
+    "is_subscope_rule": false,
+    "lib": true,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Debugger Detection",
+      "id": "B0001.019",
+      "method": "Process Environment Block",
+      "objective": "Anti-Behavioral Analysis",
+      "parts": [
+       "Anti-Behavioral Analysis",
+       "Debugger Detection",
+       "Process Environment Block"
+      ]
+     }
+    ],
+    "name": "PEB access",
+    "references": [
+     "https://github.com/LordNoteworthy/al-khaser/blob/master/al-khaser/AntiDebug/NtGlobalFlag.cpp"
+    ],
+    "scopes": {
+     "static": "basic block"
+    }
+   },
+   "source": ""
+  },
+  "accept command line arguments": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368775128
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [
+     {
+      "id": "T1059",
+      "parts": [
+       "Execution",
+       "Command and Scripting Interpreter"
+      ],
+      "subtechnique": "",
+      "tactic": "Execution",
+      "technique": "Command and Scripting Interpreter"
+     }
+    ],
+    "authors": [
+     "moritz.raabe@mandiant.com",
+     "anushka.virgaonkar@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "e5369ac309f1be6d77afeeb3edab0ed8:0x402760"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Command and Scripting Interpreter",
+      "id": "E1059",
+      "method": "",
+      "objective": "Execution",
+      "parts": [
+       "Execution",
+       "Command and Scripting Interpreter"
+      ]
+     }
+    ],
+    "name": "accept command line arguments",
+    "namespace": "host-interaction/cli",
+    "references": [],
+    "scopes": {
+     "dynamic": "call",
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "check if file exists": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368744148
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368755344
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368781560
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368833452
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368834048
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [
+     {
+      "id": "T1083",
+      "parts": [
+       "Discovery",
+       "File and Directory Discovery"
+      ],
+      "subtechnique": "",
+      "tactic": "Discovery",
+      "technique": "File and Directory Discovery"
+     }
+    ],
+    "authors": [
+     "moritz.raabe@mandiant.com",
+     "michael.hunhoff@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "31600AD0D1A7EA615690DF111AE36C73:0x401284"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "File and Directory Discovery",
+      "id": "E1083",
+      "method": "",
+      "objective": "Discovery",
+      "parts": [
+       "Discovery",
+       "File and Directory Discovery"
+      ]
+     }
+    ],
+    "name": "check if file exists",
+    "namespace": "host-interaction/file-system/exists",
+    "references": [],
+    "scopes": {
+     "dynamic": "call",
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "clear file content": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368781560
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "jakeperalta7"
+    ],
+    "description": "",
+    "examples": [
+     "e3a6fbbc9b315141da37e5abbae05bf20aa9f48d5f569c6353360f59a0315245:0x140001450"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Writes File",
+      "id": "C0052",
+      "method": "",
+      "objective": "File System",
+      "parts": [
+       "File System",
+       "Writes File"
+      ]
+     }
+    ],
+    "name": "clear file content",
+    "namespace": "host-interaction/file-system/write",
+    "references": [],
+    "scopes": {
+     "dynamic": "span of calls",
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "contain loop": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368713364
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368717068
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368718212
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368718288
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368721616
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368724132
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368724256
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368725512
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368728268
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368729420
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368730336
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368731696
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368732020
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368732268
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368734332
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368734844
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368735136
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368736556
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368738172
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368739184
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368741408
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368742316
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368742576
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368742788
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368743752
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368744148
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368745752
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368747272
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368748824
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368749636
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368751648
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368753356
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368755008
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368755120
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368757768
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368759204
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368759584
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368762488
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368763112
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368765052
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368772112
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368772892
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368775128
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368778080
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368781560
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368784404
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368786748
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368787284
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368832880
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368833452
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368837500
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368837616
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368840464
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368840800
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368841908
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368844320
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368846652
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368847112
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368848324
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368849116
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368849312
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368849472
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368849828
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368850920
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368854672
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368857632
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368860268
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368861644
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368862288
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368864592
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368867908
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "moritz.raabe@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "08AC667C65D36D6542917655571E61C8:0x406EAA"
+    ],
+    "is_subscope_rule": false,
+    "lib": true,
+    "maec": {},
+    "mbc": [],
+    "name": "contain loop",
+    "references": [],
+    "scopes": {
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "create directory": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368849472
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "moritz.raabe@mandiant.com",
+     "michael.hunhoff@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "Practical Malware Analysis Lab 17-02.dll_:0x10008f62",
+     "692f7fd6d198e804d6af98eb9e390d61:0x6000003"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Create Directory",
+      "id": "C0046",
+      "method": "",
+      "objective": "File System",
+      "parts": [
+       "File System",
+       "Create Directory"
+      ]
+     }
+    ],
+    "name": "create directory",
+    "namespace": "host-interaction/file-system/create",
+    "references": [],
+    "scopes": {
+     "dynamic": "call",
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "create or open file": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368760924
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368766122
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368774990
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368781800
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368789728
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368789892
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368833117
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368833299
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368833837
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368849649
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368851833
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "michael.hunhoff@mandiant.com",
+     "joakim@intezer.com"
+    ],
+    "description": "",
+    "examples": [
+     "B5F85C26D7AA5A1FB4AF5821B6B5AB9B:0x401D7E"
+    ],
+    "is_subscope_rule": false,
+    "lib": true,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Create File",
+      "id": "C0016",
+      "method": "",
+      "objective": "File System",
+      "parts": [
+       "File System",
+       "Create File"
+      ]
+     }
+    ],
+    "name": "create or open file",
+    "references": [],
+    "scopes": {
+     "dynamic": "call",
+     "static": "instruction"
+    }
+   },
+   "source": ""
+  },
+  "create or open mutex on Windows": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368726243
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368727305
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "moritz.raabe@mandiant.com",
+     "anushka.virgaonkar@mandiant.com",
+     "mehunhoff@google.com"
+    ],
+    "description": "",
+    "examples": [
+     "Practical Malware Analysis Lab 01-01.dll_:0x10001010"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Create Mutex",
+      "id": "C0042",
+      "method": "",
+      "objective": "Process",
+      "parts": [
+       "Process",
+       "Create Mutex"
+      ]
+     }
+    ],
+    "name": "create or open mutex on Windows",
+    "namespace": "host-interaction/mutex",
+    "references": [],
+    "scopes": {
+     "dynamic": "call",
+     "static": "instruction"
+    }
+   },
+   "source": ""
+  },
+  "create or open registry key": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368785452
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368785632
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368834685
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368836014
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368849828
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368849947
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368850920
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368851021
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "michael.hunhoff@mandiant.com",
+     "anushka.virgaonkar@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "Practical Malware Analysis Lab 03-02.dll_:0x10004706",
+     "Practical Malware Analysis Lab 11-01.exe_:0x401000",
+     "493167E85E45363D09495D0841C30648:0x404D60",
+     "B5F85C26D7AA5A1FB4AF5821B6B5AB9B:0x4045F2",
+     "B5F85C26D7AA5A1FB4AF5821B6B5AB9B:0x40433E",
+     "692f7fd6d198e804d6af98eb9e390d61:0x6000003"
+    ],
+    "is_subscope_rule": false,
+    "lib": true,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Registry",
+      "id": "C0036.004",
+      "method": "Create Registry Key",
+      "objective": "Operating System",
+      "parts": [
+       "Operating System",
+       "Registry",
+       "Create Registry Key"
+      ]
+     },
+     {
+      "behavior": "Registry",
+      "id": "C0036.003",
+      "method": "Open Registry Key",
+      "objective": "Operating System",
+      "parts": [
+       "Operating System",
+       "Registry",
+       "Open Registry Key"
+      ]
+     }
+    ],
+    "name": "create or open registry key",
+    "references": [],
+    "scopes": {
+     "dynamic": "call",
+     "static": "basic block"
+    }
+   },
+   "source": ""
+  },
+  "create process on Windows": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368839600
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368855762
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "moritz.raabe@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "9324D1A8AE37A36AE560C37448C9705A:0x406DB0",
+     "Practical Malware Analysis Lab 01-04.exe_:0x4011FC"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Create Process",
+      "id": "C0017",
+      "method": "",
+      "objective": "Process",
+      "parts": [
+       "Process",
+       "Create Process"
+      ]
+     }
+    ],
+    "name": "create process on Windows",
+    "namespace": "host-interaction/process/create",
+    "references": [],
+    "scopes": {
+     "dynamic": "call",
+     "static": "instruction"
+    }
+   },
+   "source": ""
+  },
+  "delay execution": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368726320
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368727382
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368732472
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368732758
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368740193
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368740596
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "michael.hunhoff@mandiant.com",
+     "@ramen0x3f"
+    ],
+    "description": "",
+    "examples": [
+     "al-khaser_x86.exe_:0x449770",
+     "B5F85C26D7AA5A1FB4AF5821B6B5AB9B:0x402FA6"
+    ],
+    "is_subscope_rule": false,
+    "lib": true,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Dynamic Analysis Evasion",
+      "id": "B0003.003",
+      "method": "Delayed Execution",
+      "objective": "Anti-Behavioral Analysis",
+      "parts": [
+       "Anti-Behavioral Analysis",
+       "Dynamic Analysis Evasion",
+       "Delayed Execution"
+      ]
+     }
+    ],
+    "name": "delay execution",
+    "references": [
+     "https://docs.microsoft.com/en-us/windows/win32/sync/wait-functions",
+     "https://github.com/LordNoteworthy/al-khaser/blob/master/al-khaser/TimingAttacks/timing.cpp"
+    ],
+    "scopes": {
+     "dynamic": "call",
+     "static": "basic block"
+    }
+   },
+   "source": ""
+  },
+  "delete file": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368781560
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368850920
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "moritz.raabe@mandiant.com",
+     "michael.hunhoff@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "946A99F36A46D335DEC080D9A4371940:0x100015F0",
+     "31600AD0D1A7EA615690DF111AE36C73:0x401A15",
+     "563653399B82CD443F120ECEFF836EA3678D4CF11D9B351BB737573C2D856299:0x140001E04"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Delete File",
+      "id": "C0047",
+      "method": "",
+      "objective": "File System",
+      "parts": [
+       "File System",
+       "Delete File"
+      ]
+     }
+    ],
+    "name": "delete file",
+    "namespace": "host-interaction/file-system/delete",
+    "references": [],
+    "scopes": {
+     "dynamic": "span of calls",
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "encode data using XOR": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368790440
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368791220
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368795679
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368796122
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368801649
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368802456
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368824659
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368825107
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368830005
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368830771
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [
+     {
+      "id": "T1027",
+      "parts": [
+       "Defense Evasion",
+       "Obfuscated Files or Information"
+      ],
+      "subtechnique": "",
+      "tactic": "Defense Evasion",
+      "technique": "Obfuscated Files or Information"
+     }
+    ],
+    "authors": [
+     "moritz.raabe@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "2D3EDC218A90F03089CC01715A9F047F:0x403D7E"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Obfuscated Files or Information",
+      "id": "E1027.m02",
+      "method": "Encoding-Standard Algorithm",
+      "objective": "Defense Evasion",
+      "parts": [
+       "Defense Evasion",
+       "Obfuscated Files or Information",
+       "Encoding-Standard Algorithm"
+      ]
+     },
+     {
+      "behavior": "Encode Data",
+      "id": "C0026.002",
+      "method": "XOR",
+      "objective": "Data",
+      "parts": [
+       "Data",
+       "Encode Data",
+       "XOR"
+      ]
+     }
+    ],
+    "name": "encode data using XOR",
+    "namespace": "data-manipulation/encoding/xor",
+    "references": [],
+    "scopes": {
+     "static": "basic block"
+    }
+   },
+   "source": ""
+  },
+  "execute anti-debugging instructions": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368787284
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "moritz.raabe@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "Practical Malware Analysis Lab 16-03.exe_:0x401300"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Debugger Detection",
+      "id": "B0001.034",
+      "method": "Anti-debugging Instructions",
+      "objective": "Anti-Behavioral Analysis",
+      "parts": [
+       "Anti-Behavioral Analysis",
+       "Debugger Detection",
+       "Anti-debugging Instructions"
+      ]
+     }
+    ],
+    "name": "execute anti-debugging instructions",
+    "namespace": "anti-analysis/anti-debugging/debugger-detection",
+    "references": [],
+    "scopes": {
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "get common file path": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368848324
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368848640
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368855424
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [
+     {
+      "id": "T1083",
+      "parts": [
+       "Discovery",
+       "File and Directory Discovery"
+      ],
+      "subtechnique": "",
+      "tactic": "Discovery",
+      "technique": "File and Directory Discovery"
+     }
+    ],
+    "authors": [
+     "moritz.raabe@mandiant.com",
+     "michael.hunhoff@mandiant.com",
+     "anushka.virgaonkar@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "Practical Malware Analysis Lab 03-02.dll_:0x10003415",
+     "972B219F18379907A045431303F4DA7D:0x404887"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "File and Directory Discovery",
+      "id": "E1083",
+      "method": "",
+      "objective": "Discovery",
+      "parts": [
+       "Discovery",
+       "File and Directory Discovery"
+      ]
+     }
+    ],
+    "name": "get common file path",
+    "namespace": "host-interaction/file-system",
+    "references": [],
+    "scopes": {
+     "dynamic": "call",
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "get file attributes": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368781672
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "michael.hunhoff@mandiant.com",
+     "anushka.virgaonkar@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "03B236B23B1EC37C663527C1F53AF3FE:0x180019824",
+     "B5F85C26D7AA5A1FB4AF5821B6B5AB9B:0x4028B6",
+     "B5F85C26D7AA5A1FB4AF5821B6B5AB9B:0x4029E0"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Get File Attributes",
+      "id": "C0049",
+      "method": "",
+      "objective": "File System",
+      "parts": [
+       "File System",
+       "Get File Attributes"
+      ]
+     }
+    ],
+    "name": "get file attributes",
+    "namespace": "host-interaction/file-system/meta",
+    "references": [],
+    "scopes": {
+     "dynamic": "call",
+     "static": "basic block"
+    }
+   },
+   "source": ""
+  },
+  "get geographical location": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368776064
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368776600
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368787284
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [
+     {
+      "id": "T1614",
+      "parts": [
+       "Discovery",
+       "System Location Discovery"
+      ],
+      "subtechnique": "",
+      "tactic": "Discovery",
+      "technique": "System Location Discovery"
+     }
+    ],
+    "authors": [
+     "moritz.raabe",
+     "michael.hunhoff@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "9879D201DC5ACA863F357184CD1F170E:0x10001A99"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [],
+    "name": "get geographical location",
+    "namespace": "collection",
+    "references": [],
+    "scopes": {
+     "dynamic": "call",
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "get graphical window text": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368781412
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368838696
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368841908
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "moritz.raabe@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "B7841B9D5DC1F511A93CC7576672EC0C:0x10007A50",
+     "Practical Malware Analysis Lab 11-03.dll_:0x10001000"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Application Window Discovery",
+      "id": "E1010",
+      "method": "",
+      "objective": "Discovery",
+      "parts": [
+       "Discovery",
+       "Application Window Discovery"
+      ]
+     }
+    ],
+    "name": "get graphical window text",
+    "namespace": "host-interaction/gui/window/get-text",
+    "references": [],
+    "scopes": {
+     "dynamic": "span of calls",
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "get keyboard layout": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368768848
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368787284
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [
+     {
+      "id": "T1614.001",
+      "parts": [
+       "Discovery",
+       "System Location Discovery",
+       "System Language Discovery"
+      ],
+      "subtechnique": "System Language Discovery",
+      "tactic": "Discovery",
+      "technique": "System Location Discovery"
+     }
+    ],
+    "authors": [
+     "michael.hunhoff@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "6F99A2C8944CB02FF28C6F9CED59B161:0x4193C0",
+     "C91887D861D9BD4A5872249B641BC9F9:0x4015FD"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [],
+    "name": "get keyboard layout",
+    "namespace": "host-interaction/hardware/keyboard",
+    "references": [],
+    "scopes": {
+     "dynamic": "span of calls",
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "get process heap flags": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368793328
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368797087
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368823067
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368826106
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [
+     {
+      "id": "T1057",
+      "parts": [
+       "Discovery",
+       "Process Discovery"
+      ],
+      "subtechnique": "",
+      "tactic": "Discovery",
+      "technique": "Process Discovery"
+     }
+    ],
+    "authors": [
+     "michael.hunhoff@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "al-khaser_x86.exe_:0x425470"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [],
+    "name": "get process heap flags",
+    "namespace": "host-interaction/process",
+    "references": [
+     "https://github.com/LordNoteworthy/al-khaser/blob/bed03d2f849d9060c68f8d5905bd204d0cb3f593/al-khaser/AntiDebug/ProcessHeap_Flags.cpp#L13"
+    ],
+    "scopes": {
+     "static": "basic block"
+    }
+   },
+   "source": ""
+  },
+  "hide graphical window": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368839234
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368839234
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [
+     {
+      "id": "T1564.003",
+      "parts": [
+       "Defense Evasion",
+       "Hide Artifacts",
+       "Hidden Window"
+      ],
+      "subtechnique": "Hidden Window",
+      "tactic": "Defense Evasion",
+      "technique": "Hide Artifacts"
+     }
+    ],
+    "authors": [
+     "michael.hunhoff@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "39C05B15E9834AC93F206BC114D0A00C357C888DB567BA8F5345DA0529CBED41:0x10007250"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [],
+    "name": "hide graphical window",
+    "namespace": "host-interaction/gui/window/hide",
+    "references": [],
+    "scopes": {
+     "dynamic": "call",
+     "static": "basic block"
+    }
+   },
+   "source": ""
+  },
+  "identify system language via API": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368776064
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [
+     {
+      "id": "T1614.001",
+      "parts": [
+       "Discovery",
+       "System Location Discovery",
+       "System Language Discovery"
+      ],
+      "subtechnique": "System Language Discovery",
+      "tactic": "Discovery",
+      "technique": "System Location Discovery"
+     }
+    ],
+    "authors": [
+     "william.ballenthin@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "9b7ccaa2ae6a5b96e3110ebcbc4311f6:0x10001F96"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [],
+    "name": "identify system language via API",
+    "namespace": "targeting/language",
+    "references": [],
+    "scopes": {
+     "dynamic": "span of calls",
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "link function at runtime on Windows": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368734637
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368735396
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368741220
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368741354
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368743333
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368744957
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368745528
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368743333
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368745909
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368748084
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368748396
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368748544
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368748720
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368791786
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368799414
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368827851
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [
+     {
+      "id": "T1129",
+      "parts": [
+       "Execution",
+       "Shared Modules"
+      ],
+      "subtechnique": "",
+      "tactic": "Execution",
+      "technique": "Shared Modules"
+     }
+    ],
+    "authors": [
+     "moritz.raabe@mandiant.com",
+     "mehunhoff@google.com"
+    ],
+    "description": "",
+    "examples": [
+     "9324D1A8AE37A36AE560C37448C9705A:0x404130",
+     "Practical Malware Analysis Lab 01-04.exe_:0x401350"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [],
+    "name": "link function at runtime on Windows",
+    "namespace": "linking/runtime-linking",
+    "references": [],
+    "scopes": {
+     "dynamic": "call",
+     "static": "instruction"
+    }
+   },
+   "source": ""
+  },
+  "open clipboard": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368771232
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [
+     {
+      "id": "T1115",
+      "parts": [
+       "Collection",
+       "Clipboard Data"
+      ],
+      "subtechnique": "",
+      "tactic": "Collection",
+      "technique": "Clipboard Data"
+     }
+    ],
+    "authors": [
+     "michael.hunhoff@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "6f99a2c8944cb02ff28c6f9ced59b161:0x403180"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [],
+    "name": "open clipboard",
+    "namespace": "host-interaction/clipboard",
+    "references": [],
+    "scopes": {
+     "dynamic": "span of calls",
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "parse PE header": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368718004
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368787284
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [
+     {
+      "id": "T1129",
+      "parts": [
+       "Execution",
+       "Shared Modules"
+      ],
+      "subtechnique": "",
+      "tactic": "Execution",
+      "technique": "Shared Modules"
+     }
+    ],
+    "authors": [
+     "moritz.raabe@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "9324D1A8AE37A36AE560C37448C9705A:0x403DD0"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [],
+    "name": "parse PE header",
+    "namespace": "load-code/pe",
+    "references": [],
+    "scopes": {
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "print debug messages": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368721628
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368722348
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368722980
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368733548
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "michael.hunhoff@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "493167E85E45363D09495D0841C30648:0x401000"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [],
+    "name": "print debug messages",
+    "namespace": "host-interaction/log/debug/write-event",
+    "references": [],
+    "scopes": {
+     "dynamic": "call",
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "query or enumerate registry value": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368755172
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368834480
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368834584
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368834804
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368850920
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [
+     {
+      "id": "T1012",
+      "parts": [
+       "Discovery",
+       "Query Registry"
+      ],
+      "subtechnique": "",
+      "tactic": "Discovery",
+      "technique": "Query Registry"
+     }
+    ],
+    "authors": [
+     "william.ballenthin@mandiant.com",
+     "michael.hunhoff@mandiant.com",
+     "anushka.virgaonkar@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "BFB9B5391A13D0AFD787E87AB90F14F5:0x13145B5A",
+     "Practical Malware Analysis Lab 03-02.dll_:0x100047AD"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Registry",
+      "id": "C0036.006",
+      "method": "Query Registry Value",
+      "objective": "Operating System",
+      "parts": [
+       "Operating System",
+       "Registry",
+       "Query Registry Value"
+      ]
+     }
+    ],
+    "name": "query or enumerate registry value",
+    "namespace": "host-interaction/registry",
+    "references": [],
+    "scopes": {
+     "dynamic": "span of calls",
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "read file on Windows": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368760848
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "moritz.raabe@mandiant.com",
+     "anushka.virgaonkar@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "BFB9B5391A13D0AFD787E87AB90F14F5:0x1314567B"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Read File",
+      "id": "C0051",
+      "method": "",
+      "objective": "File System",
+      "parts": [
+       "File System",
+       "Read File"
+      ]
+     }
+    ],
+    "name": "read file on Windows",
+    "namespace": "host-interaction/file-system/read",
+    "references": [],
+    "scopes": {
+     "dynamic": "span of calls",
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "set registry value": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368752836
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368834584
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368834944
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368835000
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "moritz.raabe@mandiant.com",
+     "michael.hunhoff@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "BFB9B5391A13D0AFD787E87AB90F14F5:0x13147AF0",
+     "B5F85C26D7AA5A1FB4AF5821B6B5AB9B:0x40433E",
+     "B5F85C26D7AA5A1FB4AF5821B6B5AB9B:0x40415E",
+     "98c37c3c23bbfb362dac7754c6ba48e75cf24d73bc963a4cdfca557b9e016909:0x40294D"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Registry",
+      "id": "C0036.001",
+      "method": "Set Registry Key",
+      "objective": "Operating System",
+      "parts": [
+       "Operating System",
+       "Registry",
+       "Set Registry Key"
+      ]
+     }
+    ],
+    "name": "set registry value",
+    "namespace": "host-interaction/registry/create",
+    "references": [],
+    "scopes": {
+     "dynamic": "call",
+     "static": "function"
+    }
+   },
+   "source": ""
+  },
+  "write file on Windows": {
+   "matches": [
+    [
+     {
+      "type": "absolute",
+      "value": 5368777740
+     },
+     {
+      "success": true
+     }
+    ],
+    [
+     {
+      "type": "absolute",
+      "value": 5368781560
+     },
+     {
+      "success": true
+     }
+    ]
+   ],
+   "meta": {
+    "attack": [],
+    "authors": [
+     "william.ballenthin@mandiant.com",
+     "anushka.virgaonkar@mandiant.com"
+    ],
+    "description": "",
+    "examples": [
+     "Practical Malware Analysis Lab 01-04.exe_:0x4011FC",
+     "563653399B82CD443F120ECEFF836EA3678D4CF11D9B351BB737573C2D856299:0x1400025C4"
+    ],
+    "is_subscope_rule": false,
+    "lib": false,
+    "maec": {},
+    "mbc": [
+     {
+      "behavior": "Writes File",
+      "id": "C0052",
+      "method": "",
+      "objective": "File System",
+      "parts": [
+       "File System",
+       "Writes File"
+      ]
+     }
+    ],
+    "name": "write file on Windows",
+    "namespace": "host-interaction/file-system/write",
+    "references": [],
+    "scopes": {
+     "dynamic": "call",
+     "static": "function"
+    }
+   },
+   "source": ""
+  }
+ }
+}
