@@ -2,61 +2,62 @@
 # Same schema as evasion_patterns.yaml.
 version: 1
 rules:
-  - id: PIC-001
-    name: PEB access via GS (x64)
-    description: Reads PEB through gs:[0x60], typical of shellcode locating loaded modules.
-    severity: medium
-    mitre: [T1027.007, T1620]
-    condition: any
-    indicators:
-      - { type: bytes, value: "65 48 8B 04 25 60 00 00 00" }
-      - { type: bytes, value: "65 4C 8B 04 25 60 00 00 00" }
 
-  - id: PIC-002
-    name: PEB access via FS (x86)
-    description: Reads PEB through fs:[0x30].
-    severity: medium
-    mitre: [T1027.007, T1620]
-    condition: any
-    indicators:
-      - { type: bytes, value: "64 A1 30 00 00 00" }
-      - { type: bytes, value: "64 8B 1D 30 00 00 00" }
-      - { type: bytes, value: "64 8B 35 30 00 00 00" }
+- id: PIC-001
+  name: PEB access via GS (x64)
+  description: Reads PEB through gs:[0x60], typical of shellcode locating loaded modules.
+  severity: low
+  mitre: [T1027.007, T1620]
+  condition: any
+  indicators:
+  - {type: bytes, value: 65 48 8B 04 25 60 00 00 00}
+  - {type: bytes, value: 65 4C 8B 04 25 60 00 00 00}
 
-  - id: PIC-003
-    name: GetPC via call/pop
-    description: call $+5 followed by pop reg to obtain the current instruction pointer.
-    severity: medium
-    mitre: [T1620]
-    condition: any
-    indicators:
-      - { type: bytes, value: "E8 00 00 00 00 5?" }
+- id: PIC-002
+  name: PEB access via FS (x86)
+  description: Reads PEB through fs:[0x30].
+  severity: medium
+  mitre: [T1027.007, T1620]
+  condition: any
+  indicators:
+  - {type: bytes, value: 64 A1 30 00 00 00}
+  - {type: bytes, value: 64 8B 1D 30 00 00 00}
+  - {type: bytes, value: 64 8B 35 30 00 00 00}
 
-  - id: PIC-004
-    name: GetPC via fnstenv
-    description: FPU environment store used to recover EIP (common in encoders).
-    severity: medium
-    mitre: [T1620, T1027]
-    condition: any
-    indicators:
-      - { type: bytes, value: "D9 EE D9 74 24 F4" }
+- id: PIC-003
+  name: GetPC via call/pop
+  description: call $+5 followed by pop reg to obtain the current instruction pointer.
+  severity: medium
+  mitre: [T1620]
+  condition: any
+  indicators:
+  - {type: bytes, value: 'E8 00 00 00 00 5?'}
 
-  - id: PIC-005
-    name: Loader list walk (x64)
-    description: PEB->Ldr->InMemoryOrderModuleList traversal.
-    severity: low
-    mitre: [T1027.007]
-    condition: all
-    indicators:
-      - { type: bytes, value: "48 8B ?? 18" }
-      - { type: bytes, value: "48 8B ?? 20" }
+- id: PIC-004
+  name: GetPC via fnstenv
+  description: FPU environment store used to recover EIP (common in encoders).
+  severity: medium
+  mitre: [T1620, T1027]
+  condition: any
+  indicators:
+  - {type: bytes, value: D9 EE D9 74 24 F4}
 
-  - id: PIC-006
-    name: ROR13 module/function hashing
-    description: Hash loop used by PIC to resolve exports by hash.
-    severity: medium
-    mitre: [T1027.007]
-    condition: any
-    indicators:
-      - { type: bytes, value: "C1 CF 0D 01 C7" }
-      - { type: bytes, value: "41 C1 C9 0D 41 01 C1" }
+- id: PIC-005
+  name: PEB loader data access (x64)
+  description: Reads PEB via gs:[0x60] and immediately dereferences PEB->Ldr (module list walk).
+  severity: medium
+  mitre: [T1027.007]
+  condition: any
+  indicators:
+  - {type: bytes, value: 65 48 8B 04 25 60 00 00 00 48 8B 40 18}
+  - {type: bytes, value: 65 48 8B 04 25 60 00 00 00 48 8B 48 18}
+
+- id: PIC-006
+  name: ROR13 module/function hashing
+  description: Hash loop used by PIC to resolve exports by hash.
+  severity: medium
+  mitre: [T1027.007]
+  condition: any
+  indicators:
+  - {type: bytes, value: C1 CF 0D 01 C7}
+  - {type: bytes, value: 41 C1 C9 0D 41 01 C1}
