@@ -14,6 +14,7 @@ KEYS = {
     "capabilities",
     "iocs",
     "iocs_total",
+    "recovered_strings",
     "payloads",
     "top_functions",
     "attack",
@@ -77,3 +78,49 @@ def test_triage_json_lists_every_ioc(tmp_path: Path, capsys: pytest.CaptureFixtu
     out = json.loads(capsys.readouterr().out)
     assert out["iocs_total"] == 300
     assert len(out["iocs"]) == 300
+
+
+@pytest.fixture
+def fake_capa(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, int]:
+    import sys
+
+    from octov.app import api as api_mod
+    from octov.ext import capa as capa_ext
+    from tests.unit.test_ext_api import FAKE, FIXTURES, _status
+
+    started = {"capa": 0}
+
+    def capa_cmd(path: Path, rules: Path, sigs: Path, *, raw: bool, bits: int) -> list[str]:
+        started["capa"] += 1
+        return [sys.executable, FAKE, "file", str(FIXTURES / "capa" / "synthetic_injector.json")]
+
+    monkeypatch.setattr(capa_ext, "capa_command", capa_cmd)
+    monkeypatch.setattr(api_mod, "extension_status", lambda root: _status({"capa"}))
+    monkeypatch.setattr(api_mod, "capa_rules_dir", lambda root: ("v10.0.0", tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # cache under tmp, not the real profile
+    monkeypatch.setenv("HOME", str(tmp_path))
+    return started
+
+
+def test_triage_waits_for_capa(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], fake_capa: dict[str, int]
+) -> None:
+    from tests.unit.test_triage_api import _suspicious
+
+    assert main(["triage", str(_suspicious(tmp_path)), "--md"]) == 0
+    out = capsys.readouterr().out
+    assert "## Capabilities (capa)" in out
+    assert "create thread" in out
+    assert "### host-interaction" in out
+    assert fake_capa["capa"] == 1
+
+
+def test_no_ext_skips_engines(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], fake_capa: dict[str, int]
+) -> None:
+    from tests.unit.test_triage_api import _suspicious
+
+    assert main(["triage", str(_suspicious(tmp_path)), "--no-ext"]) == 0
+    out = capsys.readouterr().out
+    assert fake_capa["capa"] == 0
+    assert "Capabilities (capa)" not in out

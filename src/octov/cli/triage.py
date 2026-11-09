@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import tempfile
 import time
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from octov.core.config import ConfigError, load_config
+from octov.ext import ENGINES
 
 WAIT_SECONDS = 300
 
@@ -24,7 +26,22 @@ def add_parser(sub: Any) -> None:
     cmd.add_argument("--iocs", type=Path, help="also write the IOC list as CSV")
     cmd.add_argument("--raw", action="store_true", help="treat the file as a raw code blob")
     cmd.add_argument("--bits", type=int, choices=(32, 64), default=64)
+    cmd.add_argument("--no-ext", action="store_true", help="skip the capa / FLOSS engines")
     cmd.add_argument("--config", type=Path, help="config file (default: ./config.yaml if present)")
+
+
+_MBC = re.compile(r"^[A-Z]\d{4}")
+
+
+def _capa_groups(r: dict[str, Any]) -> list[tuple[str, list[dict[str, Any]]]]:
+    """capa capability facts grouped by top-level namespace, largest group first."""
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for c in r["capabilities"]:
+        if c["kind"] != "capability":
+            continue
+        ns = next((t for t in reversed(c["tags"]) if not _MBC.match(t)), "other")
+        groups.setdefault(ns.split("/")[0], []).append(c)
+    return sorted(groups.items(), key=lambda g: (-len(g[1]), g[0]))
 
 
 def _text(name: str, r: dict[str, Any]) -> str:
@@ -37,9 +54,17 @@ def _text(name: str, r: dict[str, Any]) -> str:
         lines.append(
             f"  Packed: {r['packer']['packer'] or 'unknown'} ({'; '.join(r['packer']['reasons'])})"
         )
-    lines.append(f"  Capabilities ({len(r['capabilities'])}):")
-    for c in r["capabilities"]:
+    own = [c for c in r["capabilities"] if c["kind"] != "capability"]
+    lines.append(f"  Capabilities ({len(own)}):")
+    for c in own:
         lines.append(f"    [{c['severity']:<6}] {c['source_id']:<28} {c['title']}")
+    groups = _capa_groups(r)
+    if groups:
+        lines.append("  Capabilities (capa):")
+        for ns, rows in groups:
+            lines.append(f"    {ns} ({len(rows)}): " + "; ".join(c["source_id"] for c in rows))
+    if r.get("recovered_strings"):
+        lines.append(f"  Recovered strings (FLOSS): {r['recovered_strings']}")
     lines.append(f"  IOCs ({len(r['iocs'])}):")
     for i in r["iocs"]:
         hint = f"  ({i['benign_hint']})" if i["benign_hint"] else ""
@@ -71,7 +96,20 @@ def _markdown(name: str, r: dict[str, Any]) -> str:
     out += [
         f"| {c['severity']} | {c['source_id']} | {c['title']} | {', '.join(c['mitre'])} |"
         for c in r["capabilities"]
+        if c["kind"] != "capability"
     ]
+    groups = _capa_groups(r)
+    if groups:
+        out += ["", "## Capabilities (capa)"]
+        for ns, rows in groups:
+            out += ["", f"### {ns} ({len(rows)})", ""]
+            out += [
+                f"- {c['source_id']} ({c['severity']})"
+                + (f" - {', '.join(c['mitre'])}" if c["mitre"] else "")
+                for c in rows
+            ]
+    if r.get("recovered_strings"):
+        out += ["", f"**Recovered strings (FLOSS):** {r['recovered_strings']}"]
     out += ["", "## IOCs", "", "| Type | Value | Note |", "|---|---|---|"]
     out += [f"| {i['type']} | `{i['value']}` | {i['benign_hint'] or ''} |" for i in r["iocs"]]
     if r["top_functions"]:
@@ -98,19 +136,23 @@ def run(args: argparse.Namespace) -> int:
         api = WorkbenchApi(
             config, settings_path=Path(tmp) / "ui.json", workspace_dir=Path(tmp) / "ws"
         )
+        if args.no_ext:
+            api.set_settings({"extensions_auto_run": {e: False for e in ENGINES}})
         try:
             sha = api.open_sample(str(args.file), raw=args.raw, bits=args.bits)["sha256"]
         except ApiError as exc:
             hint = "" if args.raw else " (use --raw for shellcode / code blobs)"
             print(f"error: {exc}{hint}", file=sys.stderr)
             return 2
-        deadline = time.monotonic() + WAIT_SECONDS
+        engine_wait = max(e.timeout_s for e in config.extensions.values()) + 60
+        deadline = time.monotonic() + max(WAIT_SECONDS, engine_wait)
         while any(j["state"] in ("queued", "running") for j in api.job_status(sha).values()):
             if time.monotonic() > deadline:
                 break
             time.sleep(0.05)
         report = api.get_triage(sha)
         report["iocs"] = api.get_iocs(sha)  # the UI payload is capped, the CLI lists all
+        report["recovered_strings"] = api.get_strings(sha, limit=0, origin="recovered")["total"]
         if args.iocs is not None:
             args.iocs.write_text(api.export_iocs(sha, "csv"), encoding="utf-8")
     name = args.file.name
