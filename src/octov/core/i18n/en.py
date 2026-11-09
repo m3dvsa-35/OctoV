@@ -1,5 +1,7 @@
 """English UI strings (reference language)."""
 
+from octov.core.i18n.en_api import API_STRINGS
+
 STRINGS: dict[str, str] = {
     "app.title": "OctoV - Binary Analysis Workbench",
     "menu.file": "File",
@@ -398,6 +400,36 @@ STRINGS: dict[str, str] = {
     "ext.reason.no_rules": "capa rules missing",
     "ext.reason.in_memory": "only for files on disk (carved payloads stay in memory)",
     "ext.reason.too_large": "file too large (raise max_size_mb in config.yaml)",
+    "ext.reason.no_ghidra": "Ghidra not found (run: octov ext setup ghidra)",
+    "ext.reason.ghidra_version": "unsupported Ghidra version (12.x is needed)",
+    "ext.reason.no_jdk": "no JDK 21 or newer found",
+    "ext.reason.pe_only": "PE files only",
+    "ext.ghidra.adds": (
+        "Ghidra turns each function's machine code into readable pseudo-C, in sync with the "
+        "disassembly and the graph."
+    ),
+    "ui.pseudo_c": "Pseudo-C",
+    "decomp.help.title": "How to read this",
+    "decomp.help.body": (
+        "This is pseudo-C that Ghidra rebuilt from the machine code: it shows what the code "
+        "does, it is not the original source. param_1, param_2… are the function's arguments; "
+        "local_10, uVar1, iVar2… are local variables Ghidra named by itself; DAT_… is data at "
+        "that address; FUN_… is a function nobody has named yet (press N to rename it). Types "
+        "are guesses (undefined8 = 8 bytes of unknown type). Click a line to jump to its "
+        "instructions. Marked lines are where OctoV found something worth a look."
+    ),
+    "decomp.no_function": (
+        "Ghidra found no function at this address (data, padding, or code it did not recognise)."
+    ),
+    "decomp.analysing": "Ghidra is analysing this file in the background…",
+    "decomp.not_ready": "The decompiler has not run for this file yet.",
+    "decomp.timeout": (
+        "Decompiling this function took too long and was stopped. Try again, or read the "
+        "disassembly instead."
+    ),
+    "decomp.failed": "The decompiler failed",
+    "decomp.mark.fact": "Finding",
+    "decomp.mark.api": "Sensitive API call",
     "ext.capa.adds": (
         "capa names what each function does (for example 'inject thread', 'encrypt data using "
         "AES') with ATT&CK and MBC references."
@@ -423,3 +455,4 @@ STRINGS: dict[str, str] = {
     "strings.obfuscated": "Obfuscated",
     "triage.capa_group": "{ns} ({n})",
 }
+STRINGS.update(API_STRINGS)

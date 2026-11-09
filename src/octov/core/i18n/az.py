@@ -1,5 +1,7 @@
 """Azərbaycan dilində UI sətirləri."""
 
+from octov.core.i18n.az_api import API_STRINGS
+
 STRINGS: dict[str, str] = {
     "app.title": "OctoV - Binar Analiz İş Masası",
     "menu.file": "Fayl",
@@ -412,6 +414,37 @@ STRINGS: dict[str, str] = {
     "ext.reason.no_rules": "capa qaydaları yoxdur",
     "ext.reason.in_memory": "yalnız diskdəki fayllar üçün (çıxarılan payload-lar yaddaşda qalır)",
     "ext.reason.too_large": "fayl çox böyükdür (config.yaml-da max_size_mb-ni artırın)",
+    "ext.reason.no_ghidra": "Ghidra tapılmadı (işə salın: octov ext setup ghidra)",
+    "ext.reason.ghidra_version": "dəstəklənməyən Ghidra versiyası (12.x lazımdır)",
+    "ext.reason.no_jdk": "JDK 21 və ya daha yenisi tapılmadı",
+    "ext.reason.pe_only": "yalnız PE faylları üçün",
+    "ext.ghidra.adds": (
+        "Ghidra hər funksiyanın maşın kodunu oxunaqlı psevdo-C-yə çevirir; disassembly və qrafla "
+        "sinxron işləyir."
+    ),
+    "ui.pseudo_c": "Psevdo-C",
+    "decomp.help.title": "Bunu necə oxumalı",
+    "decomp.help.body": (
+        "Bu, Ghidra-nın maşın kodundan bərpa etdiyi psevdo-C-dir: kodun nə etdiyini göstərir, "
+        "orijinal mənbə kodu deyil. param_1, param_2… funksiyanın arqumentləridir; local_10, "
+        "uVar1, iVar2… Ghidra-nın özünün adlandırdığı lokal dəyişənlərdir; DAT_… həmin "
+        "ünvandakı məlumatdır; FUN_… hələ heç kimin ad vermədiyi funksiyadır (adını dəyişmək "
+        "üçün N düyməsini basın). Tiplər təxminidir (undefined8 = tipi məlum olmayan 8 bayt). "
+        "Sətrin təlimatlarına keçmək üçün ona klikləyin. İşarələnmiş sətirlər OctoV-un diqqətə "
+        "layiq nəsə tapdığı yerlərdir."
+    ),
+    "decomp.no_function": (
+        "Ghidra bu ünvanda funksiya tapmadı (məlumat, boşluq və ya tanımadığı kod)."
+    ),
+    "decomp.analysing": "Ghidra bu faylı arxa fonda analiz edir…",
+    "decomp.not_ready": "Dekompilyator bu fayl üçün hələ işə salınmayıb.",
+    "decomp.timeout": (
+        "Bu funksiyanın dekompilyasiyası çox uzun çəkdi və dayandırıldı. Yenidən cəhd edin və "
+        "ya disassembly-ni oxuyun."
+    ),
+    "decomp.failed": "Dekompilyator xəta verdi",
+    "decomp.mark.fact": "Tapıntı",
+    "decomp.mark.api": "Həssas API çağırışı",
     "ext.capa.adds": (
         "capa hər funksiyanın nə etdiyini adlandırır (məsələn, 'inject thread', 'encrypt data "
         "using AES') və ATT&CK, MBC istinadları verir."
@@ -437,3 +470,4 @@ STRINGS: dict[str, str] = {
     "strings.obfuscated": "Obfuskasiyalı",
     "triage.capa_group": "{ns} ({n})",
 }
+STRINGS.update(API_STRINGS)
