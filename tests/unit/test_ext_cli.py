@@ -116,3 +116,18 @@ def test_setup_installs_sigs_from_dir(
     assert main([*args, "--rules-root", str(root), "--sigs-root", str(tmp_path / "s")]) == 0
     assert "signatures installed" in capsys.readouterr().out
     assert sorted(p.name for p in (tmp_path / "s" / "v10.0.0").iterdir()) == sorted(pins)
+
+
+def test_status_lists_ghidra(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from octov.cli import ext as ext_cli
+    from octov.ext import ExtensionStatus
+
+    _probe(monkeypatch, installed=True)
+    ready = ExtensionStatus(
+        "ghidra", True, True, "12.2", "25.0.1", None, "", "octov ext setup ghidra"
+    )
+    monkeypatch.setattr(ext_cli, "ghidra_status", lambda cfg, **kw: ready)
+    assert main(["ext", "status", "--rules-root", str(tmp_path)]) == 0
+    assert "ghidra ready (Ghidra 12.2, JDK 25.0.1)" in capsys.readouterr().out

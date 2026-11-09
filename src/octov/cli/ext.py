@@ -7,7 +7,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from octov.core.config import ConfigError, load_config
 from octov.ext import DEFAULT_RULES_ROOT, DEFAULT_SIGS_ROOT, extension_status
+from octov.ext.ghidra.discover import ghidra_status
 
 EXIT_SETUP_FAILED = 2
 
@@ -17,7 +19,7 @@ def add_parser(sub: Any) -> None:
     ext_sub = ext.add_subparsers(dest="ext_command", required=True)
     status = ext_sub.add_parser("status", help="show installed engines and capa rules")
     setup = ext_sub.add_parser("setup", help="install the capa rule set (one-time download)")
-    setup.add_argument("engine", choices=("capa",))
+    setup.add_argument("engine", choices=("capa", "ghidra"))
     setup.add_argument("--from-zip", type=Path, help="install from a local rules archive")
     setup.add_argument(
         "--allow-unpinned", action="store_true", help="accept a rules archive with another hash"
@@ -26,6 +28,7 @@ def add_parser(sub: Any) -> None:
     setup.add_argument("--no-sigs", action="store_true", help="skip the signature files")
     for p in (status, setup):
         p.add_argument("--rules-root", type=Path, default=None, help=argparse.SUPPRESS)
+        p.add_argument("--home-root", type=Path, default=None, help=argparse.SUPPRESS)
         p.add_argument("--sigs-root", type=Path, default=None, help=argparse.SUPPRESS)
 
 
@@ -45,7 +48,10 @@ def run(args: argparse.Namespace) -> int:
             else:
                 state = f"installed {st.version}, rules missing: {st.setup_cmd}"
             print(f"{st.id:<6} {state}")
+        print(_ghidra_line(args))
         return 0
+    if args.engine == "ghidra":
+        return _setup_ghidra(args)
 
     from octov.ext.capa_rules import RulesError, install_rules, install_sigs
 
@@ -61,4 +67,43 @@ def run(args: argparse.Namespace) -> int:
     except (RulesError, OSError) as exc:
         print(f"capa rules setup failed: {exc}", file=sys.stderr)
         return EXIT_SETUP_FAILED
+    return 0
+
+
+def _home_root(args: argparse.Namespace) -> Path:
+    root: Path = args.home_root or Path.home() / ".octov"
+    return root
+
+
+def _ghidra_line(args: argparse.Namespace) -> str:
+    try:
+        cfg = load_config(Path("config.yaml") if Path("config.yaml").is_file() else None)
+    except ConfigError:
+        cfg = load_config(None)
+    st = ghidra_status(cfg.ghidra, home_root=_home_root(args))
+    if st.ready:
+        return f"ghidra ready (Ghidra {st.version}, JDK {st.rules_version})"
+    if not st.installed:
+        return f"ghidra not installed: {st.install_cmd}"
+    if st.reason_key == "ext.reason.no_jdk":
+        return "ghidra needs a JDK >= 21 (set extensions.ghidra.java_home)"
+    if st.reason_key == "ext.reason.ghidra_version":
+        return f"ghidra {st.version} is not supported (need 12.x): {st.setup_cmd}"
+    return f"ghidra missing: {st.setup_cmd}"
+
+
+def _setup_ghidra(args: argparse.Namespace) -> int:
+    from octov.ext.archive import RulesError
+    from octov.ext.ghidra import setup
+
+    if args.from_zip is None:
+        mib = setup.GHIDRA_SIZE // (1 << 20)
+        source = "github.com/NationalSecurityAgency/ghidra"
+        print(f"downloading Ghidra {setup.GHIDRA_VERSION} ({mib} MiB) from {source}")
+    try:
+        target = setup.install_ghidra(_home_root(args), zip_path=args.from_zip)
+    except (RulesError, OSError) as exc:
+        print(f"ghidra setup failed: {exc}", file=sys.stderr)
+        return EXIT_SETUP_FAILED
+    print(f"Ghidra {setup.GHIDRA_VERSION} installed in {target}")
     return 0
