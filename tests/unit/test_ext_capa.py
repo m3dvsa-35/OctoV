@@ -135,7 +135,9 @@ def test_match_without_address_has_value_evidence() -> None:
     fact = capa_facts(
         [CapaMatch("contain an embedded PE file", "executable/subfile/pe", (), (), ())], None
     )[0]
-    assert len(fact.evidence) == 1 and fact.evidence[0].value == "contain an embedded PE file"
+    # file-scope matches anchor at the file start (every fact needs an offset or RVA)
+    assert len(fact.evidence) == 1
+    assert (fact.evidence[0].offset, fact.evidence[0].rva) == (0, 0)
 
 
 def test_sigs_install_from_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

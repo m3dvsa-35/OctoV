@@ -12,7 +12,7 @@ from octov.core.static.cfg import Function, FunctionIndex
 from octov.core.static.pe_parser import PEReport
 from octov.core.static.rules import Finding
 
-AnalyzerStatus = Literal["queued", "running", "done", "failed", "unavailable"]
+AnalyzerStatus = Literal["queued", "running", "done", "failed", "unavailable", "idle"]
 
 
 @dataclass

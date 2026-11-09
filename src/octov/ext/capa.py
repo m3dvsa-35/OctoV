@@ -97,8 +97,8 @@ def capa_facts(matches: Sequence[CapaMatch], index: FunctionIndex | None) -> lis
                 functions.append(fn.start)
         evidence += [Evidence(f"function {start:#x}", rva=start) for start in functions]
         evidence += [Evidence("match", rva=rva) for rva in m.rvas if rva not in functions]
-        if not evidence:
-            evidence = [Evidence("match", value=m.rule)]
+        if not evidence:  # file-scope match: anchor at the file start, like header facts
+            evidence = [Evidence("file", offset=0, rva=0, value=m.rule)]
         facts.append(
             Fact(
                 kind="capability",

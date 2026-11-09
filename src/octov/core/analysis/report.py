@@ -10,7 +10,16 @@ from octov.core.analysis.pipeline import AnalysisContext
 from octov.core.analysis.scoring import IGNORED_VERDICTS, risk_score
 from octov.core.mitre import technique_name, technique_tactic
 
-CAPABILITY_KINDS = ("rule", "indicator", "crypto_constant", "embedded_payload", "packer")
+CAPABILITY_KINDS = (
+    "rule",
+    "indicator",
+    "crypto_constant",
+    "embedded_payload",
+    "packer",
+    "capability",
+    "obfuscated_strings",
+    "hidden_ioc",
+)
 _ORDER = {"high": 0, "medium": 1, "low": 2, "info": 3}
 
 
