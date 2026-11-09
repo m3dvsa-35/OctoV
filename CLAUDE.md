@@ -127,21 +127,35 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 - Installed plugins the user wants used: superpowers (TDD, verification, code review),
   caveman (commit messages, review), ui-ux-pro-max (visual panels), karpathy guidelines.
 
-## Status / where we stopped  (updated 2026-11-09, chat 4)
+## Status / where we stopped  (updated 2026-11-10, chat 4)
 
 ### How to resume in a new chat (read this first)
-1. `main` has M1, M2, web UI and assisted-triage Phase 1 (PRs #3/#4/#5 merged).
-2. **Phase 2 (capa + FLOSS) is implemented on `feat/assisted-triage-phase2`** and pushed;
-   its PR targets `main` (see "Other open work"). Owner was away and said "do what is needed,
-   don't wait for approval": the PR was opened but **not merged** — merging is the owner's call.
-   Design: `docs/superpowers/specs/2026-11-09-assisted-triage-phase2-design.md`; plan:
-   `docs/superpowers/plans/2026-11-09-assisted-triage-phase2.md` (13 tasks, all done);
-   ledger: `.superpowers/sdd/2026-11-09-assisted-triage-phase2/progress.md` (rulings + deferred
-   minors). Final review: 0 Critical, 4 Important (+1 re-graded) fixed in `36fcd24`.
-3. Engines on this machine: `octov ext status` → capa 10.0.0 (rules v10.0.0 + sigs) and
-   FLOSS 3.2.0 ready (`python -m uv sync --all-extras`, `octov ext setup capa`).
-4. Next: owner reviews/merges the Phase 2 PR, then Phase 3 (Ghidra decompiler) — start with
-   `superpowers:brainstorming` against the parent spec's Phase 3.
+1. `main` has M1, M2, web UI, assisted-triage Phase 1 and **Phase 2 (capa + FLOSS, PR #6
+   merged as `332e457`)**.
+2. **Phase 3 (Ghidra decompiler) is in progress on `feat/decompiler-phase3`** (pushed).
+   Design (owner-approved): `docs/superpowers/specs/2026-11-10-decompiler-phase3-design.md`;
+   plan: `docs/superpowers/plans/2026-11-10-decompiler-phase3.md` (9 tasks).
+   Executed inline with `superpowers:executing-plans` (owner chose it, same as Phase 2):
+   invoke it with the plan, read the ledger
+   `.superpowers/sdd/2026-11-10-decompiler-phase3/progress.md` (git-ignored; if missing,
+   trust `git log`: one `feat(ghidra|app|ui|i18n): ...` commit per task) and continue at the
+   first task without a `Task N: complete` line. Helper scripts:
+   `bash C:/Users/Fexreddin/.claude/plugins/cache/superpowers-dev/superpowers/7.0.2/skills/executing-plans/scripts/task-start <PLAN_ABS> <N>`
+   and `.../task-done <PLAN_ABS> <N> <BASE> -- <test cmd>` (run task-done only after the
+   commit succeeded). After Task 9: final review (fresh opus subagent), ONE fix pass, push,
+   PR to `main` (do not merge without the owner's yes), turn on Auto-fix if the owner asks.
+3. Owner priorities (2026-11-10): fast and trouble-free, PE files first, help beginners;
+   later AI must show visually what it found suspicious and how parts are linked. Roadmap:
+   Phase 3 decompiler → Phase 4 relations/call graph → M5 AI overlay.
+4. Engines on this machine: capa 10.0.0 (rules v10.0.0 + sigs) and FLOSS 3.2.0 ready;
+   pyghidra 3.2.0 installed; JDK 25.0.1 at `C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot`
+   (PATH java is 8, ignored); Ghidra 12.2 not yet installed (Task 2 runs
+   `octov ext setup ghidra`, ~570 MB, owner-approved in the design).
+5. `python -m uv sync` sometimes fails with "Access is denied" removing
+   `.venv/Lib/site-packages/octov-0.1.0.dist-info` — delete that folder (PowerShell
+   `Remove-Item -Recurse -Force`) and rerun.
+6. `git push` may hang in git-credential-manager (sign-in window): push with
+   `git -c credential.helper= -c "credential.helper=!gh auth git-credential" push`.
 
 ### Assisted triage — Phase 2 (capa + FLOSS) facts worth knowing
 - `octov/ext/`: `__init__` (status probe, never imports engines), `runner` (child process in a
@@ -203,8 +217,7 @@ Known limitations: tail jumps are followed as intra-function edges (CRT entry fu
 their tail-called body); the Strings tab has no chip for uncategorised strings ("All" only).
 
 ### Other open work
-- Phase 2 PR (`feat/assisted-triage-phase2` → `main`): open, not merged. Deferred minors are
-  listed in its description and the ledger.
+- Phase 2 deferred minors: listed in PR #6's description and its ledger.
 - Re-run the engine calibration with
   `scripts/baseline_sweep.py out.jsonl --ext --stride 22 --cache-dir ~/.octov/calib-cache`
   (~1.5 h; the cache makes reruns after scoring changes fast).
