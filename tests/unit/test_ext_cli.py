@@ -17,11 +17,39 @@ def _archive(tmp_path: Path) -> Path:
     return path
 
 
-def test_ext_status_lists_engines(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def _probe(monkeypatch: pytest.MonkeyPatch, installed: bool) -> None:
+    """Pin the engine probe: the result must not depend on what this machine has installed."""
+    from octov import ext
+    from octov.cli import ext as ext_cli
+
+    def status(root: Path) -> list[ext.ExtensionStatus]:
+        return ext.extension_status(
+            root,
+            finder=lambda name: object() if installed else None,
+            version_of=lambda name: "10.0.0",
+        )
+
+    monkeypatch.setattr(ext_cli, "extension_status", status)
+
+
+def test_ext_status_installed_without_rules(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _probe(monkeypatch, installed=True)
     assert main(["ext", "status", "--rules-root", str(tmp_path)]) == 0
     out = capsys.readouterr().out
-    assert "capa" in out and "floss" in out
+    assert "floss  ready" in out
     assert "octov ext setup capa" in out  # capa has no rules in tmp_path
+
+
+def test_ext_status_not_installed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _probe(monkeypatch, installed=False)
+    assert main(["ext", "status", "--rules-root", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "python -m uv sync --extra capa" in out
+    assert "python -m uv sync --extra floss" in out
 
 
 def test_setup_from_zip_cli(
