@@ -5,8 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../api/client";
 import type { Annotation, Decompiled, LineMark, Severity } from "../api/types";
 import { hex, severityRank } from "../lib/format";
-import { apiNames, decompError, firstRva, linesForRva, markLabel, tokenize, type CTokenKind } from "../lib/pseudoc";
-import { annotationKey, getState, navigate, runExtension, setState, useStore, useT } from "../state/store";
+import { apiNames, decompError, firstRva, linesForRva, markLabel, needsJobRefresh, tokenize, type CTokenKind } from "../lib/pseudoc";
+import { annotationKey, getState, navigate, refreshJobs, runExtension, setState, useStore, useT } from "../state/store";
 import { openAnnotateMenu } from "./AnnotateMenu";
 import { EngineCard } from "./EngineCard";
 import { Button, Empty } from "./ui";
@@ -119,7 +119,9 @@ export function PseudoCView() {
         setError(null);
       },
       (err: unknown) => {
-        if (live) setError(err instanceof ApiError ? err.message : String(err));
+        const message = err instanceof ApiError ? err.message : String(err);
+        if (needsJobRefresh(message)) refreshJobs(); // e.g. the worker crashed: show "Run again"
+        if (live) setError(message);
       },
     );
     return () => {

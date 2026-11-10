@@ -21,6 +21,16 @@ from typing import Any
 from octov.ext.ghidra.protocol import decode, encode
 
 PROGRAM = "sample"
+ANALYSED_MARKER = "octov-analysed.ok"  # written after the analysed program was saved
+
+
+def project_usable(project_dir: Path) -> bool:
+    """A saved project counts only if its auto-analysis finished and was saved.
+
+    The import is saved before analysis starts, so a worker that died while analysing
+    (memory limit, sample closed, app exit) leaves a loadable but un-analysed program.
+    """
+    return (project_dir / f"{PROGRAM}.gpr").is_file() and (project_dir / ANALYSED_MARKER).is_file()
 
 
 class Worker:
@@ -40,15 +50,16 @@ class Worker:
         project_dir = Path(msg["project_dir"])
         start = time.monotonic()
         analysed = False
-        if (project_dir / f"{PROGRAM}.gpr").is_file():
+        if project_usable(project_dir):
             try:
                 self._load(project_dir)
             except Exception:  # broken project (crash during save): start over
                 self._close()
-                shutil.rmtree(project_dir, ignore_errors=True)
         if self.program is None:
+            shutil.rmtree(project_dir, ignore_errors=True)  # never build on leftovers
             self._import(project_dir, base64.b64decode(msg["data_b64"]))
             self._analyse(int(msg.get("analysis_timeout_s", 900)))
+            (project_dir / ANALYSED_MARKER).write_bytes(b"")
             analysed = True
         return {"ok": True, "analysed": analysed, "seconds": round(time.monotonic() - start, 1)}
 
@@ -183,7 +194,7 @@ def jvm_args(max_heap_mb: int, log_dir: Path) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="octov-ghidra-worker")
     parser.add_argument("--ghidra", type=Path, required=True)
-    parser.add_argument("--max-heap-mb", type=int, default=3072)
+    parser.add_argument("--max-heap-mb", type=int, default=2560)
     args = parser.parse_args(argv)
 
     # keep the real stdout for the protocol; everything else (JVM, Ghidra logs) -> stderr

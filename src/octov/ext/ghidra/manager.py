@@ -40,13 +40,13 @@ class WorkerCommand:
 
 
 def heap_mb(max_memory_mb: int) -> int:
-    """JVM heap under the Job Object limit.
+    """JVM heap under the Job Object limit: five eighths of it.
 
-    The limit also covers Python and the JVM's own memory (metaspace, code cache, GC tables):
-    with only 512 MB spare a 10 MB DLL pushed the JVM into the limit and it crashed. A quarter,
-    at least 1 GB, stays free.
+    The limit also covers Python and the JVM's own memory (GC tables, metaspace, code cache).
+    Measured on a 10 MB DLL: with 3584 and with 3072 MB of a 4096 MB limit the process reached
+    the limit during a full GC and the JVM died.
     """
-    return max(512, max_memory_mb - max(1024, max_memory_mb // 4))
+    return max(512, max_memory_mb * 5 // 8)
 
 
 def worker_command(
@@ -140,20 +140,36 @@ class GhidraWorker:
                 raise GhidraError("crash", self._death_reason())
             self._next_id += 1
             request_id = self._next_id
+            deadline = time.monotonic() + timeout_s
+            late = GhidraError("timeout", f"timed out after {timeout_s:g} s")
+            expired = threading.Event()
+
+            def expire() -> None:  # a worker that does not even read its input: kill it
+                expired.set()
+                self.stop()
+
+            watchdog = threading.Timer(timeout_s, expire)
+            watchdog.daemon = True
+            watchdog.start()
             try:
                 process.stdin.write(encode({"id": request_id, **op}))
                 process.stdin.flush()
             except (OSError, ValueError) as exc:
+                if expired.is_set():
+                    raise late from None
                 reason = self._death_reason()
                 self.stop()
                 raise GhidraError("crash", reason) from exc
-            deadline = time.monotonic() + timeout_s
+            finally:
+                watchdog.cancel()
+            if expired.is_set():
+                raise late
             while True:
                 try:
                     line = self._replies.get(timeout=max(0.0, deadline - time.monotonic()))
                 except queue.Empty:
                     self.stop()
-                    raise GhidraError("timeout", f"timed out after {timeout_s:g} s") from None
+                    raise late from None
                 if line is None:
                     reason = self._death_reason()  # before stop(): keeps the real exit code
                     self.stop()

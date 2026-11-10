@@ -171,9 +171,14 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
   `api.ghidra_status`; two real-Ghidra tests run only when Ghidra + JDK + pyghidra are present
   (~25 s each). The full suite takes ~9 min on this machine (real capa/FLOSS/Ghidra tests).
 - Speed (`scripts/ghidra_speed.py`, 2026-11-10, System32): analysis 25 s (50 KB), 37 s
-  (0.3 MB), 94 s (1 MB), 224 s (5 MB twinui.dll), 223 s (10 MB), 354 s (18.5 MB); reopen from
+  (0.3 MB), 94 s (1 MB), 224 s (5 MB twinui.dll), 306 s (10 MB wmp.dll), 354 s (18.5 MB); reopen from
   the saved project 8-13 s; decompile p50 0.29-0.31 s, p95 0.35-2.4 s; cached p50 5-6 ms.
-- `scripts/baseline_sweep.py` switches Ghidra off (it adds no facts and no score).
+- Memory: the Job limit (`max_memory_mb`, 4096) covers Python + JVM; the JVM heap is 5/8 of
+  it (`heap_mb`). With 3584 or 3072 MB heap wmp.dll killed the JVM at the limit during a full
+  GC. JVM crash reports go to `%TEMP%\octov-ghidra-hs_err_pid*.log`.
+- A project is reused only if `octov-analysed.ok` exists in it (written after the analysed
+  program was saved); otherwise it is deleted and analysed again.
+- The triage CLI and `scripts/baseline_sweep.py` switch Ghidra off (it adds no facts and no score).
 - Web: tab id `pseudo_c` (`PseudoCView.tsx`, helpers `lib/pseudoc.ts`); API hover texts come
   from the `api.<Name>` strings (127 APIs, EN/AZ, test-enforced coverage).
 - Known gap (pre-existing, Phase 2 runner): a process exiting in the middle of spawning an

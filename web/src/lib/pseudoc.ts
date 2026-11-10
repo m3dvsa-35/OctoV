@@ -82,6 +82,11 @@ export function markLabel(mark: LineMark, t: (key: string) => string): string {
   return `${t("decomp.mark.api")} · ${mark.api}`;
 }
 
+/** Errors that mean the job state changed after polling stopped (worker died, sample rerun). */
+export function needsJobRefresh(message: string): boolean {
+  return message.startsWith("decomp.failed") || message === "decomp.not_ready";
+}
+
 /** Decompiler errors arrive as a message key, optionally followed by `: detail`. */
 export function decompError(message: string, t: (key: string) => string): string {
   const match = /^((?:decomp|ext)\.[a-z_.]+)(?:: (.*))?$/s.exec(message);

@@ -136,8 +136,9 @@ def run(args: argparse.Namespace) -> int:
         api = WorkbenchApi(
             config, settings_path=Path(tmp) / "ui.json", workspace_dir=Path(tmp) / "ws"
         )
-        if args.no_ext:
-            api.set_settings({"extensions_auto_run": {e: False for e in ENGINES}})
+        # the decompiler adds nothing to a triage report: never start it from the CLI
+        auto = {"ghidra": False} | ({e: False for e in ENGINES} if args.no_ext else {})
+        api.set_settings({"extensions_auto_run": auto})
         try:
             sha = api.open_sample(str(args.file), raw=args.raw, bits=args.bits)["sha256"]
         except ApiError as exc:

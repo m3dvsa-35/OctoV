@@ -42,6 +42,7 @@ class _Job:
     def __init__(self, max_memory_mb: int) -> None:
         self.handle: int | None = None
         self.limit = max_memory_mb * 1024 * 1024
+        self._guard = threading.Lock()  # kill/close/query may come from several threads
         if sys.platform != "win32":
             return
         import ctypes
@@ -104,32 +105,36 @@ class _Job:
             raise OSError(status, "NtResumeProcess failed")
 
     def peak_memory(self) -> int:
-        if self.handle is None:
-            return 0
-        from ctypes import wintypes
+        with self._guard:
+            if self.handle is None:
+                return 0
+            from ctypes import wintypes
 
-        info = self._Extended()
-        self._k32.QueryInformationJobObject(
-            wintypes.HANDLE(self.handle),
-            9,
-            self._ctypes.byref(info),
-            self._ctypes.sizeof(info),
-            None,
-        )
-        return int(info.PeakJobMemoryUsed)
+            info = self._Extended()
+            self._k32.QueryInformationJobObject(
+                wintypes.HANDLE(self.handle),
+                9,
+                self._ctypes.byref(info),
+                self._ctypes.sizeof(info),
+                None,
+            )
+            return int(info.PeakJobMemoryUsed)
 
     def kill(self) -> None:
-        if self.handle is not None:
-            from ctypes import wintypes
+        with self._guard:
+            if self.handle is not None:
+                from ctypes import wintypes
 
-            self._k32.TerminateJobObject(wintypes.HANDLE(self.handle), 1)
+                self._k32.TerminateJobObject(wintypes.HANDLE(self.handle), 1)
 
     def close(self) -> None:
-        if self.handle is not None:
-            from ctypes import wintypes
+        """Idempotent: a closed handle value may be reused by Windows, never touch it again."""
+        with self._guard:
+            handle, self.handle = self.handle, None
+            if handle is not None:
+                from ctypes import wintypes
 
-            self._k32.CloseHandle(wintypes.HANDLE(self.handle))
-            self.handle = None
+                self._k32.CloseHandle(wintypes.HANDLE(handle))
 
 
 def _creation_flags() -> int:

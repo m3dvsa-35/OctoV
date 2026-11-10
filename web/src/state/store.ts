@@ -304,6 +304,11 @@ async function pollJobs(sha: string, seen: Set<string> = new Set()): Promise<voi
   }
 }
 
+/** Re-read job states now (a background job can fail after polling has stopped). */
+export function refreshJobs(): void {
+  if (state.active) void pollJobs(state.active);
+}
+
 export async function runExtension(id: EngineId, force: boolean): Promise<void> {
   const sha = state.active;
   if (!sha) return;

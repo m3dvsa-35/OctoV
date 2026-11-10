@@ -162,7 +162,7 @@ Ghidra needs a **JDK 21 or newer** (for example Eclipse Temurin). OctoV finds it
   text, never colour alone), hovering a Windows API shows what it does and why malware uses it,
   and "How to read this" explains `param_1`, `local_10`, `DAT_...`, `FUN_...`.
 - Measured on Windows 11 System32 files: first analysis 25 s (50 KB) to about 4 min (5 MB)
-  and 6 min (18 MB); afterwards a function decompiles in about 0.3 s, a cached one in
+  and 5-6 min (10-18 MB); afterwards a function decompiles in about 0.3 s, a cached one in
   about 5 ms, and reopening an analysed sample takes 8-13 s.
 - The sample is sent to the worker over a pipe and imported from memory, so carved payloads can
   be decompiled without ever being written to disk as an executable.

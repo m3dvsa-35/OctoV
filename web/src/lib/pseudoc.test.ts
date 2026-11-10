@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apiNames, decompError, firstRva, linesForRva, markLabel, tokenize } from "./pseudoc";
+import { apiNames, decompError, firstRva, linesForRva, markLabel, needsJobRefresh, tokenize } from "./pseudoc";
 
 const LINES = [
   { rvas: [] },
@@ -123,5 +123,18 @@ describe("decompError", () => {
 
   it("leaves other messages alone", () => {
     expect(decompError("unknown sample abc", tr)).toBe("unknown sample abc");
+  });
+});
+
+describe("needsJobRefresh", () => {
+  it("is true when the decompiler stopped being available behind the UI's back", () => {
+    expect(needsJobRefresh("decomp.failed: worker exited with 3")).toBe(true);
+    expect(needsJobRefresh("decomp.not_ready")).toBe(true);
+  });
+
+  it("is false for answers about one address", () => {
+    expect(needsJobRefresh("decomp.no_function")).toBe(false);
+    expect(needsJobRefresh("decomp.analysing")).toBe(false);
+    expect(needsJobRefresh("decomp.timeout")).toBe(false);
   });
 });
