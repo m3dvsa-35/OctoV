@@ -134,13 +134,15 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 ## Status / where we stopped  (updated 2026-11-10, chat 5)
 
 ### How to resume in a new chat (read this first)
-1. `main` has M1, M2, web UI, assisted-triage Phase 1 and Phase 2 (capa + FLOSS, PR #6
-   merged as `332e457`).
-2. **Phase 3 (Ghidra decompiler) is implemented on `feat/decompiler-phase3`** (all 9 plan
-   tasks, final review + one fix pass done, pushed, PR to `main` open). **Do not merge
-   without the owner's yes.** Design: `docs/superpowers/specs/2026-11-10-decompiler-phase3-design.md`;
-   plan: `docs/superpowers/plans/2026-11-10-decompiler-phase3.md`. The PR description lists
-   the rulings (deviations) and the deferred minors.
+1. `main` has M1, M2, web UI, assisted-triage Phase 1, Phase 2 (capa + FLOSS, PR #6) and
+   **Phase 3 (Ghidra decompiler, PR #7 merged as `3b83d24`)**. PR #7's description lists the
+   rulings (deviations from the design) and 10 deferred minors.
+2. **Next: Phase 4 (relations / call graph, symbol tree, memory map, search)** on
+   `feat/relations-phase4` (created from `main`, only this note on it so far, not pushed).
+   Nothing is designed yet: start with `superpowers:brainstorming`, then spec, plan,
+   inline execution as in Phases 2-3. Phase 3 docs:
+   `docs/superpowers/specs/2026-11-10-decompiler-phase3-design.md`,
+   `docs/superpowers/plans/2026-11-10-decompiler-phase3.md`.
 3. Owner priorities (2026-11-10): fast and trouble-free, PE files first, help beginners;
    later AI must show visually what it found suspicious and how parts are linked. Roadmap:
    Phase 4 relations/call graph (symbol tree, memory map, search) -> M5 AI overlay.
@@ -248,7 +250,8 @@ their tail-called body); the Strings tab has no chip for uncategorised strings (
 - Re-run the engine calibration with
   `scripts/baseline_sweep.py out.jsonl --ext --stride 22 --cache-dir ~/.octov/calib-cache`
   (~1.5 h; the cache makes reruns after scoring changes fast).
-- Remote branches `feat/m2-static-engine`, `feat/web-ui`, `feat/assisted-triage` are merged and
+- Remote branches `feat/m2-static-engine`, `feat/web-ui`, `feat/assisted-triage`,
+  `feat/decompiler-phase3` are merged and
   can be deleted (not done: the owner did not ask).
 - Roadmap: Phase 4 (symbol tree, call graph, memory map, search), Phase 5 (FLIRT-like, PDB,
   binary diff); M3 dynamic; M5 AI.
