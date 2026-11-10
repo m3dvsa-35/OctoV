@@ -119,7 +119,7 @@ def test_caps_drop_the_tail_and_count_it() -> None:
 
 def test_long_code_and_strings_are_cut() -> None:
     long = fn(0x1000, 9, "y" * 10_000)
-    long = dataclasses.replace(long, strings=("s" * 500,) + tuple(f"str{i}" for i in range(20)))
+    long = dataclasses.replace(long, strings=("s" * 500, *(f"str{i}" for i in range(20))))
     first = build_bundle(data(functions=[long]), budget_chars=100_000).doc["functions"][0]
     assert len(first["code"]) <= 2500 + 20 and first["code"].endswith("… (cut)")
     assert len(first["strings"]) == 8 and len(first["strings"][0]) <= 121
