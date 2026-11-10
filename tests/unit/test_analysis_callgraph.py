@@ -148,3 +148,46 @@ def test_apis_of_normalises_and_orders() -> None:
         ApiUse("GetTickCount", None, False),
     )
     assert apis_of(xrefs, 3) == () and apis_of(None, 1) == ()
+
+
+def test_callee_hub_does_not_hide_the_callers() -> None:
+    calls: dict[int, list[int]] = {1: list(range(100, 600))}
+    for callee in range(100, 600):
+        calls[callee] = []
+    for caller in (2, 3, 4):
+        calls[caller] = [1]
+    g = CallGraph.build(fns(calls), None)
+    hood = g.neighbourhood(1, callers_depth=2, callees_depth=2, max_nodes=60)
+    shown = {n.start for n in hood.nodes}
+    assert {2, 3, 4} <= shown and len(shown) == 60 and hood.truncated
+    center = next(n for n in hood.nodes if n.role == "center")
+    assert center.hidden_callers == 0
+    assert center.hidden_callees == 500 - sum(1 for n in hood.nodes if n.role == "callee")
+
+
+def test_small_side_gives_its_unused_room_to_the_other() -> None:
+    calls: dict[int, list[int]] = {1: [2]}
+    calls[2] = []
+    for caller in range(100, 600):
+        calls[caller] = [1]
+    hood = CallGraph.build(fns(calls), None).neighbourhood(1, max_nodes=60)
+    assert sum(1 for n in hood.nodes if n.role == "caller") == 58  # 60 - centre - one callee
+
+
+def test_entry_path_is_always_shown() -> None:
+    #  10 -> 11 -> 12 -> 13 -> 14 (centre), and 14 has 500 other callers
+    calls: dict[int, list[int]] = {10: [11], 11: [12], 12: [13], 13: [14], 14: []}
+    for caller in range(100, 600):
+        calls[caller] = [14]
+    g = CallGraph.build(fns(calls), None)
+    path = g.path_to(14, [10])
+    assert path == (10, 11, 12, 13, 14)
+    hood = g.neighbourhood(14, callers_depth=1, callees_depth=1, max_nodes=60, keep=path)
+    nodes = {n.start: n for n in hood.nodes}
+    assert set(path) <= set(nodes) and len(nodes) == 60
+    assert [nodes[s].distance for s in path] == [4, 3, 2, 1, 0]
+    assert all(nodes[s].role == "caller" for s in path[:-1])
+    assert {(10, 11), (11, 12), (12, 13), (13, 14)} <= set(hood.edges)
+    # without the path, depth 1 would show neither the root nor the middle of the chain
+    plain = {n.start for n in g.neighbourhood(14, 1, 1, 60).nodes}
+    assert 10 not in plain and 11 not in plain

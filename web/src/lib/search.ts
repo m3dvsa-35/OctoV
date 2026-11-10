@@ -35,6 +35,8 @@ export interface MapSegment {
 export function mapSegments(regions: MemoryRegion[], minPercent = 3): MapSegment[] {
   const used = regions.map((r, index) => ({ index, name: r.name, size: r.size })).filter((r) => r.size > 0);
   if (!used.length) return [];
+  // with many regions the minimum itself must shrink, or the widths would not fit in 100 %
+  minPercent = Math.min(minPercent, 100 / used.length);
   const small = new Set<number>();
   // Raising a small region to the minimum shrinks the others, which can make more of them small.
   for (;;) {

@@ -128,3 +128,9 @@ def test_parse_number(text: str, value: int) -> None:
 def test_parse_number_rejects_bad_input(bad: str) -> None:
     with pytest.raises(ValueError):
         parse_number(bad)
+
+
+def test_parse_pattern_has_a_length_limit() -> None:
+    assert len(parse_pattern("41" * 256)) == 256
+    with pytest.raises(ValueError):
+        parse_pattern("??" * 1000 + "41")

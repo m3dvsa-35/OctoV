@@ -428,6 +428,8 @@ STRINGS: dict[str, str] = {
     "relations.path": "yol",
     "relations.is_entry": "bu, giriş nöqtəsidir",
     "relations.entry_path": "giriş nöqtəsindən {n} çağırış (işarələnmiş yol)",
+    "relations.is_export": "bu, eksport edilmiş funksiyadır (kənardan çağırıla bilər)",
+    "relations.export_path": "eksport edilmiş {name} funksiyasından {n} çağırış (işarələnmiş yol)",
     "relations.no_path": "giriş nöqtəsindən birbaşa çağırışlarla çatılmır",
     "relations.truncated": "ən yaxın {n} funksiya göstərilir",
     "relations.more_callers": "+{n} çağıran",

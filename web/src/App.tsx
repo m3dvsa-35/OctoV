@@ -36,6 +36,8 @@ import { hex } from "./lib/format";
 import { browseAndOpen, type BottomView, type MainView, setState, useStore, useT } from "./state/store";
 
 function ViewSwitch({ view }: { view: MainView }) {
+  // views that hold results of one sample start afresh when another sample is selected
+  const sha = useStore((s) => s.active);
   switch (view) {
     case "triage":
       return <TriageView />;
@@ -46,11 +48,11 @@ function ViewSwitch({ view }: { view: MainView }) {
     case "graph":
       return <GraphView />;
     case "relations":
-      return <RelationsView />;
+      return <RelationsView key={sha} />;
     case "pseudo_c":
       return <PseudoCView />;
     case "search":
-      return <SearchView />;
+      return <SearchView key={sha} />;
     case "hex":
       return <HexView />;
     case "strings":

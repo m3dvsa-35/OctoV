@@ -78,6 +78,16 @@ describe("mapSegments", () => {
   });
 });
 
+describe("mapSegments with many regions", () => {
+  it("never produces a negative or oversized strip", () => {
+    const regions = [region("big", 1000000), ...Array.from({ length: 39 }, (_, i) => region(`s${i}`, 1))];
+    const segs = mapSegments(regions);
+    expect(segs).toHaveLength(40);
+    expect(segs.every((s) => s.percent > 0)).toBe(true);
+    expect(segs.reduce((n, s) => n + s.percent, 0)).toBeCloseTo(100, 6);
+  });
+});
+
 describe("errorText", () => {
   const t = (key: string) => ({ "search.bad_pattern": "Bad pattern" })[key] ?? key;
 

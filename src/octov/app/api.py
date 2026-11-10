@@ -786,14 +786,21 @@ class WorkbenchApi:
         if start not in s.functions:
             raise ApiError(f"no function at {start:#x}")
         graph = self._callgraph(s)
+        entry = s.report.entry_point if s.report is not None else 0
+        export_names = (
+            {rva: n for n, rva in sorted(s.report.export_rvas.items(), reverse=True)}
+            if s.report
+            else {}
+        )
+        exported = set(export_names)
+        path = graph.path_to(start, {entry, *exported})
         hood = graph.neighbourhood(
             start,
             min(max(callers, 1), MAX_DEPTH),
             min(max(callees, 1), MAX_DEPTH),
             MAX_RELATION_NODES,
+            keep=path,
         )
-        entry = s.report.entry_point if s.report is not None else 0
-        exported = set(s.report.export_rvas.values()) if s.report is not None else set()
         scores = {r.start: r.score for r in s.ctx.results.get("ranking", [])}
         xrefs = s.ctx.results.get("xrefs")
         name_of = self._namer(s)
@@ -819,7 +826,15 @@ class WorkbenchApi:
                 for n in hood.nodes
             ],
             "edges": [{"src": src, "dst": dst} for src, dst in hood.edges],
-            "path": list(graph.path_to(start, {entry, *exported})),
+            "path": list(path),
+            # what the path starts at: the program's entry point or an exported function
+            "path_root": (
+                None
+                if not path
+                else {"kind": "entry", "name": name_of(path[0])}
+                if path[0] == entry
+                else {"kind": "export", "name": export_names[path[0]]}
+            ),
             "truncated": hood.truncated,
         }
 
@@ -828,9 +843,10 @@ class WorkbenchApi:
         if s.report is None:
             return offset if 0 <= offset < len(s.data) else None
         for sec in s.report.sections:
-            if sec.raw_size and sec.raw_offset <= offset < sec.raw_offset + sec.raw_size:
-                rva = sec.virtual_address + (offset - sec.raw_offset)
-                return rva if offset - sec.raw_offset < max(sec.virtual_size, 1) else None
+            delta = offset - sec.raw_offset
+            # the loader maps SizeOfRawData when VirtualSize is 0 (hand-made and packed PEs)
+            if sec.raw_size and 0 <= delta < min(sec.raw_size, sec.virtual_size or sec.raw_size):
+                return sec.virtual_address + delta
         return None
 
     def search(self, sha: str, kind: str, query: str, limit: int = 500) -> dict[str, Any]:

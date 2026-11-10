@@ -21,7 +21,7 @@ import {
   familyChips,
   hasMeta,
   NODE_W,
-  pathLength,
+  reachText,
   ROW_CHIPS,
   ROW_HINT,
   ROW_META,
@@ -30,6 +30,7 @@ import {
   toRelationsGraph,
   type RelEdge,
 } from "../lib/relations";
+import { errorText } from "../lib/search";
 import { getState, navigate, useStore, useT } from "../state/store";
 import { elk } from "./elk";
 import { Empty } from "./ui";
@@ -44,6 +45,8 @@ type RelEdgeData = { points: Pt[]; onPath: boolean; label: string };
 
 const SCORE_CLASS = { high: "text-sev-high", medium: "text-sev-medium", low: "text-sev-low" } as const;
 
+let clickTimer: number | undefined;
+
 const FnNode = memo(function FnNode({ data }: NodeProps<Node<FnNodeData>>) {
   const t = useT();
   const { node } = data;
@@ -53,8 +56,15 @@ const FnNode = memo(function FnNode({ data }: NodeProps<Node<FnNodeData>>) {
   return (
     <div
       title={`${node.name} · ${hex(node.start)}`}
-      onClick={() => void navigate(node.start, { view: getState().main })}
-      onDoubleClick={() => void navigate(node.start, { view: "disasm" })}
+      onClick={() => {
+        // wait for a possible second click: a double-click must not also re-centre twice
+        window.clearTimeout(clickTimer);
+        if (!center) clickTimer = window.setTimeout(() => void navigate(node.start, { view: getState().main }), 220);
+      }}
+      onDoubleClick={() => {
+        window.clearTimeout(clickTimer);
+        void navigate(node.start, { view: "disasm" });
+      }}
       style={{ width: NODE_W }}
       className={clsx(
         "nodrag cursor-pointer rounded-md border bg-panel px-2.5 py-1.5 text-[11.5px] shadow-sm transition-colors hover:bg-raised/60",
@@ -265,7 +275,7 @@ export function RelationsView() {
   if (fn === null) return <Empty icon={Waypoints} title={t("ui.no_function")} body={t("relations.hint")} />;
   if (error) {
     const waiting = error === "analysis.not_ready";
-    return <Empty icon={Waypoints} title={waiting ? t("ui.discovering") : t("ui.relations")} body={waiting ? undefined : error} />;
+    return <Empty icon={Waypoints} title={waiting ? t("ui.discovering") : t("ui.relations")} body={waiting ? undefined : errorText(error, t)} />;
   }
   const shown = rel && rel.center === fn ? rel : null;
   if (!shown) {
@@ -276,18 +286,11 @@ export function RelationsView() {
     );
   }
   const center = shown.nodes.find((n) => n.start === shown.center);
-  const steps = pathLength(shown.path);
   return (
     <div className="flex h-full flex-col" aria-label={t("ui.relations")}>
       <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-0.5 border-b border-line px-4 py-1 text-[11.5px] text-muted">
         <span className="font-mono text-fg">{center?.name}</span>
-        <span>
-          {center?.is_entry
-            ? t("relations.is_entry")
-            : steps > 0
-              ? t("relations.entry_path", { n: steps })
-              : t("relations.no_path")}
-        </span>
+        <span>{reachText(shown, t)}</span>
         {shown.truncated && <span className="text-sev-medium">{t("relations.truncated", { n: shown.nodes.length })}</span>}
         <span className="ml-auto flex items-center gap-3">
           <Depth label={t("relations.callers")} value={callers} onChange={setCallers} />

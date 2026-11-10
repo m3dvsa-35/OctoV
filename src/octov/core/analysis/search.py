@@ -12,6 +12,7 @@ from octov.core.static.disasm import Instruction
 _PATTERN_TOKEN = re.compile(r"[0-9a-fA-F]{2}|\?\??")
 _NUMBER_TOKEN = re.compile(r"0x[0-9a-f]+|\b\d+\b")
 _SPACES = re.compile(r"\s+")
+MAX_PATTERN = 256  # bytes; longer patterns make the scan cost file size x pattern
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,8 @@ def parse_pattern(text: str) -> tuple[int | None, ...]:
     pattern = tuple(None if tok.startswith("?") else int(tok, 16) for tok in tokens)
     if all(b is None for b in pattern):
         raise ValueError("pattern needs at least one fixed byte")
+    if len(pattern) > MAX_PATTERN:
+        raise ValueError(f"pattern is longer than {MAX_PATTERN} bytes")
     return pattern
 
 

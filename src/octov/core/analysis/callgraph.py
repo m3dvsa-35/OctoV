@@ -8,7 +8,7 @@ functions, so the unit shown to the analyst is the neighbourhood of one function
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -93,35 +93,72 @@ class CallGraph:
     def recursive(self, start: int) -> bool:
         return start in self._recursive
 
+    def _walk(
+        self, center: int, step: Callable[[int], tuple[int, ...]], depth: int, cap: int
+    ) -> tuple[list[tuple[int, int]], bool]:
+        """Breadth-first ``(function, level)`` from ``center``; ``True`` when cut at ``cap``."""
+        order: list[tuple[int, int]] = []
+        seen = {center}
+        frontier = [center]
+        for level in range(1, depth + 1):
+            reached: list[int] = []
+            for node in frontier:
+                for nxt in step(node):
+                    if nxt in seen:
+                        continue
+                    if len(order) >= cap:
+                        return order, True
+                    seen.add(nxt)
+                    order.append((nxt, level))
+                    reached.append(nxt)
+            frontier = reached
+        return order, False
+
     def neighbourhood(
-        self, center: int, callers_depth: int = 2, callees_depth: int = 2, max_nodes: int = 60
+        self,
+        center: int,
+        callers_depth: int = 2,
+        callees_depth: int = 2,
+        max_nodes: int = 60,
+        keep: Sequence[int] = (),
     ) -> Neighbourhood:
-        """Breadth-first both ways from ``center``; at most ``max_nodes`` functions."""
+        """The functions around ``center``, at most ``max_nodes`` of them.
+
+        ``keep`` is a call chain ending at the centre (the path from an entry point): it is
+        always shown, whatever the depth. The rest of the room is shared by the two sides, so
+        neither a hub of callers nor a hub of callees can push the other side out; what one
+        side does not need goes to the other.
+        """
         up: dict[int, int] = {}  # start -> distance on the caller side
         down: dict[int, int] = {}
         shown: set[int] = {center}
-        truncated = False
-        # Alternate the two sides level by level so a hub on one side cannot starve the other.
-        frontiers = {"up": [center], "down": [center]}
-        for level in range(1, max(callers_depth, callees_depth) + 1):
-            for side, depth, seen, step in (
-                ("down", callees_depth, down, self.callees),
-                ("up", callers_depth, up, self.callers),
-            ):
-                if level > depth:
+        chain = [start for start in keep if start != center][-(max_nodes // 2) :]
+        for distance, start in enumerate(reversed(chain), 1):
+            up[start] = distance
+            shown.add(start)
+        sides = (
+            (down, self._walk(center, self.callees, callees_depth, max_nodes)),
+            (up, self._walk(center, self.callers, callers_depth, max_nodes)),
+        )
+
+        def take(seen: dict[int, int], order: list[tuple[int, int]], quota: int) -> bool:
+            """Show the next functions of one side; ``True`` when the side is exhausted."""
+            for start, level in order:
+                if start in shown:
+                    seen.setdefault(start, level)
                     continue
-                reached: list[int] = []
-                for node in frontiers[side]:
-                    for nxt in step(node):
-                        if nxt == center or nxt in seen:
-                            continue
-                        if nxt not in shown and len(shown) >= max_nodes:
-                            truncated = True
-                            continue
-                        seen[nxt] = level
-                        shown.add(nxt)
-                        reached.append(nxt)
-                frontiers[side] = reached
+                if quota <= 0:
+                    return False
+                quota -= 1
+                shown.add(start)
+                seen[start] = level
+            return True
+
+        room = max_nodes - len(shown)
+        finished = [take(sides[0][0], sides[0][1][0], room // 2)]
+        finished.append(take(sides[1][0], sides[1][1][0], max_nodes - len(shown)))
+        finished[0] = take(sides[0][0], sides[0][1][0], max_nodes - len(shown))
+        truncated = not all(finished) or sides[0][1][1] or sides[1][1][1]
 
         def role(start: int) -> Role:
             if start == center:

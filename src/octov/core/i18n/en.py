@@ -414,6 +414,8 @@ STRINGS: dict[str, str] = {
     "relations.path": "path",
     "relations.is_entry": "this is the entry point",
     "relations.entry_path": "{n} call(s) from the entry point (marked path)",
+    "relations.is_export": "this is an exported function (callable from outside)",
+    "relations.export_path": "{n} call(s) from the exported function {name} (marked path)",
     "relations.no_path": "not reached from the entry point by direct calls",
     "relations.truncated": "showing the nearest {n} functions",
     "relations.more_callers": "+{n} callers",

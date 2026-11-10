@@ -91,6 +91,21 @@ export function toRelationsGraph(rel: Relations): RelGraph {
   };
 }
 
+/** One line on how execution gets to the centre: it is a way in itself, or the path's root. */
+export function reachText(
+  rel: Pick<Relations, "center" | "nodes" | "path" | "path_root">,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): string {
+  const center = rel.nodes.find((n) => n.start === rel.center);
+  if (center?.is_entry) return t("relations.is_entry");
+  if (center?.is_export) return t("relations.is_export");
+  const calls = pathLength(rel.path);
+  if (!rel.path_root || calls === 0) return t("relations.no_path");
+  return rel.path_root.kind === "entry"
+    ? t("relations.entry_path", { n: calls })
+    : t("relations.export_path", { n: calls, name: rel.path_root.name });
+}
+
 /** Number of calls on the path from the entry point (or an export) to the function. */
 export function pathLength(path: number[]): number {
   return Math.max(0, path.length - 1);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RelationNode, Relations } from "../api/types";
-import { familyChips, nodeSize, pathLength, scoreWord, toRelationsGraph } from "./relations";
+import { familyChips, nodeSize, pathLength, reachText, scoreWord, toRelationsGraph } from "./relations";
 
 function node(start: number, extra: Partial<RelationNode> = {}): RelationNode {
   return {
@@ -29,6 +29,7 @@ const REL: Relations = {
     { src: 1, dst: 4 },
   ],
   path: [1, 2],
+  path_root: { kind: "entry", name: "sub_1" },
   truncated: false,
 };
 
@@ -109,5 +110,28 @@ describe("pathLength", () => {
   it("counts the calls between the entry point and the function", () => {
     expect(pathLength([1, 2, 3])).toBe(2);
     expect(pathLength([])).toBe(0);
+  });
+});
+
+describe("reachText", () => {
+  const t = (key: string, vars?: Record<string, string | number>) => `${key}${vars ? JSON.stringify(vars) : ""}`;
+  const base = { ...REL, path: [] as number[], path_root: null };
+
+  it("says what the centre is when it is itself a way in", () => {
+    expect(reachText({ ...base, nodes: [node(2, { role: "center", is_entry: true })] }, t)).toBe("relations.is_entry");
+    expect(reachText({ ...base, nodes: [node(2, { role: "center", is_export: true })] }, t)).toBe("relations.is_export");
+  });
+
+  it("names the root of the path: entry point or export", () => {
+    expect(reachText({ ...base, path: [1, 2], path_root: { kind: "entry", name: "start" } }, t)).toBe(
+      'relations.entry_path{"n":1}',
+    );
+    expect(reachText({ ...base, path: [7, 1, 2], path_root: { kind: "export", name: "Run" } }, t)).toBe(
+      'relations.export_path{"n":2,"name":"Run"}',
+    );
+  });
+
+  it("says so when no direct call chain leads here", () => {
+    expect(reachText(base, t)).toBe("relations.no_path");
   });
 });

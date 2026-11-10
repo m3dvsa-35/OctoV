@@ -285,6 +285,7 @@ export interface Relations {
   nodes: RelationNode[];
   edges: { src: number; dst: number }[];
   path: number[];
+  path_root: { kind: "entry" | "export"; name: string } | null;
   truncated: boolean;
 }
 

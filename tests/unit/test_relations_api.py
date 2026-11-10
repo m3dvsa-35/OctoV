@@ -212,3 +212,40 @@ def test_raw_sample_answers_everything(tmp_path: Path) -> None:
     assert api.get_symbols(sha) == {"imports": [], "exports": []}
     mm = api.get_memory_map(sha)
     assert [r["kind"] for r in mm["regions"]] == ["raw"] and mm["regions"][0]["size"] == mm["size"]
+
+
+def test_path_names_its_root_entry_or_export(tmp_path: Path) -> None:
+    api = _api(tmp_path)
+    sha = _open(api, _chain(tmp_path))
+    rel = api.get_relations(sha, LEAF)
+    assert rel["path_root"] == {"kind": "entry", "name": f"sub_{ENTRY:x}"}
+    assert api.get_relations(sha, ENTRY)["path_root"] is None
+    # a DLL: the nearest way in is an exported function, not the entry point
+    report = api._get(sha).report
+    assert report is not None
+    report.export_rvas["Run"] = MIDDLE
+    rel = api.get_relations(sha, LEAF)
+    assert rel["path"] == [MIDDLE, LEAF] and rel["path_root"] == {"kind": "export", "name": "Run"}
+    middle = api.get_relations(sha, MIDDLE)
+    assert middle["path"] == [] and middle["path_root"] is None
+    assert next(n for n in middle["nodes"] if n["start"] == MIDDLE)["is_export"]
+
+
+def test_whole_entry_path_is_in_the_picture_at_depth_one(tmp_path: Path) -> None:
+    api = _api(tmp_path)
+    sha = _open(api, _chain(tmp_path))
+    rel = api.get_relations(sha, LEAF, 1, 1)
+    assert {n["start"] for n in rel["nodes"]} == {ENTRY, MIDDLE, LEAF}
+    assert sorted((e["src"], e["dst"]) for e in rel["edges"]) == [(ENTRY, MIDDLE), (MIDDLE, LEAF)]
+
+
+def test_byte_hit_in_a_section_with_zero_virtual_size_is_mapped(tmp_path: Path) -> None:
+    import dataclasses
+
+    api = _api(tmp_path)
+    sha = _open(api, _chain(tmp_path))
+    report = api._get(sha).report
+    assert report is not None
+    report.sections[0] = dataclasses.replace(report.sections[0], virtual_size=0)
+    hit = api.search(sha, "bytes", "B8 37 13 00")["items"][0]
+    assert hit["rva"] == LEAF  # the loader maps SizeOfRawData when VirtualSize is 0
