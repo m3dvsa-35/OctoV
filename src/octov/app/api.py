@@ -26,7 +26,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
+from octov.core.analysis import search as search_mod
 from octov.core.analysis.analyzers import default_analyzers
+from octov.core.analysis.callgraph import CallGraph, apis_of
 from octov.core.analysis.carve import payload_zip
 from octov.core.analysis.facts import Fact, facts_from_findings, facts_from_indicators
 from octov.core.analysis.iocs import ioc_fact_id, iocs_csv, iocs_json
@@ -50,7 +52,7 @@ from octov.core.static.analysis import (
 )
 from octov.core.static.cfg import Function
 from octov.core.static.disasm import Disassembler, ImageView, RawView
-from octov.core.static.pe_parser import Hashes, PEParseError, PEReport
+from octov.core.static.pe_parser import Hashes, PEParseError, PEReport, shannon_entropy
 from octov.core.static.rules import Rule, RuleError
 from octov.ext import (
     ALL_EXTENSIONS,
@@ -92,6 +94,10 @@ VERDICTS = ("false_positive", "benign", "confirmed")
 PREDECOMPILE = 10  # top-ranked functions decompiled into the cache right after analysis
 _DECOMP_ATTEMPTS = 3  # re-asks when the analyst renamed something while Ghidra was answering
 _REAP_EVERY_S = 30.0
+MAX_DEPTH = 3  # relations: calls away from the centre, each way
+MAX_RELATION_NODES = 60
+MAX_SEARCH_HITS = 2000
+MAX_EXPORTS = 5000
 
 
 class ApiError(Exception):
@@ -109,6 +115,8 @@ class _Sample:
     store: Session | None = field(default=None, repr=False)  # workspace session, if any
     ghidra_version: str | None = None  # set when the decompiler was scheduled for this sample
     decomp_entries: dict[int, int] = field(default_factory=dict)  # address -> Ghidra function
+    callgraph: CallGraph | None = field(default=None, repr=False)  # built on first use
+    memory_map: dict[str, Any] | None = field(default=None, repr=False)
 
     @property
     def hashes(self) -> Hashes:
@@ -675,9 +683,10 @@ class WorkbenchApi:
         entry = s.report.entry_point if s.report is not None else 0
         exports = {rva: n for n, rva in s.report.export_rvas.items()} if s.report else {}
         own, suggested = self._names(s)
+        name_of = self._namer(s)
         out = []
         for start, fn in sorted(s.functions.items()):
-            name = own.get(start) or exports.get(start) or suggested.get(start) or f"sub_{start:x}"
+            name = name_of(start)
             out.append(
                 {
                     "start": start,
@@ -689,6 +698,16 @@ class WorkbenchApi:
                 }
             )
         return out
+
+    def _namer(self, s: _Sample) -> Callable[[int], str]:
+        """Function name as every view shows it: analyst, export, suggested, ``sub_…``."""
+        exports = {rva: n for n, rva in s.report.export_rvas.items()} if s.report else {}
+        own, suggested = self._names(s)
+
+        def name_of(start: int) -> str:
+            return own.get(start) or exports.get(start) or suggested.get(start) or f"sub_{start:x}"
+
+        return name_of
 
     def get_function(self, sha: str, start: int) -> dict[str, Any]:
         s = self._get(sha)
@@ -744,6 +763,234 @@ class WorkbenchApi:
         offset = max(0, offset)
         chunk = s.data[offset : offset + min(max(0, length), MAX_READ)]
         return {"offset": offset, "data": base64.b64encode(chunk).decode(), "total": len(s.data)}
+
+    # -- relations, search, symbols, memory map -----------------------------------------
+
+    def _code_ready(self, s: _Sample) -> None:
+        """Functions and xrefs exist only once the slow lane has finished."""
+        if not s.pipeline.wait_slow(0):
+            raise ApiError("analysis.not_ready")
+
+    def _callgraph(self, s: _Sample) -> CallGraph:
+        with self._lock:
+            if s.callgraph is None:
+                s.callgraph = CallGraph.build(s.functions, s.ctx.results.get("xrefs"))
+            return s.callgraph
+
+    def get_relations(
+        self, sha: str, start: int, callers: int = 2, callees: int = 2
+    ) -> dict[str, Any]:
+        """The functions around ``start``: who calls it, what it calls, and the way in."""
+        s = self._get(sha)
+        self._code_ready(s)
+        if start not in s.functions:
+            raise ApiError(f"no function at {start:#x}")
+        graph = self._callgraph(s)
+        entry = s.report.entry_point if s.report is not None else 0
+        export_names = (
+            {rva: n for n, rva in sorted(s.report.export_rvas.items(), reverse=True)}
+            if s.report
+            else {}
+        )
+        exported = set(export_names)
+        path = graph.path_to(start, {entry, *exported})
+        hood = graph.neighbourhood(
+            start,
+            min(max(callers, 1), MAX_DEPTH),
+            min(max(callees, 1), MAX_DEPTH),
+            MAX_RELATION_NODES,
+            keep=path,
+        )
+        scores = {r.start: r.score for r in s.ctx.results.get("ranking", [])}
+        xrefs = s.ctx.results.get("xrefs")
+        name_of = self._namer(s)
+        return {
+            "center": start,
+            "nodes": [
+                {
+                    "start": n.start,
+                    "name": name_of(n.start),
+                    "role": n.role,
+                    "distance": n.distance,
+                    "score": scores.get(n.start, 0),
+                    "apis": [
+                        {"name": a.name, "family": a.family, "suspicious": a.suspicious}
+                        for a in apis_of(xrefs, n.start)
+                    ],
+                    "is_entry": n.start == entry,
+                    "is_export": n.start in exported,
+                    "recursive": graph.recursive(n.start),
+                    "hidden_callers": n.hidden_callers,
+                    "hidden_callees": n.hidden_callees,
+                }
+                for n in hood.nodes
+            ],
+            "edges": [{"src": src, "dst": dst} for src, dst in hood.edges],
+            "path": list(path),
+            # what the path starts at: the program's entry point or an exported function
+            "path_root": (
+                None
+                if not path
+                else {"kind": "entry", "name": name_of(path[0])}
+                if path[0] == entry
+                else {"kind": "export", "name": export_names[path[0]]}
+            ),
+            "truncated": hood.truncated,
+        }
+
+    def _rva_of(self, s: _Sample, offset: int) -> int | None:
+        """RVA of a file offset, or ``None`` for bytes no section maps (headers, overlay)."""
+        if s.report is None:
+            return offset if 0 <= offset < len(s.data) else None
+        for sec in s.report.sections:
+            delta = offset - sec.raw_offset
+            # the loader maps SizeOfRawData when VirtualSize is 0 (hand-made and packed PEs)
+            if sec.raw_size and 0 <= delta < min(sec.raw_size, sec.virtual_size or sec.raw_size):
+                return sec.virtual_address + delta
+        return None
+
+    def search(self, sha: str, kind: str, query: str, limit: int = 500) -> dict[str, Any]:
+        """Find bytes (``4D 5A ?? 00``), instruction text or an immediate value."""
+        s = self._get(sha)
+        limit = min(max(limit, 1), MAX_SEARCH_HITS)
+        name_of = self._namer(s)
+        index = s.ctx.index
+
+        def row(rva: int | None, offset: int | None, fn: int | None, text: str) -> dict[str, Any]:
+            return {
+                "rva": rva,
+                "offset": offset,
+                "function": fn,
+                "function_name": name_of(fn) if fn is not None else None,
+                "text": text,
+            }
+
+        if kind == "bytes":
+            try:
+                pattern = search_mod.parse_pattern(query)
+            except ValueError as exc:
+                raise ApiError("search.bad_pattern") from exc
+            offsets, truncated = search_mod.search_bytes(s.data, pattern, limit)
+            rows = []
+            for offset in offsets:
+                rva = self._rva_of(s, offset)
+                fn = index.lookup(rva) if index is not None and rva is not None else None
+                found = s.data[offset : offset + min(len(pattern), 16)]
+                rows.append(row(rva, offset, fn.start if fn else None, found.hex(" ")))
+            return {"items": rows, "truncated": truncated}
+        if kind not in ("text", "imm"):
+            raise ApiError(f"unknown search kind {kind!r}")
+        if kind == "imm":
+            try:
+                value = search_mod.parse_number(query)
+            except ValueError as exc:
+                raise ApiError("search.bad_number") from exc
+        self._code_ready(s)
+        if kind == "imm":
+            hits, truncated = search_mod.search_immediate(s.functions, value, limit)
+        else:
+            hits, truncated = search_mod.search_text(s.functions, query, limit)
+        return {
+            "items": [
+                row(h.address, self._offset_of(s, h.address), h.function, h.text) for h in hits
+            ],
+            "truncated": truncated,
+        }
+
+    def get_symbols(self, sha: str) -> dict[str, Any]:
+        """Imports by DLL (with the number of places that reference each) and exports."""
+        s = self._get(sha)
+        r = s.report
+        if r is None:
+            return {"imports": [], "exports": []}
+        xrefs = s.ctx.results.get("xrefs")
+        index = s.ctx.index
+        by_dll: dict[str, list[dict[str, Any]]] = {}
+        for rva, full in r.import_addresses.items():
+            dll, _, name = full.rpartition("!")
+            refs = len(xrefs.to(rva)) if xrefs is not None else 0
+            by_dll.setdefault(dll, []).append({"name": name, "rva": rva, "refs": refs})
+        exports = []
+        for name, rva in sorted(r.export_rvas.items())[:MAX_EXPORTS]:
+            fn = index.lookup(rva) if index is not None else None
+            exports.append({"name": name, "rva": rva, "function": fn.start if fn else None})
+        return {
+            "imports": [
+                {"dll": dll, "functions": sorted(funcs, key=lambda f: f["name"].lower())}
+                for dll, funcs in sorted(by_dll.items())
+            ],
+            "exports": exports,
+        }
+
+    def get_memory_map(self, sha: str) -> dict[str, Any]:
+        """Headers, sections and overlay in file order; the sizes add up to the file size."""
+        s = self._get(sha)
+        with self._lock:
+            if s.memory_map is None:
+                s.memory_map = self._build_memory_map(s)
+            return s.memory_map
+
+    def _build_memory_map(self, s: _Sample) -> dict[str, Any]:
+        total = len(s.data)
+        r = s.report
+        if r is None:
+            assert s.raw is not None
+            region = {
+                "name": "raw",
+                "kind": "raw",
+                "rva": 0,
+                "vsize": total,
+                "offset": 0,
+                "size": total,
+                "perm": "RWX",
+                "entropy": s.raw.entropy,
+            }
+            return {"size": total, "regions": [region]}
+        regions: list[dict[str, Any]] = []
+        cursor = 0
+
+        def plain(name: str, kind: str, end: int) -> None:
+            nonlocal cursor
+            end = min(end, total)
+            if end > cursor:
+                chunk = s.data[cursor:end]
+                regions.append(
+                    {
+                        "name": name,
+                        "kind": kind,
+                        "rva": None,
+                        "vsize": 0,
+                        "offset": cursor,
+                        "size": len(chunk),
+                        "perm": "---",
+                        "entropy": round(shannon_entropy(chunk), 3),
+                    }
+                )
+                cursor = end
+
+        backed = sorted((x for x in r.sections if x.raw_size), key=lambda x: x.raw_offset)
+        plain("headers", "headers", backed[0].raw_offset if backed else total)
+        for sec in [*backed, *(x for x in r.sections if not x.raw_size)]:
+            plain("gap", "gap", sec.raw_offset if sec.raw_size else cursor)
+            end = min(sec.raw_offset + sec.raw_size, total) if sec.raw_size else cursor
+            regions.append(
+                {
+                    "name": sec.name,
+                    "kind": "section",
+                    "rva": sec.virtual_address,
+                    "vsize": sec.virtual_size,
+                    "offset": cursor,
+                    "size": max(0, end - cursor),  # bytes not already counted
+                    "perm": _perm(sec.readable, sec.writable, sec.executable),
+                    "entropy": sec.entropy,
+                }
+            )
+            cursor = max(cursor, end)
+        if r.overlay_offset is not None and r.overlay_size:
+            plain("gap", "gap", r.overlay_offset)
+            plain("overlay", "overlay", total)
+        plain("gap", "gap", total)
+        return {"size": total, "regions": regions}
 
     # -- exports ---------------------------------------------------------------------
 

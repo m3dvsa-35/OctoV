@@ -18,7 +18,16 @@ import type {
   Verdict,
 } from "../api/types";
 
-export type MainView = "triage" | "overview" | "disasm" | "graph" | "pseudo_c" | "hex" | "strings";
+export type MainView =
+  | "triage"
+  | "overview"
+  | "disasm"
+  | "graph"
+  | "relations"
+  | "pseudo_c"
+  | "hex"
+  | "strings"
+  | "search";
 export type BottomView = "findings" | "mitre";
 
 export interface Nav {
@@ -447,6 +456,16 @@ export async function navigate(
   } catch (err) {
     reportError(err);
   }
+}
+
+/** Show a file offset that no section maps (headers, overlay) in the hex view. */
+export function gotoOffset(offset: number): void {
+  setState((s) => ({
+    nav: { rva: s.nav?.rva ?? 0, fn: s.nav?.fn ?? null, offset },
+    history: s.nav ? [...s.history.slice(-99), s.nav] : s.history,
+    future: [],
+    main: "hex",
+  }));
 }
 
 export function goBack(): void {

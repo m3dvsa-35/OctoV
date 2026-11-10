@@ -20,6 +20,7 @@ and turn findings into defender artifacts (YARA, Sigma, STIX 2.1, IOCs).
 | **Triage P1** | Assisted triage: fact pipeline, risk score, strings/IOCs, xrefs, crypto constants, payload carving, packer verdict, function ranking, verdicts + annotations, `triage` CLI | ✅ |
 | **Triage P2** | Optional engines: capa (capabilities per function, ATT&CK/MBC) and FLOSS (stack/tight/decoded strings, hidden IOCs), isolated, cached, offline | ✅ |
 | **Decompiler P3** | Optional Ghidra decompiler: Pseudo-C view per function synced with disassembly/graph, marked lines, API explanations (EN/AZ), isolated worker, cached | ✅ |
+| **Navigation P4** | Relations tab (callers / callees neighbourhood, scores, API families, path from the entry point), Search (bytes with wildcards, instruction text, constants), Symbols (imports by DLL with references, exports), file layout map | ✅ |
 | M3 | Dynamic analysis: Frida 16.x agent, ETW, Job Object + AppContainer sandbox, VAD/memory forensics, network IOCs | planned |
 | M4 | MIL (SSA IL) decompiler MVP → pseudo-C, synced asm/pseudo/graph views | planned |
 | M5 | AI assistant (OpenRouter / OpenAI-compatible fallback), evidence-cited reports, guided workflows | planned |
@@ -170,6 +171,25 @@ Ghidra needs a **JDK 21 or newer** (for example Eclipse Temurin). OctoV finds it
   `project_keep_days` without use) and pseudo-C in `~/.octov/cache/`, so reopening is fast.
   Idle workers stop after `idle_minutes` and restart on demand.
 
+## Relations, search and symbols
+
+- **Relations** tab: the functions around the current one as a graph, callers on the left
+  and called functions on the right (1-3 calls deep each way). Every node shows its name, its
+  suspicion score in words, and the API families it uses (sensitive ones marked); the shortest
+  call path from the entry point or an export is drawn thick and labelled. Click re-centres,
+  double-click opens the code. Hubs are cut to the nearest 60 functions with "+n callers"
+  hints, so the picture stays readable on DLLs with 20 000 functions.
+- **Search** tab: bytes with `??` wildcards (`4D 5A ?? 00`), instruction text (`xor eax`,
+  an API name) or a constant (`0x5A4D`); every hit shows its function and opens in the code
+  or hex view.
+- **Symbols** in the sidebar: imports grouped by DLL with the number of references (click to
+  list the referencing code), and exports.
+- **File layout** in the Overview: headers, sections and overlay from first to last byte with
+  permissions as text; click a part to see its bytes.
+
+Measured on System32 DLLs with 18 000-20 000 functions: a relations view in about 1 ms (100 ms
+the first time), byte search under 0.2 s, text and constant search about 1 s.
+
 ## Workbench UI
 
 A modern desktop UI (React + TypeScript in an Edge WebView2 window): samples and functions
@@ -184,7 +204,8 @@ API calls use pywebview's in-process bridge; the browser mode (`octov serve`) bi
 ```
 src/octov/
   core/static/    PE parser, indicators, rule engine, disassembler, CFG
-  core/analysis/  triage pipeline: facts, strings, IOCs, xrefs, crypto, carving, packer, scoring
+  core/analysis/  triage pipeline: facts, strings, IOCs, xrefs, crypto, carving, packer, scoring,
+                  call graph, search
   ext/            optional engines: runner (Job Object), queue, cache, capa + FLOSS adapters
   ext/ghidra/     decompiler: discovery, setup, worker process, manager, pseudo-C model
   core/dynamic/   Frida/ETW instrumentation (M3)

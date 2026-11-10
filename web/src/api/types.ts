@@ -259,3 +259,68 @@ export interface Decompiled {
   octov_function: number | null;
   cached: boolean;
 }
+
+export interface ApiUse {
+  name: string;
+  family: string | null;
+  suspicious: boolean;
+}
+
+export interface RelationNode {
+  start: number;
+  name: string;
+  role: "center" | "caller" | "callee" | "both";
+  distance: number;
+  score: number;
+  apis: ApiUse[];
+  is_entry: boolean;
+  is_export: boolean;
+  recursive: boolean;
+  hidden_callers: number;
+  hidden_callees: number;
+}
+
+export interface Relations {
+  center: number;
+  nodes: RelationNode[];
+  edges: { src: number; dst: number }[];
+  path: number[];
+  path_root: { kind: "entry" | "export"; name: string } | null;
+  truncated: boolean;
+}
+
+export type SearchKind = "bytes" | "text" | "imm";
+
+export interface SearchHit {
+  rva: number | null;
+  offset: number | null;
+  function: number | null;
+  function_name: string | null;
+  text: string;
+}
+
+export interface SearchResult {
+  items: SearchHit[];
+  truncated: boolean;
+}
+
+export interface Symbols {
+  imports: { dll: string; functions: { name: string; rva: number; refs: number }[] }[];
+  exports: { name: string; rva: number; function: number | null }[];
+}
+
+export interface MemoryRegion {
+  name: string;
+  kind: "headers" | "section" | "overlay" | "gap" | "raw";
+  rva: number | null;
+  vsize: number;
+  offset: number;
+  size: number;
+  perm: string;
+  entropy: number;
+}
+
+export interface MemoryMapData {
+  size: number;
+  regions: MemoryRegion[];
+}

@@ -8,8 +8,10 @@ import {
   LayoutDashboard,
   Loader2,
   Network,
+  Search,
   ShieldAlert,
   TextQuote,
+  Waypoints,
 } from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { AnnotateMenu } from "./components/AnnotateMenu";
@@ -22,6 +24,8 @@ import { HexView } from "./components/HexView";
 import { MitreView } from "./components/MitreView";
 import { OverviewView } from "./components/OverviewView";
 import { PseudoCView } from "./components/PseudoCView";
+import { RelationsView } from "./components/RelationsView";
+import { SearchView } from "./components/SearchView";
 import { Sidebar } from "./components/Sidebar";
 import { StringsView } from "./components/StringsView";
 import { TriageView } from "./components/TriageView";
@@ -32,6 +36,8 @@ import { hex } from "./lib/format";
 import { browseAndOpen, type BottomView, type MainView, setState, useStore, useT } from "./state/store";
 
 function ViewSwitch({ view }: { view: MainView }) {
+  // views that hold results of one sample start afresh when another sample is selected
+  const sha = useStore((s) => s.active);
   switch (view) {
     case "triage":
       return <TriageView />;
@@ -41,8 +47,12 @@ function ViewSwitch({ view }: { view: MainView }) {
       return <DisasmView />;
     case "graph":
       return <GraphView />;
+    case "relations":
+      return <RelationsView key={sha} />;
     case "pseudo_c":
       return <PseudoCView />;
+    case "search":
+      return <SearchView key={sha} />;
     case "hex":
       return <HexView />;
     case "strings":
@@ -57,9 +67,11 @@ function useViewTabs() {
     { id: "overview" as const, label: t("ui.overview"), icon: LayoutDashboard },
     { id: "disasm" as const, label: t("ui.disassembly"), icon: Code2 },
     { id: "graph" as const, label: t("ui.graph"), icon: Network },
+    { id: "relations" as const, label: t("ui.relations"), icon: Waypoints },
     { id: "pseudo_c" as const, label: t("ui.pseudo_c"), icon: Braces },
     { id: "hex" as const, label: t("ui.hex"), icon: Binary },
     { id: "strings" as const, label: t("ui.strings"), icon: TextQuote },
+    { id: "search" as const, label: t("ui.search"), icon: Search },
   ];
 }
 

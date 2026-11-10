@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import type { Overview } from "../api/types";
 import { formatBytes, hex } from "../lib/format";
 import { navigate, useStore, useT } from "../state/store";
+import { MemoryMap } from "./MemoryMap";
 import { SeverityBadge } from "./ui";
 
 function CopyValue({ value }: { value: string }) {
@@ -119,6 +120,10 @@ export function OverviewView() {
             </ul>
           </Card>
         )}
+
+        <Card title={t("map.title")} className="xl:col-span-2">
+          <MemoryMap />
+        </Card>
 
         {ov.sections && (
           <Card title={t("ui.sections")} className="xl:col-span-2">

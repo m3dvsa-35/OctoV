@@ -92,7 +92,7 @@ src/octov/
                             place pyghidra is imported; own process), manager, model
   core/apidoc.py            API -> `api.<Name>` explanation keys (texts: i18n/{en,az}_api.py)
   core/analysis/            triage pipeline: facts, pipeline, strings, iocs, xrefs, crypto,
-                            carve, packer, naming, scoring, analyzers, report
+                            carve, packer, naming, scoring, analyzers, report, callgraph, search
   core/export/              yara_gen.py, sigma_gen.py
   core/mitre.py             offline technique name/tactic table (test enforces coverage)
   core/session/session.py   .octov = SQLite + msgpack (samples, artifacts, annotations, payloads, meta; schema v2)
@@ -102,8 +102,10 @@ src/octov/
   webui/dist/               built frontend (git-ignored)
 web/src/                    React UI: api/client.ts (bridge or /rpc), state/store.ts,
                             components/* (Triage, Overview, Findings, Mitre, Disasm, Graph,
-                            PseudoC, Hex, Strings, XrefPopover, AnnotateMenu, CommandPalette, Dialogs),
-                            lib/format.ts, lib/cfgLayout.ts, lib/triage.ts, lib/pseudoc.ts
+                            Relations, PseudoC, Hex, Strings, Search, MemoryMap, XrefPopover, AnnotateMenu,
+                            CommandPalette, Dialogs),
+                            lib/format.ts, lib/cfgLayout.ts, lib/triage.ts, lib/pseudoc.ts,
+                            lib/relations.ts, lib/search.ts
   cli/main.py, cli/triage.py `octov analyze`, `octov triage`
 rules/                      evasion_patterns.yaml (EVA-xxx), pic_patterns.yaml (PIC-xxx)
 tests/samples/builder.py    synthetic PE32+ builder (sections, imports, overlay, dll flag)
@@ -134,13 +136,16 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 ## Status / where we stopped  (updated 2026-11-10, chat 5)
 
 ### How to resume in a new chat (read this first)
-1. `main` has M1, M2, web UI, assisted-triage Phase 1 and Phase 2 (capa + FLOSS, PR #6
-   merged as `332e457`).
-2. **Phase 3 (Ghidra decompiler) is implemented on `feat/decompiler-phase3`** (all 9 plan
-   tasks, final review + one fix pass done, pushed, PR to `main` open). **Do not merge
-   without the owner's yes.** Design: `docs/superpowers/specs/2026-11-10-decompiler-phase3-design.md`;
-   plan: `docs/superpowers/plans/2026-11-10-decompiler-phase3.md`. The PR description lists
-   the rulings (deviations) and the deferred minors.
+1. `main` has M1, M2, web UI, assisted-triage Phase 1, Phase 2 (capa + FLOSS, PR #6) and
+   Phase 3 (Ghidra decompiler, PR #7 merged as `3b83d24`).
+2. **Phase 4 (relations, search, symbols, file layout) is implemented on
+   `feat/relations-phase4`** (6 plan tasks, final review + one fix pass, pushed, PR to `main`
+   open). **Do not merge without the owner's yes.** The owner handed the design decisions to
+   the builder ("think like an analyst"), so the spec is the builder's design:
+   `docs/superpowers/specs/2026-11-10-relations-phase4-design.md`; plan:
+   `docs/superpowers/plans/2026-11-10-relations-phase4.md`. The PR description lists the
+   rulings and deferred minors. Next after the merge: M5 AI overlay on top of the relations
+   data (or Phase 5 knowledge/diff, M3 dynamic) - ask the owner which.
 3. Owner priorities (2026-11-10): fast and trouble-free, PE files first, help beginners;
    later AI must show visually what it found suspicious and how parts are linked. Roadmap:
    Phase 4 relations/call graph (symbol tree, memory map, search) -> M5 AI overlay.
@@ -152,6 +157,25 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
    `Remove-Item -Recurse -Force`) and rerun.
 6. `git push` may hang in git-credential-manager (sign-in window): push with
    `git -c credential.helper= -c "credential.helper=!gh auth git-credential" push`.
+
+### Navigation — Phase 4 facts worth knowing
+- `core/analysis/callgraph.py`: `CallGraph.build(functions, xrefs)` (direct calls + tail jumps
+  to another function), `neighbourhood(center, callers_depth, callees_depth, max_nodes=60)`
+  (level by level, callee side first; `hidden_callers/hidden_callees`, `truncated`),
+  `path_to(center, roots)`, `apis_of(xrefs, start)`. Built lazily, cached on `_Sample`.
+- `core/analysis/search.py`: `parse_pattern`, `parse_number`, `search_bytes`, `search_text`,
+  `search_immediate` (limit + truncated flag).
+- API: `get_relations(sha, start, callers=2, callees=2)`, `search(sha, kind, query, limit)`
+  (`kind` = `bytes|text|imm`), `get_symbols(sha)`, `get_memory_map(sha)`; error keys
+  `analysis.not_ready`, `search.bad_pattern`, `search.bad_number`. No new facts or scores.
+- Web: tabs `relations` (`RelationsView.tsx`, `lib/relations.ts`) and `search`
+  (`SearchView.tsx`), sidebar Symbols (`Sidebar.tsx`, `lib/search.ts`), `MemoryMap.tsx` in
+  Overview; the shared ELK worker is `components/elk.ts`; tab bars scroll horizontally.
+- Speed (2026-11-10): twinui.dll (18 551 functions) relations 100 ms first / 1.3 ms warm, hub
+  with 6 351 callers 1.9 ms; byte search 2-36 ms, text 977 ms, constant 1005 ms. amdhip64.dll
+  (18.5 MB, 20 000 functions): 87 / 1.0 ms, bytes 7-146 ms, text 1187 ms, constant 1221 ms.
+- UI check without touching `~/.octov/ui.json`: a throwaway script that builds `WorkbenchApi`
+  with temp `settings_path` (all `extensions_auto_run` off) and `make_server(api, DIST, port)`.
 
 ### Decompiler — Phase 3 (Ghidra) facts worth knowing
 - `octov/ext/ghidra/`: `discover` (JDK >= 21 from `release` files, Ghidra 12.x, status),
@@ -248,10 +272,13 @@ their tail-called body); the Strings tab has no chip for uncategorised strings (
 - Re-run the engine calibration with
   `scripts/baseline_sweep.py out.jsonl --ext --stride 22 --cache-dir ~/.octov/calib-cache`
   (~1.5 h; the cache makes reruns after scoring changes fast).
-- Remote branches `feat/m2-static-engine`, `feat/web-ui`, `feat/assisted-triage` are merged and
+- Remote branches `feat/m2-static-engine`, `feat/web-ui`, `feat/assisted-triage`,
+  `feat/decompiler-phase3` are merged and
   can be deleted (not done: the owner did not ask).
-- Roadmap: Phase 4 (symbol tree, call graph, memory map, search), Phase 5 (FLIRT-like, PDB,
-  binary diff); M3 dynamic; M5 AI.
+- Roadmap: Phase 5 (FLIRT-like, PDB, binary diff); M3 dynamic; M5 AI.
+- Two untracked copies `src/octov/ext/ghidra/manager (1).py` and `worker (1).py` (old
+  snapshots, appeared 2026-11-10 12:02, not made by Claude) break local ruff/mypy; run
+  `ruff ... "--extend-exclude=* (1).py"` until the owner removes them.
 - Phase 3 not done: desktop-window (pywebview) visual check of the Pseudo-C tab; it was
   checked in the browser pane (`octov serve`) in EN and AZ with real Ghidra.
 

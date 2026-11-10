@@ -1,13 +1,16 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import clsx from "clsx";
-import { FileBox, Loader2, Search, SquareFunction, X } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { FileBox, Library, Loader2, Search, SquareFunction, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { api } from "../api/client";
+import type { Symbols } from "../api/types";
+import { symbolRows } from "../lib/search";
 import { formatBytes, hex } from "../lib/format";
-import { closeSample, navigate, selectSample, useStore, useT } from "../state/store";
+import { closeSample, navigate, selectSample, setState, useStore, useT } from "../state/store";
 import { openAnnotateMenu } from "./AnnotateMenu";
 import { Tabs } from "./ui";
 
-type SideTab = "samples" | "functions";
+type SideTab = "samples" | "functions" | "symbols";
 
 export function Sidebar() {
   const t = useT();
@@ -24,9 +27,10 @@ export function Sidebar() {
         items={[
           { id: "samples", label: t("ui.samples"), icon: FileBox, badge: samples },
           { id: "functions", label: t("ui.functions"), icon: SquareFunction, badge: functions },
+          { id: "symbols", label: t("ui.symbols"), icon: Library },
         ]}
       />
-      {tab === "samples" ? <SampleList /> : <FunctionList />}
+      {tab === "samples" ? <SampleList /> : tab === "functions" ? <FunctionList /> : <SymbolList />}
     </aside>
   );
 }
@@ -163,6 +167,99 @@ function FunctionList() {
                   </span>
                 )}
                 <span className={clsx("text-[10.5px] text-faint", !capaCount.get(fn.start) && "ml-auto")}>{fn.blocks}b</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/** Imports by DLL (click: who references it) and exports (click: go there). */
+function SymbolList() {
+  const t = useT();
+  const { sha, ready } = useStore((s) => ({ sha: s.active, ready: s.discovery?.state === "done" }));
+  const [symbols, setSymbols] = useState<Symbols | null>(null);
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    setSymbols(null);
+    if (!sha) return;
+    let live = true;
+    // Asked again once functions are known: the reference counts need the xrefs.
+    void api.symbols(sha).then(
+      (out) => live && setSymbols(out),
+      () => live && setSymbols({ imports: [], exports: [] }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [sha, ready]);
+  const rows = useMemo(() => (symbols ? symbolRows(symbols, query) : []), [symbols, query]);
+  const parent = useRef<HTMLDivElement>(null);
+  const virtual = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parent.current,
+    estimateSize: () => 26,
+    overscan: 20,
+  });
+  if (!symbols) {
+    return (
+      <div className="flex items-center gap-2 p-4 text-[12.5px] text-muted">
+        <Loader2 size={14} className="animate-spin" aria-hidden />
+      </div>
+    );
+  }
+  if (!symbols.imports.length && !symbols.exports.length) {
+    return <p className="p-4 text-[12.5px] leading-relaxed text-muted">{t("symbols.none")}</p>;
+  }
+  return (
+    <>
+      <label className="m-2 flex h-7 items-center gap-2 rounded-md border border-line bg-bg px-2 text-faint focus-within:border-accent/60">
+        <Search size={13} aria-hidden />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("symbols.filter")}
+          className="w-full bg-transparent text-[12.5px] text-fg outline-none placeholder:text-faint"
+        />
+      </label>
+      <div ref={parent} className="min-h-0 flex-1 overflow-auto px-1.5 pb-2">
+        <div style={{ height: virtual.getTotalSize(), position: "relative" }}>
+          {virtual.getVirtualItems().map((item) => {
+            const row = rows[item.index];
+            if (!row) return null;
+            const style = { transform: `translateY(${item.start}px)`, height: item.size };
+            if (row.kind === "dll" || row.kind === "exports") {
+              return (
+                <div
+                  key={item.key}
+                  style={style}
+                  className="absolute inset-x-0 flex items-center gap-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-faint"
+                >
+                  <span className="truncate">{row.kind === "dll" ? row.dll : t("symbols.exports")}</span>
+                  <span className="ml-auto font-mono font-normal">{row.count}</span>
+                </div>
+              );
+            }
+            const refs = row.kind === "import" ? row.refs : null;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                style={style}
+                title={refs !== null ? t("symbols.refs", { n: refs }) : hex(row.rva)}
+                onClick={(e) => {
+                  if (row.kind === "export") void navigate(row.rva);
+                  else setState({ xref: { x: e.clientX, y: e.clientY, rva: row.rva, label: row.name } });
+                }}
+                className={clsx(
+                  "absolute inset-x-0 flex cursor-pointer items-center gap-2 rounded-md px-2 pl-4 text-left font-mono text-[12px] transition-colors hover:bg-raised/60 hover:text-fg",
+                  refs === 0 ? "text-faint" : "text-muted",
+                )}
+              >
+                <span className="truncate">{row.name}</span>
+                {refs !== null && <span className="ml-auto text-[10.5px] text-faint">{refs}</span>}
               </button>
             );
           })}
