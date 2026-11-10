@@ -441,6 +441,38 @@ STRINGS: dict[str, str] = {
         "Çağıranlar solda, çağırılan funksiyalar sağdadır. Funksiyanı mərkəzə gətirmək üçün "
         "klikləyin, kodunu açmaq üçün iki dəfə klikləyin."
     ),
+    "ui.search": "Axtarış",
+    "search.kind.bytes": "Baytlar",
+    "search.kind.text": "Mətn",
+    "search.kind.imm": "Dəyər",
+    "search.hint.bytes": "Hex baytlar, ?? = istənilən bayt. Nümunə: 4D 5A ?? 00",
+    "search.hint.text": (
+        "Təlimatın və ya API adının bir hissəsi. Nümunə: xor eax və ya VirtualAlloc"
+    ),
+    "search.hint.imm": "Təlimatın işlətdiyi sabit. Nümunə: 0x5A4D və ya 23117",
+    "search.run": "Axtar",
+    "search.count": "{n} nəticə",
+    "search.truncated": "ilk {n} nəticə (qalanını görmək üçün axtarışı daraldın)",
+    "search.none": "Heç nə tapılmadı",
+    "search.not_mapped": "xəritələnməyib",
+    "search.bad_pattern": "Hex baytlar yazın, istənilən bayt üçün ?? işlədin, məsələn 4D 5A ?? 00",
+    "search.bad_number": "Ədəd yazın, məsələn 0x10, 10h və ya 16",
+    "analysis.not_ready": "Funksiyalar hələ aşkarlanır. Bir azdan yenidən cəhd edin.",
+    "ui.symbols": "Simvollar",
+    "symbols.filter": "Import və eksportları süz",
+    "symbols.exports": "Eksportlar",
+    "symbols.refs": "kodda {n} istinad. Siyahı üçün klikləyin.",
+    "symbols.none": "Bu nümunədə import və ya eksport yoxdur.",
+    "map.title": "Fayl quruluşu",
+    "map.hint": (
+        "Bütün fayl ({size}), ilk baytdan son bayta qədər. Baytlarını görmək üçün hissəyə "
+        "klikləyin."
+    ),
+    "map.kind.headers": "başlıqlar",
+    "map.kind.section": "seksiya",
+    "map.kind.overlay": "overlay",
+    "map.kind.gap": "istifadəsiz",
+    "map.kind.raw": "kod bloku",
     "ui.pseudo_c": "Psevdo-C",
     "decomp.help.title": "Bunu necə oxumalı",
     "decomp.help.body": (

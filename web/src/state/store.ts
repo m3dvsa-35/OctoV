@@ -458,6 +458,16 @@ export async function navigate(
   }
 }
 
+/** Show a file offset that no section maps (headers, overlay) in the hex view. */
+export function gotoOffset(offset: number): void {
+  setState((s) => ({
+    nav: { rva: s.nav?.rva ?? 0, fn: s.nav?.fn ?? null, offset },
+    history: s.nav ? [...s.history.slice(-99), s.nav] : s.history,
+    future: [],
+    main: "hex",
+  }));
+}
+
 export function goBack(): void {
   const prev = state.history.at(-1);
   if (!prev) return;

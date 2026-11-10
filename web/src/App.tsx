@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Loader2,
   Network,
+  Search,
   ShieldAlert,
   TextQuote,
   Waypoints,
@@ -24,6 +25,7 @@ import { MitreView } from "./components/MitreView";
 import { OverviewView } from "./components/OverviewView";
 import { PseudoCView } from "./components/PseudoCView";
 import { RelationsView } from "./components/RelationsView";
+import { SearchView } from "./components/SearchView";
 import { Sidebar } from "./components/Sidebar";
 import { StringsView } from "./components/StringsView";
 import { TriageView } from "./components/TriageView";
@@ -48,7 +50,7 @@ function ViewSwitch({ view }: { view: MainView }) {
     case "pseudo_c":
       return <PseudoCView />;
     case "search":
-      return null;
+      return <SearchView />;
     case "hex":
       return <HexView />;
     case "strings":
@@ -67,6 +69,7 @@ function useViewTabs() {
     { id: "pseudo_c" as const, label: t("ui.pseudo_c"), icon: Braces },
     { id: "hex" as const, label: t("ui.hex"), icon: Binary },
     { id: "strings" as const, label: t("ui.strings"), icon: TextQuote },
+    { id: "search" as const, label: t("ui.search"), icon: Search },
   ];
 }
 

@@ -87,7 +87,7 @@ export function Tabs<T extends string>({
   right?: ReactNode;
 }) {
   return (
-    <div className="flex h-9 shrink-0 items-center gap-0.5 border-b border-line px-1.5" role="tablist">
+    <div className="flex h-9 shrink-0 items-center gap-0.5 overflow-x-auto overflow-y-hidden border-b border-line px-1.5 [scrollbar-width:none]" role="tablist">
       {items.map(({ id, label, icon: Icon, badge }) => (
         <button
           key={id}
@@ -96,7 +96,7 @@ export function Tabs<T extends string>({
           aria-selected={value === id}
           onClick={() => onChange(id)}
           className={clsx(
-            "relative inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2.5 text-[12.5px] transition-colors duration-150",
+            "relative inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-[12.5px] transition-colors duration-150",
             value === id
               ? "bg-raised text-fg shadow-[inset_0_-2px_0_var(--accent)]"
               : "text-muted hover:text-fg",

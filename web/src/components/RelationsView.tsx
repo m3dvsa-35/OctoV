@@ -10,7 +10,6 @@ import {
   Position,
   ReactFlow,
   ReactFlowProvider,
-  useReactFlow,
 } from "@xyflow/react";
 import clsx from "clsx";
 import { Loader2, Waypoints, Zap } from "lucide-react";
@@ -149,7 +148,6 @@ function useLayout(rel: Relations | null) {
 function Graph({ rel }: { rel: Relations }) {
   const t = useT();
   const layout = useLayout(rel);
-  const flow = useReactFlow();
   const nodes = useMemo<Node<FnNodeData>[]>(
     () =>
       layout
@@ -181,10 +179,6 @@ function Graph({ rel }: { rel: Relations }) {
         : [],
     [layout, label],
   );
-  useEffect(() => {
-    if (layout) window.setTimeout(() => void flow.fitView({ padding: 0.15, maxZoom: 1.1, duration: 200 }), 0);
-  }, [layout, flow]);
-
   if (!layout) {
     return (
       <div className="flex h-full items-center justify-center text-muted">
@@ -194,10 +188,14 @@ function Graph({ rel }: { rel: Relations }) {
   }
   return (
     <ReactFlow
+      // a new neighbourhood is a new picture: mount again so it is fitted into view
+      key={`${rel.center}:${rel.nodes.length}:${rel.edges.length}`}
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
+      fitView
+      fitViewOptions={{ padding: 0.2, maxZoom: 1.1 }}
       minZoom={0.15}
       maxZoom={1.6}
       nodesConnectable={false}
