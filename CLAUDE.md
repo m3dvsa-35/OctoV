@@ -143,6 +143,21 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
    inline execution as in Phases 2-3. Phase 3 docs:
    `docs/superpowers/specs/2026-11-10-decompiler-phase3-design.md`,
    `docs/superpowers/plans/2026-11-10-decompiler-phase3.md`.
+   **Stopped here (2026-11-10, chat 5):** the owner said "think like an analyst and do what is
+   needed" (no more design questions), then asked to stop for the day. Nothing of Phase 4 is
+   written yet (no spec, no plan, no code). Builder's calls so far, to put into the spec:
+   - **Relations tab** (main feature, also the base for the later AI overlay): neighbourhood
+     graph centred on the current function, callers on one side, callees on the other
+     (depth-limited), imported APIs as leaf nodes grouped by family, node badges for rank
+     score / findings, and the call path from the entry point or an export to the function.
+     Data already exists (`Function.calls`, `XrefIndex`); reuse xyflow + the ELK worker.
+   - **Search**: bytes with `??` wildcards, instruction text, immediates (strings already have
+     their tab); results list -> navigate.
+   - **Symbols** in the sidebar: imports by DLL with caller counts (click -> callers), exports.
+   - **Memory map**: light (headers/sections/overlay strip with perms and entropy -> navigate).
+   - **Not in Phase 4**: API prototypes for call-site hints (Ghidra's pseudo-C covers it).
+   Next step: write the spec (`docs/superpowers/specs/<date>-relations-phase4-design.md`),
+   then the plan, then inline execution; PR at the end, no merge without the owner's yes.
 3. Owner priorities (2026-11-10): fast and trouble-free, PE files first, help beginners;
    later AI must show visually what it found suspicious and how parts are linked. Roadmap:
    Phase 4 relations/call graph (symbol tree, memory map, search) -> M5 AI overlay.
