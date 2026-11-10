@@ -12,11 +12,16 @@ import type {
   FunctionSummary,
   InstructionData,
   Location,
+  MemoryMapData,
   MitreRow,
   Overview,
+  Relations,
   SampleSummary,
+  SearchKind,
+  SearchResult,
   Settings,
   StringsPage,
+  Symbols,
   Triage,
   Verdict,
   XrefRow,
@@ -142,6 +147,12 @@ export const api = {
   readBytes: (sha: string, offset: number, length: number) =>
     call<ByteChunk>("read_bytes", { sha, offset, length }),
   decompiled: (sha: string, rva: number) => call<Decompiled>("get_decompiled", { sha, rva }),
+  relations: (sha: string, start: number, callers: number, callees: number) =>
+    call<Relations>("get_relations", { sha, start, callers, callees }),
+  search: (sha: string, kind: SearchKind, query: string, limit = 500) =>
+    call<SearchResult>("search", { sha, kind, query, limit }),
+  symbols: (sha: string) => call<Symbols>("get_symbols", { sha }),
+  memoryMap: (sha: string) => call<MemoryMapData>("get_memory_map", { sha }),
   exportYara: (sha: string) => call<string>("export_yara", { sha }),
   exportSigma: (sha: string) => call<string | null>("export_sigma", { sha }),
 

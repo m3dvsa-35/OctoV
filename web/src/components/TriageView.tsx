@@ -305,6 +305,13 @@ export function TriageView() {
                     {f.name}
                   </button>
                   <span className="ml-2 font-mono text-[11px] text-faint">{f.score}</span>
+                  <button
+                    type="button"
+                    onClick={() => void navigate(f.start, { view: "relations" })}
+                    className="ml-2 cursor-pointer text-[11px] text-muted underline decoration-dotted underline-offset-2 hover:text-fg"
+                  >
+                    {t("ui.relations")}
+                  </button>
                   {pseudoC && (
                     <button
                       type="button"

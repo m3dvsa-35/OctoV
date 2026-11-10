@@ -14,7 +14,6 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import clsx from "clsx";
-import ELK from "elkjs/lib/elk-api.js";
 import { Loader2, Network } from "lucide-react";
 import { memo, useEffect, useMemo, useState } from "react";
 import type { BlockData, EdgeKind, FunctionData } from "../api/types";
@@ -24,15 +23,10 @@ import { useFunctionData } from "../state/hooks";
 import { annotationKey, getState, navigate, useStore, useT } from "../state/store";
 import { openAnnotateMenu } from "./AnnotateMenu";
 import { AsmText } from "./Asm";
+import { elk } from "./elk";
 import { Empty } from "./ui";
 
 const MAX_GRAPH_BLOCKS = 600;
-
-// Layout runs in a worker so large functions never block the UI thread.
-const elk = new ELK({
-  workerFactory: () =>
-    new Worker(new URL("elkjs/lib/elk-worker.min.js", import.meta.url), { type: "module" }),
-});
 
 type BlockNodeData = { block: BlockData; active: number | null; selected: boolean };
 type FlowEdgeData = { points: Pt[]; kind: EdgeKind };

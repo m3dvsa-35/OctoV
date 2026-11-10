@@ -408,6 +408,25 @@ STRINGS: dict[str, str] = {
         "Ghidra turns each function's machine code into readable pseudo-C, in sync with the "
         "disassembly and the graph."
     ),
+    "ui.relations": "Relations",
+    "relations.callers": "Callers",
+    "relations.callees": "Callees",
+    "relations.path": "path",
+    "relations.is_entry": "this is the entry point",
+    "relations.entry_path": "{n} call(s) from the entry point (marked path)",
+    "relations.no_path": "not reached from the entry point by direct calls",
+    "relations.truncated": "showing the nearest {n} functions",
+    "relations.more_callers": "+{n} callers",
+    "relations.more_callees": "+{n} callees",
+    "relations.score": "score {n}",
+    "relations.recursive": "recursive",
+    "relations.export": "export",
+    "relations.sensitive": "sensitive APIs",
+    "relations.other_apis": "other APIs",
+    "relations.hint": (
+        "Callers are on the left, called functions on the right. Click a function to centre "
+        "it, double-click to open its code."
+    ),
     "ui.pseudo_c": "Pseudo-C",
     "decomp.help.title": "How to read this",
     "decomp.help.body": (

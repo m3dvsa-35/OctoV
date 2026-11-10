@@ -10,6 +10,7 @@ import {
   Network,
   ShieldAlert,
   TextQuote,
+  Waypoints,
 } from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { AnnotateMenu } from "./components/AnnotateMenu";
@@ -22,6 +23,7 @@ import { HexView } from "./components/HexView";
 import { MitreView } from "./components/MitreView";
 import { OverviewView } from "./components/OverviewView";
 import { PseudoCView } from "./components/PseudoCView";
+import { RelationsView } from "./components/RelationsView";
 import { Sidebar } from "./components/Sidebar";
 import { StringsView } from "./components/StringsView";
 import { TriageView } from "./components/TriageView";
@@ -41,8 +43,12 @@ function ViewSwitch({ view }: { view: MainView }) {
       return <DisasmView />;
     case "graph":
       return <GraphView />;
+    case "relations":
+      return <RelationsView />;
     case "pseudo_c":
       return <PseudoCView />;
+    case "search":
+      return null;
     case "hex":
       return <HexView />;
     case "strings":
@@ -57,6 +63,7 @@ function useViewTabs() {
     { id: "overview" as const, label: t("ui.overview"), icon: LayoutDashboard },
     { id: "disasm" as const, label: t("ui.disassembly"), icon: Code2 },
     { id: "graph" as const, label: t("ui.graph"), icon: Network },
+    { id: "relations" as const, label: t("ui.relations"), icon: Waypoints },
     { id: "pseudo_c" as const, label: t("ui.pseudo_c"), icon: Braces },
     { id: "hex" as const, label: t("ui.hex"), icon: Binary },
     { id: "strings" as const, label: t("ui.strings"), icon: TextQuote },

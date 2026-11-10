@@ -18,7 +18,16 @@ import type {
   Verdict,
 } from "../api/types";
 
-export type MainView = "triage" | "overview" | "disasm" | "graph" | "pseudo_c" | "hex" | "strings";
+export type MainView =
+  | "triage"
+  | "overview"
+  | "disasm"
+  | "graph"
+  | "relations"
+  | "pseudo_c"
+  | "hex"
+  | "strings"
+  | "search";
 export type BottomView = "findings" | "mitre";
 
 export interface Nav {

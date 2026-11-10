@@ -422,6 +422,25 @@ STRINGS: dict[str, str] = {
         "Ghidra hər funksiyanın maşın kodunu oxunaqlı psevdo-C-yə çevirir; disassembly və qrafla "
         "sinxron işləyir."
     ),
+    "ui.relations": "Əlaqələr",
+    "relations.callers": "Çağıranlar",
+    "relations.callees": "Çağırılanlar",
+    "relations.path": "yol",
+    "relations.is_entry": "bu, giriş nöqtəsidir",
+    "relations.entry_path": "giriş nöqtəsindən {n} çağırış (işarələnmiş yol)",
+    "relations.no_path": "giriş nöqtəsindən birbaşa çağırışlarla çatılmır",
+    "relations.truncated": "ən yaxın {n} funksiya göstərilir",
+    "relations.more_callers": "+{n} çağıran",
+    "relations.more_callees": "+{n} çağırılan",
+    "relations.score": "bal {n}",
+    "relations.recursive": "rekursiv",
+    "relations.export": "eksport",
+    "relations.sensitive": "həssas API-lər",
+    "relations.other_apis": "digər API-lər",
+    "relations.hint": (
+        "Çağıranlar solda, çağırılan funksiyalar sağdadır. Funksiyanı mərkəzə gətirmək üçün "
+        "klikləyin, kodunu açmaq üçün iki dəfə klikləyin."
+    ),
     "ui.pseudo_c": "Psevdo-C",
     "decomp.help.title": "Bunu necə oxumalı",
     "decomp.help.body": (
