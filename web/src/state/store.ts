@@ -18,7 +18,7 @@ import type {
   Verdict,
 } from "../api/types";
 
-export type MainView = "triage" | "overview" | "disasm" | "graph" | "hex" | "strings";
+export type MainView = "triage" | "overview" | "disasm" | "graph" | "pseudo_c" | "hex" | "strings";
 export type BottomView = "findings" | "mitre";
 
 export interface Nav {
@@ -76,7 +76,7 @@ export interface State {
 
 let state: State = {
   ready: false,
-  settings: { language: "en", theme: "dark", compact: false, extensions_auto_run: { capa: true, floss: true } },
+  settings: { language: "en", theme: "dark", compact: false, extensions_auto_run: { capa: true, floss: true, ghidra: true } },
   extensions: [],
   strings: {},
   caps: { native_dialogs: false },
@@ -302,6 +302,11 @@ async function pollJobs(sha: string, seen: Set<string> = new Set()): Promise<voi
   } catch (err) {
     reportError(err);
   }
+}
+
+/** Re-read job states now (a background job can fail after polling has stopped). */
+export function refreshJobs(): void {
+  if (state.active) void pollJobs(state.active);
 }
 
 export async function runExtension(id: EngineId, force: boolean): Promise<void> {

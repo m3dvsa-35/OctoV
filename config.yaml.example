@@ -39,3 +39,12 @@ extensions:
     timeout_s: 600
     max_size_mb: 64
     max_memory_mb: 4096
+  ghidra:                 # decompiler: python -m uv sync --extra ghidra; octov ext setup ghidra
+    max_memory_mb: 4096   # per Ghidra worker (JVM heap is a bit below)
+    max_workers: 2        # Ghidra workers alive at once (one first-time analysis at a time)
+    idle_minutes: 10      # stop idle workers; they restart from the saved project
+    decompile_timeout_s: 30
+    analysis_timeout_s: 900
+    project_keep_days: 30
+    # install_dir: C:/tools/ghidra_12.2_PUBLIC   # an existing Ghidra 12.x
+    # java_home: C:/Program Files/Eclipse Adoptium/jdk-25.0.1.8-hotspot   # JDK >= 21

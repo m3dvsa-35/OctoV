@@ -5,6 +5,7 @@ import type {
   Extension,
   ByteChunk,
   Capabilities,
+  Decompiled,
   DiscoveryStatus,
   FindingRow,
   FunctionData,
@@ -140,6 +141,7 @@ export const api = {
     call<InstructionData[]>("disassemble", { sha, rva, count }),
   readBytes: (sha: string, offset: number, length: number) =>
     call<ByteChunk>("read_bytes", { sha, offset, length }),
+  decompiled: (sha: string, rva: number) => call<Decompiled>("get_decompiled", { sha, rva }),
   exportYara: (sha: string) => call<string>("export_yara", { sha }),
   exportSigma: (sha: string) => call<string | null>("export_sigma", { sha }),
 

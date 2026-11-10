@@ -88,7 +88,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         text_select=True,
     )
     api._window = window
-    webview.start(gui="edgechromium", http_server=True, debug=args.debug, private_mode=True)
+    try:
+        webview.start(gui="edgechromium", http_server=True, debug=args.debug, private_mode=True)
+    finally:
+        api.shutdown()  # stop Ghidra workers
     return 0
 
 

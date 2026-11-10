@@ -7,11 +7,13 @@ priority; stdout is collected fully, stderr only its tail (for error reasons).
 
 from __future__ import annotations
 
+import contextlib
 import json
 import subprocess
 import sys
 import threading
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -40,6 +42,7 @@ class _Job:
     def __init__(self, max_memory_mb: int) -> None:
         self.handle: int | None = None
         self.limit = max_memory_mb * 1024 * 1024
+        self._guard = threading.Lock()  # kill/close/query may come from several threads
         if sys.platform != "win32":
             return
         import ctypes
@@ -102,32 +105,36 @@ class _Job:
             raise OSError(status, "NtResumeProcess failed")
 
     def peak_memory(self) -> int:
-        if self.handle is None:
-            return 0
-        from ctypes import wintypes
+        with self._guard:
+            if self.handle is None:
+                return 0
+            from ctypes import wintypes
 
-        info = self._Extended()
-        self._k32.QueryInformationJobObject(
-            wintypes.HANDLE(self.handle),
-            9,
-            self._ctypes.byref(info),
-            self._ctypes.sizeof(info),
-            None,
-        )
-        return int(info.PeakJobMemoryUsed)
+            info = self._Extended()
+            self._k32.QueryInformationJobObject(
+                wintypes.HANDLE(self.handle),
+                9,
+                self._ctypes.byref(info),
+                self._ctypes.sizeof(info),
+                None,
+            )
+            return int(info.PeakJobMemoryUsed)
 
     def kill(self) -> None:
-        if self.handle is not None:
-            from ctypes import wintypes
+        with self._guard:
+            if self.handle is not None:
+                from ctypes import wintypes
 
-            self._k32.TerminateJobObject(wintypes.HANDLE(self.handle), 1)
+                self._k32.TerminateJobObject(wintypes.HANDLE(self.handle), 1)
 
     def close(self) -> None:
-        if self.handle is not None:
-            from ctypes import wintypes
+        """Idempotent: a closed handle value may be reused by Windows, never touch it again."""
+        with self._guard:
+            handle, self.handle = self.handle, None
+            if handle is not None:
+                from ctypes import wintypes
 
-            self._k32.CloseHandle(wintypes.HANDLE(self.handle))
-            self.handle = None
+                self._k32.CloseHandle(wintypes.HANDLE(handle))
 
 
 def _creation_flags() -> int:
@@ -137,25 +144,89 @@ def _creation_flags() -> int:
     return 0x00000004 | 0x00004000 | 0x08000000
 
 
-def run_engine(
-    argv: list[str], *, timeout_s: float, max_memory_mb: int, cancel: threading.Event
-) -> EngineRun:
+class IsolatedProcess:
+    """A child process inside its own Job Object (memory limit, tree dies with the job)."""
+
+    def __init__(self, proc: subprocess.Popen[bytes], job: _Job, max_memory_mb: int) -> None:
+        self.proc = proc
+        self.job = job
+        self.max_memory_mb = max_memory_mb
+        self.stdin = proc.stdin
+        self.stdout = proc.stdout
+        self.stderr = proc.stderr
+
+    @property
+    def pid(self) -> int:
+        return self.proc.pid
+
+    def alive(self) -> bool:
+        return self.proc.poll() is None
+
+    def wait(self, timeout: float | None = None) -> int:
+        return self.proc.wait(timeout)
+
+    def peak_memory(self) -> int:
+        return self.job.peak_memory()
+
+    def hit_memory_limit(self) -> bool:
+        return self.job.peak_memory() >= self.job.limit - (16 << 20)
+
+    def kill(self) -> None:
+        self.job.kill()
+        with contextlib.suppress(OSError):
+            self.proc.kill()
+        self.proc.wait()
+
+    def close(self) -> None:
+        """Kill whatever is left and release the job and the pipes."""
+        self.kill()
+        self.job.close()
+        for pipe in (self.stdin, self.stdout, self.stderr):
+            if pipe is not None:
+                with contextlib.suppress(OSError):
+                    pipe.close()
+
+
+def spawn_isolated(
+    argv: list[str],
+    max_memory_mb: int,
+    env: Mapping[str, str] | None = None,
+    *,
+    stdin: bool = False,
+) -> IsolatedProcess:
+    """Start ``argv`` suspended, put it in a Job Object and resume it (below-normal priority)."""
     try:
         job = _Job(max_memory_mb)
     except OSError as exc:
         raise EngineError("crash", f"cannot isolate engine: {exc}") from exc
-    start = time.monotonic()
     try:
         proc = subprocess.Popen(
             argv,
-            stdin=subprocess.DEVNULL,
+            stdin=subprocess.PIPE if stdin else subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            env=dict(env) if env is not None else None,
             creationflags=_creation_flags(),
         )
     except OSError as exc:
         job.close()
         raise EngineError("crash", f"cannot start engine: {exc}") from exc
+    try:
+        job.adopt_and_resume(proc)
+    except OSError as exc:
+        proc.kill()
+        proc.communicate(timeout=10)  # reap it and close its pipes
+        job.close()
+        raise EngineError("crash", f"cannot isolate engine: {exc}") from exc
+    return IsolatedProcess(proc, job, max_memory_mb)
+
+
+def run_engine(
+    argv: list[str], *, timeout_s: float, max_memory_mb: int, cancel: threading.Event
+) -> EngineRun:
+    start = time.monotonic()
+    isolated = spawn_isolated(argv, max_memory_mb)
+    proc, job = isolated.proc, isolated.job
     out: list[bytes] = []
     err = bytearray()
 
@@ -170,12 +241,6 @@ def run_engine(
             del err[:-_STDERR_TAIL]
 
     try:
-        try:
-            job.adopt_and_resume(proc)
-        except OSError as exc:
-            proc.kill()
-            proc.communicate(timeout=10)  # reap it and close its pipes
-            raise EngineError("crash", f"cannot isolate engine: {exc}") from exc
         readers = [threading.Thread(target=f, daemon=True) for f in (read_out, read_err)]
         for r in readers:
             r.start()

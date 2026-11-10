@@ -116,6 +116,7 @@ export function TriageView() {
     );
   }
   const jobs = Object.entries(tri.jobs);
+  const pseudoC = tri.jobs.ghidra !== undefined && tri.jobs.ghidra.state !== "unavailable";
   const capa = tri.capabilities.filter((c) => c.kind === "capability");
   const own = tri.capabilities.filter((c) => c.kind !== "capability");
   const groups = groupContributions(tri.score.contributions);
@@ -193,7 +194,7 @@ export function TriageView() {
                     >
                       {busy ? <Loader2 size={10} className="animate-spin" aria-hidden /> : j.state === "failed" ? <X size={10} aria-hidden /> : <Check size={10} aria-hidden />}
                       {id} · {jobLabel(j, t)}
-                      {(id === "capa" || id === "floss") && !busy && j.state !== "unavailable" && (
+                      {(id === "capa" || id === "floss" || id === "ghidra") && !busy && j.state !== "unavailable" && (
                         <button
                           type="button"
                           title={j.state === "idle" ? t("ext.run") : t("ext.rerun")}
@@ -304,6 +305,15 @@ export function TriageView() {
                     {f.name}
                   </button>
                   <span className="ml-2 font-mono text-[11px] text-faint">{f.score}</span>
+                  {pseudoC && (
+                    <button
+                      type="button"
+                      onClick={() => void navigate(f.start, { view: "pseudo_c" })}
+                      className="ml-2 cursor-pointer text-[11px] text-muted underline decoration-dotted underline-offset-2 hover:text-fg"
+                    >
+                      {t("ui.pseudo_c")}
+                    </button>
+                  )}
                   <div className="truncate text-[11.5px] text-muted" title={f.reasons.join("\n")}>{f.reasons.slice(0, 3).join(" · ")}</div>
                 </li>
               ))}

@@ -17,3 +17,6 @@ tests/samples/generated/
 web/node_modules/
 src/octov/webui/dist/
 .superpowers/
+
+# JVM crash logs (Ghidra worker)
+hs_err_pid*.log

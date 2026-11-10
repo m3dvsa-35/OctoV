@@ -40,8 +40,9 @@ def _init(with_ext: bool, cache_dir: str | None) -> None:
         workspace_dir=d / "ws",
         cache_dir=Path(cache_dir) if cache_dir else d / "cache",
     )
-    if not with_ext:
-        _api.set_settings({"extensions_auto_run": {"capa": False, "floss": False}})
+    # Ghidra adds no facts and no score: never start it in a sweep
+    auto = {"capa": with_ext, "floss": with_ext, "ghidra": False}
+    _api.set_settings({"extensions_auto_run": auto})
 
 
 def one(path_str: str) -> dict[str, object]:

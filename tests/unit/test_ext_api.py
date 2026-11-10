@@ -134,7 +134,11 @@ def test_auto_run_off_waits_for_run(tmp_path: Path, engines: dict[str, Any]) -> 
     engines["ready"] = {"capa"}
     api = _api(tmp_path)
     api.set_settings({"extensions_auto_run": {"capa": False, "floss": True}})
-    assert api.get_settings()["extensions_auto_run"] == {"capa": False, "floss": True}
+    assert api.get_settings()["extensions_auto_run"] == {
+        "capa": False,
+        "floss": True,
+        "ghidra": True,
+    }
     sha = api.open_sample(str(_suspicious(tmp_path)))["sha256"]
     assert _settled(api, sha)["capa"]["state"] == "idle"
     assert engines["started"]["capa"] == 0
