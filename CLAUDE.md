@@ -136,16 +136,17 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 ## Status / where we stopped  (updated 2026-11-10, chat 5)
 
 ### How to resume in a new chat (read this first)
-1. `main` has M1, M2, web UI, assisted-triage Phase 1, Phase 2 (capa + FLOSS, PR #6) and
-   Phase 3 (Ghidra decompiler, PR #7 merged as `3b83d24`).
-2. **Phase 4 (relations, search, symbols, file layout) is implemented on
-   `feat/relations-phase4`** (6 plan tasks, final review + one fix pass, pushed, PR to `main`
-   open). **Do not merge without the owner's yes.** The owner handed the design decisions to
-   the builder ("think like an analyst"), so the spec is the builder's design:
-   `docs/superpowers/specs/2026-11-10-relations-phase4-design.md`; plan:
-   `docs/superpowers/plans/2026-11-10-relations-phase4.md`. The PR description lists the
-   rulings and deferred minors. Next after the merge: M5 AI overlay on top of the relations
-   data (or Phase 5 knowledge/diff, M3 dynamic) - ask the owner which.
+1. `main` has M1, M2, web UI, assisted-triage Phase 1, Phase 2 (capa + FLOSS, PR #6),
+   Phase 3 (Ghidra decompiler, PR #7) and **Phase 4 (relations, search, symbols, file layout,
+   PR #8 merged as `a5aa5d4`)**. Each PR description lists its rulings and deferred minors.
+2. **Nothing is in progress.** This note sits on the local branch `docs/status-phase4-merged`
+   (one commit, not pushed): carry it into the next feature branch. Ask the owner what is
+   next: M5 AI overlay on top of the relations data (their stated goal: AI shows visually what
+   is suspicious and how parts are linked), Phase 5 (FLIRT-like, PDB, binary diff) or M3
+   dynamic. Phase 4 was designed by the builder at the owner's request ("think like an
+   analyst"); spec `docs/superpowers/specs/2026-11-10-relations-phase4-design.md`.
+   Not done for Phases 3-4: visual check in the desktop (pywebview) window and of the new
+   tabs in AZ (only the browser pane in EN was checked for Phase 4).
 3. Owner priorities (2026-11-10): fast and trouble-free, PE files first, help beginners;
    later AI must show visually what it found suspicious and how parts are linked. Roadmap:
    Phase 4 relations/call graph (symbol tree, memory map, search) -> M5 AI overlay.
