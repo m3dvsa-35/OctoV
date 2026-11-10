@@ -26,15 +26,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
+from octov.core.ai import client as ai_client
+from octov.core.ai.bundle import Bundle, BundleInput, FunctionEvidence, build_bundle
+from octov.core.ai.client import AIError
+from octov.core.ai.report import parse_report, system_prompt
 from octov.core.analysis import search as search_mod
 from octov.core.analysis.analyzers import default_analyzers
 from octov.core.analysis.callgraph import CallGraph, apis_of
 from octov.core.analysis.carve import payload_zip
 from octov.core.analysis.facts import Fact, facts_from_findings, facts_from_indicators
 from octov.core.analysis.iocs import ioc_fact_id, iocs_csv, iocs_json
+from octov.core.analysis.naming import API_FAMILIES
 from octov.core.analysis.pipeline import AnalysisContext, AnalyzerStatus, Pipeline
 from octov.core.analysis.report import build_triage, ioc_rows
-from octov.core.analysis.scoring import IGNORED_VERDICTS
+from octov.core.analysis.scoring import IGNORED_VERDICTS, SUSPICIOUS_FAMILIES, risk_score
 from octov.core.config import THEMES, Config
 from octov.core.export.sigma_gen import generate_sigma
 from octov.core.export.yara_gen import generate_yara
@@ -52,7 +57,13 @@ from octov.core.static.analysis import (
 )
 from octov.core.static.cfg import Function
 from octov.core.static.disasm import Disassembler, ImageView, RawView
-from octov.core.static.pe_parser import Hashes, PEParseError, PEReport, shannon_entropy
+from octov.core.static.pe_parser import (
+    Hashes,
+    PEParseError,
+    PEReport,
+    normalize_api,
+    shannon_entropy,
+)
 from octov.core.static.rules import Rule, RuleError
 from octov.ext import (
     ALL_EXTENSIONS,
@@ -98,6 +109,8 @@ MAX_DEPTH = 3  # relations: calls away from the centre, each way
 MAX_RELATION_NODES = 60
 MAX_SEARCH_HITS = 2000
 MAX_EXPORTS = 5000
+AI_FUNCTIONS = 12  # top-ranked functions (plus the entry point) described to the AI analyst
+AI_ASM_LINES = 40  # instructions shown for a function when no pseudo-C is cached
 
 
 class ApiError(Exception):
@@ -117,6 +130,7 @@ class _Sample:
     decomp_entries: dict[int, int] = field(default_factory=dict)  # address -> Ghidra function
     callgraph: CallGraph | None = field(default=None, repr=False)  # built on first use
     memory_map: dict[str, Any] | None = field(default=None, repr=False)
+    ai_running: bool = False  # one AI request per sample at a time
 
     @property
     def hashes(self) -> Hashes:
@@ -991,6 +1005,209 @@ class WorkbenchApi:
             plain("overlay", "overlay", total)
         plain("gap", "gap", total)
         return {"size": total, "regions": regions}
+
+    # -- AI analyst ------------------------------------------------------------------------
+
+    def ai_status(self) -> dict[str, Any]:
+        """Where a request would go. Never includes the key."""
+        found = ai_client.endpoints(self._config.ai)
+        return {
+            "configured": bool(found),
+            "endpoints": [
+                {"host": e.host, "model": e.model, "local": e.local, "has_key": e.key is not None}
+                for e in found
+            ],
+        }
+
+    def _ai_code(self, s: _Sample, start: int, ahash: str) -> tuple[str | None, Any]:
+        """Pseudo-C if it is already cached (Ghidra is never started for this), else assembly."""
+        if s.ghidra_version is not None:
+            cached = self._decomp_cached(s, ahash, start, start)
+            if cached is not None:
+                return "\n".join(line.text for line in cached.lines), "pseudo_c"
+        fn = s.functions.get(start)
+        if fn is None:
+            return None, None
+        lines: list[str] = []
+        for block_start in sorted(fn.blocks):
+            for insn in fn.blocks[block_start].instructions:
+                if len(lines) >= AI_ASM_LINES:
+                    lines.append("…")
+                    return "\n".join(lines), "asm"
+                lines.append(f"{insn.address:x}  {insn.text()}")
+        return ("\n".join(lines), "asm") if lines else (None, None)
+
+    def _ai_bundle(self, s: _Sample) -> Bundle:
+        """The evidence the AI analyst would get right now (analysis results only)."""
+        self._code_ready(s)
+        verdicts = self._verdicts(s)
+        facts = [f for f in list(s.ctx.facts) if verdicts.get(f.id) not in IGNORED_VERDICTS]
+        score = risk_score(facts, verdicts)
+        graph = self._callgraph(s)
+        xrefs = s.ctx.results.get("xrefs")
+        name_of = self._namer(s)
+        names, comments = self._decomp_annotations(s)
+        ahash = annotation_hash(names, comments)
+        string_at = {x.rva: x.value for x in s.ctx.results.get("strings", []) if x.rva is not None}
+        ranking = {r.start: r for r in s.ctx.results.get("ranking", [])}
+        r = s.report
+        entry = r.entry_point if r is not None and r.entry_point in s.functions else None
+        starts = [fn.start for fn in sorted(ranking.values(), key=lambda x: -x.score)]
+        if not starts and entry is None:  # nothing ranked: describe the first functions
+            starts = sorted(s.functions)[:AI_FUNCTIONS]
+        ordered = list(
+            dict.fromkeys(starts[:AI_FUNCTIONS] + ([entry] if entry is not None else []))
+        )
+        functions = []
+        for start in ordered:
+            ranked = ranking.get(start)
+            refs = xrefs.from_function(start) if xrefs is not None else []
+            code, kind = self._ai_code(s, start, ahash)
+            functions.append(
+                FunctionEvidence(
+                    start=start,
+                    name=name_of(start),
+                    score=ranked.score if ranked else 0,
+                    reasons=ranked.reasons if ranked else (),
+                    apis=[(a.name, a.family) for a in apis_of(xrefs, start)],
+                    callers=[(c, name_of(c)) for c in graph.callers(start)],
+                    callees=[(c, name_of(c)) for c in graph.callees(start)],
+                    strings=list(
+                        dict.fromkeys(string_at[x.dst] for x in refs if x.dst in string_at)
+                    ),
+                    code=code,
+                    code_kind=kind,
+                )
+            )
+        family_of = {api: fam for fam, apis in API_FAMILIES.items() for api in apis}
+        imports: dict[str, list[str]] = {}
+        for full in sorted(set(r.import_addresses.values())) if r is not None else []:
+            api = normalize_api(full.rpartition("!")[2])
+            family = family_of.get(api)
+            if family in SUSPICIOUS_FAMILIES and api not in imports.setdefault(family, []):
+                imports[family].append(api)
+        packer = s.ctx.results.get("packer")
+        notes = [(a, "name", v) for a, v in sorted(names.items())]
+        notes += [(a, "comment", v) for a, v in sorted(comments.items())]
+        data = BundleInput(
+            name=s.path.name,
+            sha256=s.sha,
+            size=len(s.data),
+            format="pe" if r is not None else "raw",
+            bits=s.ctx.bits,
+            is_dll=bool(r is not None and r.is_dll),
+            entry_point=r.entry_point if r is not None else None,
+            compile_time=r.compile_time.isoformat() if r is not None else None,
+            signature=(
+                "none"
+                if r is None or not r.signature.present
+                else "verified"
+                if r.signature.verified
+                else "present, not verified"
+            ),
+            packer=(packer.packer or "unknown packer") if packer and packer.packed else None,
+            score=score.score,
+            band=score.band,
+            facts=facts,
+            functions=functions,
+            iocs=[
+                (i.type, i.value) for i in s.ctx.results.get("iocs", []) if i.benign_hint is None
+            ],
+            imports=imports,
+            sections=(
+                [
+                    (x.name, _perm(x.readable, x.writable, x.executable), x.entropy)
+                    for x in r.sections
+                ]
+                if r is not None
+                else []
+            ),
+            notes=notes,
+        )
+        return build_bundle(data, self._config.ai.max_chars)
+
+    def ai_preview(self, sha: str) -> dict[str, Any]:
+        """Exactly what would be sent, and where. Looking sends nothing."""
+        bundle = self._ai_bundle(self._get(sha))
+        found = ai_client.endpoints(self._config.ai)
+        first = found[0] if found else None
+        return {
+            "text": bundle.text,
+            "chars": len(bundle.text),
+            "hash": bundle.hash,
+            "omitted": bundle.omitted,
+            "host": first.host if first else None,
+            "model": first.model if first else None,
+            "local": first.local if first else None,
+        }
+
+    def _ai_cache(self, s: _Sample, bundle: Bundle, model: str) -> Path:
+        return ext_cache.cache_file(self._cache_dir, s.sha, "ai", model, bundle.hash)
+
+    def ai_analyse(self, sha: str, confirmed_hash: str, force: bool = False) -> None:
+        """Send the evidence the analyst just confirmed (by its hash) to the AI analyst.
+
+        The confirmation is for one send of one bundle: if the evidence changed since the
+        preview, nothing is sent and the analyst is asked to look again.
+        """
+        s = self._get(sha)
+        bundle = self._ai_bundle(s)
+        if not confirmed_hash or confirmed_hash != bundle.hash:
+            raise ApiError("ai.preview_changed")
+        found = ai_client.endpoints(self._config.ai)
+        if not found:
+            raise ApiError("ai.no_endpoint")
+        path = self._ai_cache(s, bundle, found[0].model)
+        if not force and ext_cache.load(path) is not None:
+            s.pipeline.set_state("ai", "done", cached=True)
+            return
+        with self._lock:
+            if s.ai_running:
+                return
+            s.ai_running = True
+        s.pipeline.set_state("ai", "running")
+        lang = str(self._settings["language"])
+        threading.Thread(
+            target=self._ai_job, args=(s, bundle, found, path, lang), daemon=True, name="octov-ai"
+        ).start()
+
+    def _ai_job(
+        self, s: _Sample, bundle: Bundle, found: list[ai_client.Endpoint], path: Path, lang: str
+    ) -> None:
+        """Always ends in ``done`` or ``failed`` (or drops the answer if the sample closed)."""
+        start = time.monotonic()
+        try:
+            text, used = ai_client.ask(
+                found, system_prompt(lang), bundle.text, float(self._config.ai.timeout_s)
+            )
+            report = parse_report(text, bundle)
+            doc = report.to_dict() | {
+                "model": used.model,
+                "host": used.host,
+                "local": used.local,
+                "created": int(time.time()),
+                "bundle_hash": bundle.hash,
+                "omitted": bundle.omitted,
+            }
+            with contextlib.suppress(OSError):  # an unwritable cache only costs a new request
+                ext_cache.store(path, doc)
+            state: tuple[AnalyzerStatus, str | None] = ("done", None)
+        except AIError as exc:
+            state = ("failed", f"ai.{exc.kind}")  # the kind only: never a server's own text
+        except Exception:  # a bug here must not leave the job "running"
+            state = ("failed", "ai.internal")
+        finally:
+            s.ai_running = False
+        if self._samples.get(s.sha) is s:
+            s.pipeline.set_state("ai", state[0], state[1], elapsed_s=_secs(start))
+
+    def get_ai_report(self, sha: str) -> dict[str, Any] | None:
+        """The AI report for the evidence as it is now, if there is one."""
+        s = self._get(sha)
+        found = ai_client.endpoints(self._config.ai)
+        if not found or not s.pipeline.wait_slow(0):
+            return None
+        return ext_cache.load(self._ai_cache(s, self._ai_bundle(s), found[0].model))
 
     # -- exports ---------------------------------------------------------------------
 
