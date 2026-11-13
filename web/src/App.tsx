@@ -10,10 +10,12 @@ import {
   Network,
   Search,
   ShieldAlert,
+  Sparkles,
   TextQuote,
   Waypoints,
 } from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
+import { AiView } from "./components/AiView";
 import { AnnotateMenu } from "./components/AnnotateMenu";
 import { CommandPalette } from "./components/CommandPalette";
 import { Dialogs, Toasts } from "./components/Dialogs";
@@ -53,6 +55,8 @@ function ViewSwitch({ view }: { view: MainView }) {
       return <PseudoCView />;
     case "search":
       return <SearchView key={sha} />;
+    case "ai":
+      return <AiView key={sha} />;
     case "hex":
       return <HexView />;
     case "strings":
@@ -72,6 +76,7 @@ function useViewTabs() {
     { id: "hex" as const, label: t("ui.hex"), icon: Binary },
     { id: "strings" as const, label: t("ui.strings"), icon: TextQuote },
     { id: "search" as const, label: t("ui.search"), icon: Search },
+    { id: "ai" as const, label: t("ui.ai"), icon: Sparkles },
   ];
 }
 

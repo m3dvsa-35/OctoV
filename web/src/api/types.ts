@@ -324,3 +324,34 @@ export interface MemoryMapData {
   size: number;
   regions: MemoryRegion[];
 }
+
+export interface AiStatus {
+  configured: boolean;
+  endpoints: { host: string; model: string; local: boolean; has_key: boolean }[];
+}
+
+export interface AiPreview {
+  text: string;
+  chars: number;
+  hash: string;
+  omitted: Record<string, number>;
+  host: string | null;
+  model: string | null;
+  local: boolean | null;
+}
+
+export interface AiReport {
+  summary: string;
+  assessment: "benign" | "suspicious" | "malicious";
+  confidence: "low" | "medium" | "high";
+  story: { text: string; functions: number[]; findings: string[] }[];
+  points: { title: string; why: string; severity: string; findings: string[]; functions: number[]; iocs: string[] }[];
+  links: { from: number; to: number; why: string }[];
+  dropped: number;
+  model: string;
+  host: string;
+  local: boolean;
+  created: number;
+  bundle_hash: string;
+  omitted: Record<string, number>;
+}

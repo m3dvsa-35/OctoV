@@ -475,6 +475,58 @@ STRINGS: dict[str, str] = {
     "map.kind.overlay": "overlay",
     "map.kind.gap": "istifadəsiz",
     "map.kind.raw": "kod bloku",
+    "ui.ai": "AI analitik",
+    "ai.setup.title": "AI analitik qurulmayıb",
+    "ai.setup.body": (
+        "OCTOV_AI_KEY mühit dəyişənini təyin edin (açar heç vaxt faylda saxlanmır) və ya "
+        "config.yaml-da ai.fallback_base_url altında Ollama kimi lokal OpenAI-uyğun server "
+        "göstərin, sonra OctoV-u yenidən işə salın."
+    ),
+    "ai.dest.remote": "Bu, {host} ünvanına göndəriləcək (model {model}). Bu maşından kənara çıxır.",
+    "ai.dest.local": "Bu, {host} ünvanına göndəriləcək (model {model}). Bu maşında qalır.",
+    "ai.preview.title": "Nə göndəriləcək ({n} simvol)",
+    "ai.preview.what": (
+        "Yalnız aşağıdakı analiz nəticələri göndərilir: tapıntılar, funksiya adları, API "
+        "çağırışları, sətirlər və ən şübhəli funksiyaların kodu. Faylın özü heç vaxt."
+    ),
+    "ai.preview.omitted": (
+        "Ölçü limitinə sığmaq üçün çıxarıldı: {code} kod bloku, {functions} funksiya, "
+        "{findings} tapıntı."
+    ),
+    "ai.send": "Bunu {host} ünvanına göndər",
+    "ai.send_note": "Düyməni basmayınca heç nə göndərilmir. Hər göndərişdə yenidən soruşulur.",
+    "ai.ask_again": "Yenidən soruş",
+    "ai.running": "{host} ünvanından cavab gözlənilir…",
+    "ai.assessment.benign": "Zərərsiz görünür",
+    "ai.assessment.suspicious": "Şübhəli",
+    "ai.assessment.malicious": "Çox güman ki, zərərli",
+    "ai.confidence": "əminlik",
+    "ai.conf.low": "aşağı",
+    "ai.conf.medium": "orta",
+    "ai.conf.high": "yüksək",
+    "ai.story": "Nə edir, addım-addım",
+    "ai.points": "Əsas məqamlar",
+    "ai.dropped": ("{n} iddia çıxarıldı, çünki istinad etdiyi sübut bu faylda mövcud deyil."),
+    "ai.disclaimer": "Bu, AI-nin rəyidir, OctoV tapıntısı deyil. Göstərdiyi sübutu yoxlayın.",
+    "ai.overlay": "AI qatı",
+    "ai.mark": "AI",
+    "ai.mark_hint": "AI analitik bu funksiya haqqında nə dedi:",
+    "ai.triage": "AI analitik: {assessment}",
+    "ai.error.no_endpoint": "AI ünvanı qurulmayıb.",
+    "ai.error.insecure_endpoint": (
+        "AI ünvanı https:// olmalıdır (http:// yalnız bu maşında icazəlidir)."
+    ),
+    "ai.error.auth": "AI ünvanı açarı rədd etdi.",
+    "ai.error.rate_limit": (
+        "AI ünvanı məşğuldur (sorğu limiti). Bir dəqiqədən sonra yenidən cəhd edin."
+    ),
+    "ai.error.timeout": "AI ünvanı vaxtında cavab vermədi.",
+    "ai.error.network": "AI ünvanına qoşulmaq mümkün olmadı.",
+    "ai.error.bad_response": "Model istifadə edilə bilən hesabat qaytarmadı. Yenidən soruşun.",
+    "ai.error.internal": "AI hesabatını emal etmək mümkün olmadı.",
+    "ai.error.preview_changed": (
+        "Siz baxandan sonra sübut dəyişdi. Yeni önbaxışı yoxlayıb yenidən göndərin."
+    ),
     "ui.pseudo_c": "Psevdo-C",
     "decomp.help.title": "Bunu necə oxumalı",
     "decomp.help.body": (

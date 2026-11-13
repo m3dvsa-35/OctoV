@@ -456,6 +456,61 @@ STRINGS: dict[str, str] = {
     "map.kind.overlay": "overlay",
     "map.kind.gap": "unused",
     "map.kind.raw": "code blob",
+    "ui.ai": "AI analyst",
+    "ai.setup.title": "The AI analyst is not set up",
+    "ai.setup.body": (
+        "Set the OCTOV_AI_KEY environment variable (the key is never stored in a file), or "
+        "configure a local OpenAI-compatible server such as Ollama under ai.fallback_base_url "
+        "in config.yaml, then restart OctoV."
+    ),
+    "ai.dest.remote": "This will be sent to {host} (model {model}). It leaves this machine.",
+    "ai.dest.local": "This will be sent to {host} (model {model}). It stays on this machine.",
+    "ai.preview.title": "What will be sent ({n} characters)",
+    "ai.preview.what": (
+        "Only the analysis results below are sent: findings, function names, API calls, "
+        "strings and code of the most suspicious functions. Never the file itself."
+    ),
+    "ai.preview.omitted": (
+        "Left out to stay within the size limit: {code} code block(s), {functions} "
+        "function(s), {findings} finding(s)."
+    ),
+    "ai.send": "Send this to {host}",
+    "ai.send_note": "Nothing is sent until you press the button. Each send asks again.",
+    "ai.ask_again": "Ask again",
+    "ai.running": "Waiting for the answer from {host}…",
+    "ai.assessment.benign": "Looks benign",
+    "ai.assessment.suspicious": "Suspicious",
+    "ai.assessment.malicious": "Likely malicious",
+    "ai.confidence": "confidence",
+    "ai.conf.low": "low",
+    "ai.conf.medium": "medium",
+    "ai.conf.high": "high",
+    "ai.story": "What it does, step by step",
+    "ai.points": "Key points",
+    "ai.dropped": (
+        "{n} statement(s) were removed because the evidence they pointed at does not exist in "
+        "this file."
+    ),
+    "ai.disclaimer": (
+        "This is the AI's opinion, not an OctoV finding. Check the evidence it points at."
+    ),
+    "ai.overlay": "AI overlay",
+    "ai.mark": "AI",
+    "ai.mark_hint": "What the AI analyst said about this function:",
+    "ai.triage": "AI analyst: {assessment}",
+    "ai.error.no_endpoint": "No AI endpoint is configured.",
+    "ai.error.insecure_endpoint": (
+        "The AI endpoint must use https:// (http:// is allowed only on this machine)."
+    ),
+    "ai.error.auth": "The AI endpoint rejected the key.",
+    "ai.error.rate_limit": "The AI endpoint is busy (rate limit). Try again in a minute.",
+    "ai.error.timeout": "The AI endpoint did not answer in time.",
+    "ai.error.network": "The AI endpoint could not be reached.",
+    "ai.error.bad_response": "The model did not return a usable report. Ask again.",
+    "ai.error.internal": "The AI report could not be processed.",
+    "ai.error.preview_changed": (
+        "The evidence changed after you looked at it. Check the new preview and send again."
+    ),
     "ui.pseudo_c": "Pseudo-C",
     "decomp.help.title": "How to read this",
     "decomp.help.body": (
