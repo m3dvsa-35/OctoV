@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AiReport } from "../api/types";
-import { aiError, aiNotes, chips, overlayEdges } from "./ai";
+import { aiError, aiNotes, chips, firstSentence, overlayEdges } from "./ai";
 
 const REPORT: AiReport = {
   summary: "Injects code.",
@@ -83,5 +83,36 @@ describe("aiError", () => {
     expect(aiError("analysis.not_ready", t)).toBe("Still analysing");
     expect(aiError("ai.something_new", t)).toBe("ai.error.something_new");
     expect(aiError("unknown sample abc", t)).toBe("unknown sample abc");
+  });
+});
+
+describe("firstSentence", () => {
+  it("takes the first sentence, or cuts a long one", () => {
+    expect(firstSentence("It injects code. Then it exits.")).toBe("It injects code.");
+    expect(firstSentence("No full stop here")).toBe("No full stop here");
+    expect(firstSentence("x".repeat(300), 20)).toBe(`${"x".repeat(19)}…`);
+    expect(firstSentence("  \n ")).toBe("");
+  });
+});
+
+describe("aiNotes with follow-up answers", () => {
+  const turn = {
+    question: "Why?",
+    answer: "It starts a remote thread. More detail follows.",
+    functions: [0x1000, 0x3000],
+    findings: [],
+    iocs: [],
+    dropped: 0,
+    model: "m",
+    host: "h",
+    created: 1,
+  };
+
+  it("adds what answers said about a function", () => {
+    const notes = aiNotes(REPORT, [turn]);
+    expect(notes.get(0x1000)?.at(-1)).toBe("It starts a remote thread.");
+    expect(notes.get(0x3000)).toEqual(["It starts a remote thread."]);
+    expect(aiNotes(null, [turn]).get(0x1000)).toEqual(["It starts a remote thread."]);
+    expect(aiNotes(null, []).size).toBe(0);
   });
 });

@@ -15,7 +15,7 @@ import clsx from "clsx";
 import { Loader2, Sparkles, Waypoints, Zap } from "lucide-react";
 import { memo, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../api/client";
-import type { AiReport, RelationNode, Relations } from "../api/types";
+import type { AiReport, AiTurn, RelationNode, Relations } from "../api/types";
 import { aiNotes, overlayEdges } from "../lib/ai";
 import { hex } from "../lib/format";
 import {
@@ -47,6 +47,7 @@ type RelEdgeData = { points: Pt[]; onPath: boolean; label: string };
 const SCORE_CLASS = { high: "text-sev-high", medium: "text-sev-medium", low: "text-sev-low" } as const;
 
 let clickTimer: number | undefined;
+const NO_TURNS: AiTurn[] = [];
 
 const FnNode = memo(function FnNode({ data }: NodeProps<Node<FnNodeData>>) {
   const t = useT();
@@ -187,10 +188,10 @@ function useLayout(rel: Relations | null) {
   return layout?.rel === rel ? layout : null;
 }
 
-function Graph({ rel, overlay }: { rel: Relations; overlay: AiReport | null }) {
+function Graph({ rel, overlay, turns }: { rel: Relations; overlay: AiReport | null; turns: AiTurn[] }) {
   const t = useT();
   const layout = useLayout(rel);
-  const notes = useMemo(() => aiNotes(overlay), [overlay]);
+  const notes = useMemo(() => aiNotes(overlay, turns), [overlay, turns]);
   const nodes = useMemo<Node<FnNodeData>[]>(
     () =>
       layout
@@ -294,12 +295,13 @@ function Depth({ label, value, onChange }: { label: string; value: number; onCha
 
 export function RelationsView() {
   const t = useT();
-  const { sha, fn, annotations, ready, aiReport } = useStore((s) => ({
+  const { sha, fn, annotations, ready, aiReport, aiChat } = useStore((s) => ({
     sha: s.active,
     fn: s.nav?.fn ?? null,
     annotations: s.annotationList,
     ready: s.discovery?.state === "done",
     aiReport: s.aiReport,
+    aiChat: s.aiChat,
   }));
   const [overlay, setOverlay] = useState(true);
   const [callers, setCallers] = useState(2);
@@ -346,7 +348,7 @@ export function RelationsView() {
         <span>{reachText(shown, t)}</span>
         {shown.truncated && <span className="text-sev-medium">{t("relations.truncated", { n: shown.nodes.length })}</span>}
         <span className="ml-auto flex items-center gap-3">
-          {aiReport && (
+          {(aiReport || aiChat.length > 0) && (
             <label className="inline-flex cursor-pointer items-center gap-1.5">
               <input type="checkbox" checked={overlay} onChange={(e) => setOverlay(e.target.checked)} />
               {t("ai.overlay")}
@@ -358,7 +360,7 @@ export function RelationsView() {
       </div>
       <div className="min-h-0 flex-1">
         <ReactFlowProvider>
-          <Graph rel={shown} overlay={overlay ? aiReport : null} />
+          <Graph rel={shown} overlay={overlay ? aiReport : null} turns={overlay ? aiChat : NO_TURNS} />
         </ReactFlowProvider>
       </div>
       <p className="shrink-0 border-t border-line px-4 py-0.5 text-[11px] text-faint">{t("relations.hint")}</p>

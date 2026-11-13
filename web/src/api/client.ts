@@ -1,7 +1,9 @@
 import type {
+  AiChatPreview,
   AiPreview,
   AiReport,
   AiStatus,
+  AiTurn,
   Annotation,
   AnnotationKind,
   EngineId,
@@ -161,6 +163,12 @@ export const api = {
   aiAnalyse: (sha: string, confirmedHash: string, force: boolean, endpoint: number) =>
     call<null>("ai_analyse", { sha, confirmed_hash: confirmedHash, force, endpoint }),
   aiReport: (sha: string) => call<AiReport | null>("get_ai_report", { sha }),
+  aiChat: (sha: string) => call<{ turns: AiTurn[] }>("get_ai_chat", { sha }),
+  aiChatPreview: (sha: string, question: string, focus: number | null) =>
+    call<AiChatPreview>("ai_chat_preview", { sha, question, focus }),
+  aiAsk: (sha: string, question: string, confirmedHash: string, focus: number | null, endpoint: number) =>
+    call<null>("ai_ask", { sha, question, confirmed_hash: confirmedHash, focus, endpoint }),
+  aiChatClear: (sha: string) => call<null>("clear_ai_chat", { sha }),
   exportYara: (sha: string) => call<string>("export_yara", { sha }),
   exportSigma: (sha: string) => call<string | null>("export_sigma", { sha }),
 

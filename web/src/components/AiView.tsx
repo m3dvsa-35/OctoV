@@ -5,6 +5,7 @@ import { api, ApiError } from "../api/client";
 import type { AiPreview, AiReport, AiStatus, Severity } from "../api/types";
 import { aiError, chips, type Chip } from "../lib/ai";
 import { navigate, refreshJobs, setState, useStore, useT } from "../state/store";
+import { AiChat } from "./AiChat";
 import { Button, Empty, SeverityBadge } from "./ui";
 
 const ASSESSMENT_CLASS: Record<AiReport["assessment"], string> = {
@@ -233,6 +234,8 @@ export function AiView() {
             </div>
           </section>
         )}
+
+        <AiChat names={names} />
       </div>
     </div>
   );

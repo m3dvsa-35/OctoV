@@ -358,3 +358,22 @@ export interface AiReport {
   /** The evidence changed after this report was made. */
   stale: boolean;
 }
+
+export interface AiTurn {
+  question: string;
+  answer: string;
+  functions: number[];
+  findings: string[];
+  iocs: string[];
+  dropped: number;
+  model: string;
+  host: string;
+  created: number;
+}
+
+export interface AiChatPreview {
+  text: string;
+  chars: number;
+  hash: string;
+  endpoints: { host: string; model: string; local: boolean }[];
+}
