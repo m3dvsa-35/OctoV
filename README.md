@@ -23,7 +23,8 @@ and turn findings into defender artifacts (YARA, Sigma, STIX 2.1, IOCs).
 | **Navigation P4** | Relations tab (callers / callees neighbourhood, scores, API families, path from the entry point), Search (bytes with wildcards, instruction text, constants), Symbols (imports by DLL with references, exports), file layout map | ✅ |
 | M3 | Dynamic analysis: Frida 16.x agent, ETW, Job Object + AppContainer sandbox, VAD/memory forensics, network IOCs | planned |
 | M4 | MIL (SSA IL) decompiler MVP → pseudo-C, synced asm/pseudo/graph views | planned |
-| M5 | AI assistant (OpenRouter / OpenAI-compatible fallback), evidence-cited reports, guided workflows | planned |
+| **M5 (first slice)** | AI analyst: one confirmed request with a previewed evidence bundle, cited and validated report, overlay on the Relations graph (OpenRouter / any OpenAI-compatible endpoint) | ✅ |
+| M5 (later) | Follow-up questions, guided workflows | planned |
 | M6 | Reports (HTML/PDF), STIX 2.1, MISP, Snort, plugin API, `compare` CLI | planned |
 
 ## Requirements
@@ -190,6 +191,31 @@ Ghidra needs a **JDK 21 or newer** (for example Eclipse Temurin). OctoV finds it
 Measured on System32 DLLs with 18 000-20 000 functions: a relations view in about 1 ms (100 ms
 the first time), byte search under 0.2 s, text and constant search about 1 s.
 
+## AI analyst (optional)
+
+The **AI analyst** tab asks a language model to explain, in the UI language, what the sample
+appears to do and how its parts are linked. It is an opinion on top of OctoV's evidence, never
+a replacement for it.
+
+- **You see exactly what is sent, every time.** The tab shows the evidence text verbatim with
+  its size and destination; nothing leaves until you press "Send this to <host>", and each
+  send asks again. If the evidence changed after you looked (a rename, a verdict), nothing is
+  sent and the new text is shown.
+- **What is sent:** findings, function names, API calls, strings and the code (pseudo-C if
+  already decompiled, otherwise the first instructions) of the most suspicious functions,
+  IOCs, section names, your own names and comments; bounded by `ai.max_chars`. **Never the
+  file, raw bytes or its folder path.**
+- **Only checkable statements are shown.** The model must cite finding ids, function
+  addresses and IOCs; each citation is checked against the sample, invented ones are removed
+  and counted, and a statement left with no evidence is dropped.
+- **On the Relations graph**, functions the AI talked about carry an "AI" mark with its note,
+  and AI links are drawn as labelled dashed arcs (switchable).
+- **Setup:** set the `OCTOV_AI_KEY` environment variable for the endpoint in `config.yaml`
+  (`ai.base_url`, `ai.model`), or point `ai.fallback_base_url` at a local OpenAI-compatible
+  server (Ollama, LM Studio): then nothing leaves the machine and no key is needed. Only
+  `https://` endpoints are accepted (plain `http://` only on this machine); the key is never
+  written to a file, log, error message or the cache.
+
 ## Workbench UI
 
 A modern desktop UI (React + TypeScript in an Edge WebView2 window): samples and functions
@@ -209,7 +235,7 @@ src/octov/
   ext/            optional engines: runner (Job Object), queue, cache, capa + FLOSS adapters
   ext/ghidra/     decompiler: discovery, setup, worker process, manager, pseudo-C model
   core/dynamic/   Frida/ETW instrumentation (M3)
-  core/ai/        evidence bundler + AI client (M5)
+  core/ai/        AI analyst: evidence bundle, OpenAI-compatible client, cited report
   core/session/   SQLite + msgpack .octov sessions
   core/i18n/      en / az UI strings
   app/            workbench API, desktop shell, dev server
