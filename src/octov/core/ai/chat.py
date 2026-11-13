@@ -25,6 +25,9 @@ HISTORY_TURNS = 6  # earlier turns sent along with a new question
 HISTORY_ANSWER_CHARS = 1500
 MAX_ANSWER = 4000
 MAX_TURNS = 50  # kept per sample; the oldest are dropped
+EXTRA_BUDGET = 8000  # characters after the evidence: focus function, history, question
+FOCUS_APIS = 40
+NEWEST_TURN_RESERVE = 2700  # room kept for the latest earlier turn (question + cut answer)
 
 _PROMPT = """You are a defensive malware analyst helping a beginner understand a Windows program.
 The user message has these parts, each under its own header:
@@ -113,29 +116,60 @@ def _cut(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[:limit] + "… (cut)"
 
 
+def _focus_section(focus: FunctionEvidence, room: int) -> str:
+    """The focus function as JSON; long lists and the code are cut to fit ``room``."""
+    row = bundle_mod._function(focus)
+    row["apis"] = row["apis"][:FOCUS_APIS]
+    section = json.dumps(row, ensure_ascii=False, indent=1)
+    if focus.code:
+        spare = room - len(section) - 80
+        if spare > 200:
+            row["code_kind"] = focus.code_kind
+            row["code"] = _cut(focus.code, min(spare, bundle_mod.MAX_CODE_CHARS))
+            section = json.dumps(row, ensure_ascii=False, indent=1)
+    return section
+
+
 def compose(
     bundle: Bundle, question: str, history: Sequence[Turn], focus: FunctionEvidence | None
 ) -> ChatMessage:
-    """The one message for this question; sections that have nothing to say are left out."""
-    parts = ["EVIDENCE", bundle.text]
-    extra: frozenset[int] = frozenset()
+    """The one message for this question; sections that have nothing to say are left out.
+
+    Everything after the evidence stays within ``EXTRA_BUDGET`` characters: the question is
+    never cut, the focus function's code is cut if it must be, and earlier turns are added
+    newest first while they fit. The earlier turns are JSON, like the evidence, so the text of
+    an old answer can never look like a section header.
+    """
+    asked = validate_question(question)
     about = ""
+    focus_part: list[str] = []
+    extra: frozenset[int] = frozenset()
     if focus is not None:
-        about = f" (the analyst is looking at function {focus.start:#x}, {focus.name})"
-        if focus.start not in bundle.functions:
-            row = bundle_mod._function(focus)
-            if focus.code:
-                row["code_kind"] = focus.code_kind
-                row["code"] = _cut(focus.code, bundle_mod.MAX_CODE_CHARS)
-            parts += ["", "FUNCTION IN FOCUS", json.dumps(row, ensure_ascii=False, indent=1)]
-            extra = frozenset({focus.start})
-    recent = list(history)[-HISTORY_TURNS:]
-    if recent:
-        parts += ["", "EARLIER QUESTIONS AND ANSWERS"]
-        for turn in recent:
-            parts += [f"Q: {turn.question}", f"A: {_cut(turn.answer, HISTORY_ANSWER_CHARS)}"]
-    parts += ["", f"QUESTION{about}", validate_question(question)]
-    text = "\n".join(parts)
+        about = f" (the analyst is looking at function {focus.start:#x}, {focus.name[:80]})"
+    tail = ["", f"QUESTION{about}", asked]
+    room = EXTRA_BUDGET - sum(len(x) + 1 for x in tail)
+    if focus is not None and focus.start not in bundle.functions:
+        # the newest earlier turn matters more than the tail of the focus function's code
+        reserve = NEWEST_TURN_RESERVE if history else 0
+        section = _focus_section(focus, room - 40 - reserve)
+        focus_part = ["", "FUNCTION IN FOCUS", section]
+        extra = frozenset({focus.start})
+        room -= sum(len(x) + 1 for x in focus_part)
+    kept: list[dict[str, str]] = []
+    room -= len("EARLIER QUESTIONS AND ANSWERS") + 8
+    for turn in reversed(list(history)[-HISTORY_TURNS:]):
+        row = {"q": turn.question[:MAX_QUESTION], "a": _cut(turn.answer, HISTORY_ANSWER_CHARS)}
+        cost = len(json.dumps(row, ensure_ascii=False, indent=1)) + 4
+        if cost > room:
+            break  # older turns would not fit either way
+        room -= cost
+        kept.insert(0, row)
+    history_part = (
+        ["", "EARLIER QUESTIONS AND ANSWERS", json.dumps(kept, ensure_ascii=False, indent=1)]
+        if kept
+        else []
+    )
+    text = "\n".join(["EVIDENCE", bundle.text, *focus_part, *history_part, *tail])
     return ChatMessage(text, hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], extra)
 
 
@@ -151,6 +185,9 @@ def parse_answer(text: str, bundle: Bundle, extra_functions: frozenset[int]) -> 
         # prose is still an answer; it simply carries no checked evidence
         return Answer(text.strip()[:MAX_ANSWER], [], [], [], 0)
     answer = doc.get("answer")
+    if "answer" not in doc:
+        # prose that merely contains a JSON snippet: the prose is the answer
+        return Answer(text.strip()[:MAX_ANSWER], [], [], [], 0)
     if not isinstance(answer, str) or not answer.strip():
         raise AIError("bad_response", "the reply has no answer")
     known = dataclasses.replace(bundle, functions=bundle.functions | extra_functions)

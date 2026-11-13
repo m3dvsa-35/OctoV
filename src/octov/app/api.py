@@ -1070,8 +1070,8 @@ class WorkbenchApi:
         """The function the analyst is asking about, described like a bundle function."""
         if focus is None:
             return None
-        if isinstance(focus, bool) or focus not in s.functions:
-            raise ApiError(f"no function at {int(focus):#x}")
+        if not isinstance(focus, int) or isinstance(focus, bool) or focus not in s.functions:
+            raise ApiError("ai.bad_focus")
         names, comments = self._decomp_annotations(s)
         string_at = {x.rva: x.value for x in s.ctx.results.get("strings", []) if x.rva is not None}
         ranking = {r.start: r for r in s.ctx.results.get("ranking", [])}
@@ -1367,8 +1367,12 @@ class WorkbenchApi:
         return {"turns": [t.to_dict() for t in self._ai_chat_turns(self._get(sha))]}
 
     def clear_ai_chat(self, sha: str) -> None:
-        with contextlib.suppress(OSError):
-            self._ai_chat_path(self._get(sha)).unlink(missing_ok=True)
+        s = self._get(sha)
+        with self._lock:  # not between a running question's read and write of the turns
+            if s.ai_running:
+                raise ApiError("ai.busy")  # its answer would reappear right after clearing
+            with contextlib.suppress(OSError):
+                self._ai_chat_path(s).unlink(missing_ok=True)
 
     # -- exports ---------------------------------------------------------------------
 

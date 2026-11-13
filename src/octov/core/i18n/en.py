@@ -512,6 +512,7 @@ STRINGS: dict[str, str] = {
     "ai.chat.you": "You",
     "ai.chat.clear": "Clear conversation",
     "ai.chat.clear_confirm": "Delete all questions and answers of this sample?",
+    "ai.error.bad_focus": "Open a function first to ask about it.",
     "ai.error.busy": "Another AI request for this sample is still running. Wait for its answer.",
     "ai.error.bad_question": "Write a question of up to 1000 characters.",
     "ai.overlay": "AI overlay",

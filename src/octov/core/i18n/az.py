@@ -526,6 +526,7 @@ STRINGS: dict[str, str] = {
     "ai.chat.you": "Siz",
     "ai.chat.clear": "Söhbəti təmizlə",
     "ai.chat.clear_confirm": "Bu nümunənin bütün sual və cavabları silinsin?",
+    "ai.error.bad_focus": "Funksiya haqqında soruşmaq üçün əvvəlcə onu açın.",
     "ai.error.busy": "Bu nümunə üçün başqa AI sorğusu hələ işləyir. Cavabını gözləyin.",
     "ai.error.bad_question": "1000 simvola qədər sual yazın.",
     "ai.overlay": "AI qatı",

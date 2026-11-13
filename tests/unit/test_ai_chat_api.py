@@ -118,8 +118,8 @@ def test_history_goes_into_the_next_question(tmp_path: Path, llm: FakeLLM) -> No
     llm.reply = "Plain prose this time."
     preview = api.ai_chat_preview(sha, "And then?")
     assert "EARLIER QUESTIONS AND ANSWERS" in preview["text"]
-    assert "Q: What does it do?" in preview["text"]
-    assert "A: It starts a thread in another process." in preview["text"]
+    assert '"q": "What does it do?"' in preview["text"]
+    assert '"a": "It starts a thread in another process."' in preview["text"]
     assert _ask(api, sha, "And then?")["state"] == "done"
     turns = api.get_ai_chat(sha)["turns"]
     assert [t["answer"] for t in turns][1] == "Plain prose this time." and turns[1][
@@ -140,7 +140,7 @@ def test_focus_function_outside_the_bundle(tmp_path: Path, llm: FakeLLM) -> None
     assert api.get_ai_chat(sha)["turns"][0]["functions"] == [LEAF]  # citable because it was sent
     inside = api.ai_chat_preview(sha, "And this one?", MIDDLE)["text"]
     assert "FUNCTION IN FOCUS" not in inside and f"function {MIDDLE:#x}" in inside
-    with pytest.raises(ApiError, match="no function at 0x1004"):
+    with pytest.raises(ApiError, match=r"^ai\.bad_focus$"):
         api.ai_chat_preview(sha, "?", 0x1004)
 
 
@@ -231,3 +231,23 @@ def test_no_endpoint_and_not_ready(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         late.ai_chat_preview(sha2, "Why?")
     assert late.get_ai_chat(sha2) == {"turns": []}
     assert ENTRY == 0x1000
+
+
+def test_clear_is_refused_while_a_question_is_running(tmp_path: Path, llm: FakeLLM) -> None:
+    llm.mode, llm.delay = "slow", 0.8
+    api = _api(tmp_path, llm)
+    sha = _open(api, tmp_path)
+    api.ai_ask(sha, "First?", api.ai_chat_preview(sha, "First?")["hash"])
+    with pytest.raises(ApiError, match=r"^ai\.busy$"):
+        api.clear_ai_chat(sha)
+    assert _wait(api, sha)["state"] == "done"
+    api.clear_ai_chat(sha)
+    assert api.get_ai_chat(sha) == {"turns": []}
+
+
+@pytest.mark.parametrize("focus", ["abc", 4096.0, True, [4096]])
+def test_focus_must_be_a_function_address(tmp_path: Path, llm: FakeLLM, focus: Any) -> None:
+    api = _api(tmp_path, llm)
+    sha = _open(api, tmp_path)
+    with pytest.raises(ApiError, match=r"^ai\.bad_focus$"):
+        api.ai_chat_preview(sha, "Why?", focus)

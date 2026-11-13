@@ -41,7 +41,8 @@ OctoV is defensive).
   automatic fallback, key rules, cache module. No new dependency.
 - One request at a time per sample (shared with the report request).
 - Bounded: question ≤ 1 000 characters; the last 6 turns are included, each answer cut to
-  1 500 characters in the message; the whole message ≤ `ai.max_chars` + 8 000.
+  1 500 characters in the message; everything after the evidence ≤ 8 000 characters
+  (older turns are left out first, then the focus function's code is cut).
 
 ## 4. Approaches considered
 

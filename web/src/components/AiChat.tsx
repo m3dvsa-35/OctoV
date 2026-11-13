@@ -61,6 +61,7 @@ export function AiChat({ names }: { names: Map<number, string> }) {
     try {
       const p = await api.aiChatPreview(sha, question, focus);
       setPreview({ ...p, question, focus });
+      setChoice(0);
       setProblem(null);
     } catch (err) {
       fail(err);
@@ -107,7 +108,7 @@ export function AiChat({ names }: { names: Map<number, string> }) {
               </Button>
             </span>
           ) : (
-            <Button variant="ghost" icon={Trash2} className="ml-auto" onClick={() => setClearing(true)}>
+            <Button variant="ghost" icon={Trash2} className="ml-auto" disabled={running} onClick={() => setClearing(true)}>
               {t("ai.chat.clear")}
             </Button>
           ))}
