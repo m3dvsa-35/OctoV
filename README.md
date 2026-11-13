@@ -24,7 +24,8 @@ and turn findings into defender artifacts (YARA, Sigma, STIX 2.1, IOCs).
 | M3 | Dynamic analysis: Frida 16.x agent, ETW, Job Object + AppContainer sandbox, VAD/memory forensics, network IOCs | planned |
 | M4 | MIL (SSA IL) decompiler MVP → pseudo-C, synced asm/pseudo/graph views | planned |
 | **M5 (first slice)** | AI analyst: one confirmed request with a previewed evidence bundle, cited and validated report, overlay on the Relations graph (OpenRouter / any OpenAI-compatible endpoint) | ✅ |
-| M5 (later) | Follow-up questions, guided workflows | planned |
+| **M5b** | Follow-up questions to the AI analyst, each previewed and confirmed, with cited answers | ✅ |
+| M5 (later) | Guided workflows | planned |
 | M6 | Reports (HTML/PDF), STIX 2.1, MISP, Snort, plugin API, `compare` CLI | planned |
 
 ## Requirements
@@ -217,6 +218,12 @@ a replacement for it.
   written to a file, log, error message or the cache. If two endpoints are configured you
   choose the destination; a failed endpoint never falls back to the other one by itself, and
   the key is never sent to a second provider.
+- **Follow-up questions**: under the report you can ask in your own words ("why is this
+  function suspicious?", "what should I look at next?"), optionally about the function you
+  are looking at. The whole message (evidence, that function, the earlier questions and
+  answers that are included, your question) is shown before it is sent and confirmed like
+  a report; answers carry the same checked evidence chips. The conversation is kept per
+  sample on this machine and can be cleared.
 - The newest report stays visible when the evidence changes later (new engine results, your
   edits) and is then marked as out of date.
 
