@@ -3,6 +3,7 @@ import { api, ApiError } from "../api/client";
 import { annotationIndex, type AnnotationIndex } from "../lib/triage";
 import { invalidateFunctionCache } from "./hooks";
 import type {
+  AiReport,
   Annotation,
   Capabilities,
   EngineId,
@@ -27,7 +28,8 @@ export type MainView =
   | "pseudo_c"
   | "hex"
   | "strings"
-  | "search";
+  | "search"
+  | "ai";
 export type BottomView = "findings" | "mitre";
 
 export interface Nav {
@@ -58,6 +60,7 @@ export interface State {
   active: string | null;
   overview: Overview | null;
   triage: Triage | null;
+  aiReport: AiReport | null;
   findings: FindingRow[];
   mitre: MitreRow[];
   functions: FunctionSummary[];
@@ -93,6 +96,7 @@ let state: State = {
   active: null,
   overview: null,
   triage: null,
+  aiReport: null,
   findings: [],
   mitre: [],
   functions: [],
@@ -240,6 +244,7 @@ export async function selectSample(sha: string): Promise<void> {
     active: sha,
     overview: null,
     triage: null,
+    aiReport: null,
     findings: [],
     mitre: [],
     functions: [],
@@ -343,11 +348,18 @@ export async function refreshAnalysis(sha: string): Promise<void> {
   ]);
   if (state.active !== sha) return;
   setState({ triage, findings, mitre, samples });
+  void loadAiReport(sha);
   if (state.discovery?.state === "done") {
     // capa can rename functions (suggested names) after the code views loaded
     const functions = await api.functions(sha);
     if (state.active === sha) setState({ functions });
   }
+}
+
+/** The AI report that belongs to the evidence as it is now (none after a rename or verdict). */
+export async function loadAiReport(sha: string): Promise<void> {
+  const aiReport = await api.aiReport(sha).catch(() => null);
+  if (state.active === sha) setState({ aiReport });
 }
 
 export async function setVerdict(factId: string, verdict: Verdict | null): Promise<void> {
@@ -376,6 +388,7 @@ async function replaceAnnotation(kind: "name" | "comment", address: number, valu
     }
     if (value.trim()) await api.annotate(sha, kind, value.trim(), address);
     await loadAnnotations(sha);
+    void loadAiReport(sha);
     if (kind === "name") {
       invalidateFunctionCache(sha);
       const functions = await api.functions(sha);

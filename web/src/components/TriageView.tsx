@@ -100,7 +100,8 @@ function Capability({ c, compact }: { c: CapabilityRow; compact: boolean }) {
 
 export function TriageView() {
   const t = useT();
-  const { tri, sha, caps, compact, extensions } = useStore((s) => ({
+  const { tri, sha, caps, compact, extensions, aiReport } = useStore((s) => ({
+    aiReport: s.aiReport,
     tri: s.triage,
     sha: s.active,
     caps: s.caps,
@@ -212,6 +213,25 @@ export function TriageView() {
             )}
           </div>
         </section>
+
+        {aiReport && (
+          <section className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-panel p-3.5 text-[12.5px]">
+            <span className="font-medium">
+              {t("ai.triage", { assessment: t(`ai.assessment.${aiReport.assessment}`) })}
+            </span>
+            <span className="text-muted">
+              {t("ai.confidence")}: {t(`ai.conf.${aiReport.confidence}`)}
+            </span>
+            <button
+              type="button"
+              onClick={() => setState({ main: "ai" })}
+              className="cursor-pointer text-accent underline decoration-dotted underline-offset-2"
+            >
+              {t("ui.ai")}
+            </button>
+            <span className="text-[11.5px] text-faint">{t("ai.disclaimer")}</span>
+          </section>
+        )}
 
         {tri.packer?.packed && (
           <section className="rounded-lg border border-sev-medium/40 bg-panel p-3.5 text-[12.5px]">

@@ -35,6 +35,7 @@ class AIConfig:
     fallback_base_url: str | None = None
     fallback_model: str | None = None
     timeout_s: float = 60.0
+    max_chars: int = 24000  # size limit of the evidence sent to the AI analyst
 
 
 @dataclass

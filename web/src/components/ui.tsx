@@ -87,14 +87,24 @@ export function Tabs<T extends string>({
   right?: ReactNode;
 }) {
   return (
-    <div className="flex h-9 shrink-0 items-center gap-0.5 overflow-x-auto overflow-y-hidden border-b border-line px-1.5 [scrollbar-width:none]" role="tablist">
+    <div
+      className="flex h-9 shrink-0 items-center gap-0.5 overflow-x-auto overflow-y-hidden border-b border-line px-1.5 [scrollbar-width:none]"
+      role="tablist"
+      // more tabs than fit: an ordinary mouse wheel scrolls them sideways
+      onWheel={(e) => {
+        if (e.deltaY !== 0 && e.deltaX === 0) e.currentTarget.scrollLeft += e.deltaY;
+      }}
+    >
       {items.map(({ id, label, icon: Icon, badge }) => (
         <button
           key={id}
           type="button"
           role="tab"
           aria-selected={value === id}
-          onClick={() => onChange(id)}
+          onClick={(e) => {
+            e.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
+            onChange(id);
+          }}
           className={clsx(
             "relative inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-[12.5px] transition-colors duration-150",
             value === id

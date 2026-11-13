@@ -14,6 +14,7 @@ ai:
   fallback_base_url: null   # e.g. http://localhost:11434/v1
   fallback_model: null      # e.g. qwen2.5-coder:14b
   timeout_s: 60
+  max_chars: 24000         # size limit of the evidence shown to you and sent to the AI analyst
 
 static:
   max_file_size_mb: 256

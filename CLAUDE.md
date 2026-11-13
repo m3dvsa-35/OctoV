@@ -91,6 +91,8 @@ src/octov/
   ext/ghidra/               decompiler: discover (JDK/Ghidra), setup, protocol, worker (the only
                             place pyghidra is imported; own process), manager, model
   core/apidoc.py            API -> `api.<Name>` explanation keys (texts: i18n/{en,az}_api.py)
+  core/ai/                  AI analyst: bundle (evidence text + hash), client (OpenAI-compatible,
+                            stdlib), report (prompt, parsing, citation checks)
   core/analysis/            triage pipeline: facts, pipeline, strings, iocs, xrefs, crypto,
                             carve, packer, naming, scoring, analyzers, report, callgraph, search
   core/export/              yara_gen.py, sigma_gen.py
@@ -102,10 +104,10 @@ src/octov/
   webui/dist/               built frontend (git-ignored)
 web/src/                    React UI: api/client.ts (bridge or /rpc), state/store.ts,
                             components/* (Triage, Overview, Findings, Mitre, Disasm, Graph,
-                            Relations, PseudoC, Hex, Strings, Search, MemoryMap, XrefPopover, AnnotateMenu,
+                            Relations, PseudoC, Hex, Strings, Search, Ai, MemoryMap, XrefPopover, AnnotateMenu,
                             CommandPalette, Dialogs),
                             lib/format.ts, lib/cfgLayout.ts, lib/triage.ts, lib/pseudoc.ts,
-                            lib/relations.ts, lib/search.ts
+                            lib/relations.ts, lib/search.ts, lib/ai.ts
   cli/main.py, cli/triage.py `octov analyze`, `octov triage`
 rules/                      evasion_patterns.yaml (EVA-xxx), pic_patterns.yaml (PIC-xxx)
 tests/samples/builder.py    synthetic PE32+ builder (sections, imports, overlay, dll flag)
@@ -133,19 +135,42 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 - Installed plugins the user wants used: superpowers (TDD, verification, code review),
   caveman (commit messages, review), ui-ux-pro-max (visual panels), karpathy guidelines.
 
-## Status / where we stopped  (updated 2026-11-10, chat 5)
+## Status / where we stopped  (updated 2026-11-13, chat 6)
 
 ### How to resume in a new chat (read this first)
-1. `main` has M1, M2, web UI, assisted-triage Phase 1, Phase 2 (capa + FLOSS, PR #6) and
-   Phase 3 (Ghidra decompiler, PR #7 merged as `3b83d24`).
-2. **Phase 4 (relations, search, symbols, file layout) is implemented on
-   `feat/relations-phase4`** (6 plan tasks, final review + one fix pass, pushed, PR to `main`
-   open). **Do not merge without the owner's yes.** The owner handed the design decisions to
-   the builder ("think like an analyst"), so the spec is the builder's design:
-   `docs/superpowers/specs/2026-11-10-relations-phase4-design.md`; plan:
-   `docs/superpowers/plans/2026-11-10-relations-phase4.md`. The PR description lists the
-   rulings and deferred minors. Next after the merge: M5 AI overlay on top of the relations
-   data (or Phase 5 knowledge/diff, M3 dynamic) - ask the owner which.
+1. `main` has M1, M2, web UI, assisted-triage Phase 1, Phase 2 (capa + FLOSS, PR #6),
+   Phase 3 (Ghidra decompiler, PR #7) and **Phase 4 (relations, search, symbols, file layout,
+   PR #8 merged as `a5aa5d4`)**. Each PR description lists its rulings and deferred minors.
+2. **M5 AI analyst (first slice) is finished on `feat/ai-m5` and waits in PR #9**
+   (https://github.com/m3dvsa-35/OctoV/pull/9; all 6 plan tasks, final review + one fix pass,
+   pushed; Auto-fix was on in chat 6). **When the owner writes "davam et" in a new chat:**
+   a. `gh pr view 9 --json state,mergeStateStatus,statusCheckRollup`: if CI failed, fix it on
+      `feat/ai-m5` and push; if it is open and green, **ask the owner for a yes, then**
+      `gh pr merge 9 --merge`, `git checkout main && git pull --ff-only` (never merge
+      without that yes; if it is already merged, just update `main`).
+   b. After the merge update this section on the next feature branch (this note is only on
+      `feat/ai-m5` until PR #9 lands).
+   c. Then ask what is next (nothing is designed yet): AI follow-up questions / chat, Phase 5
+      (FLIRT-like, PDB, binary diff) or M3 dynamic. The owner usually answers "do what is
+      needed": then the builder designs (spec -> plan -> inline execution with
+      `superpowers:executing-plans` -> fresh opus review -> one fix pass -> PR), stating the
+      decisions instead of asking, except choices about what leaves the machine.
+   Spec `docs/superpowers/specs/2026-11-11-ai-overlay-m5-design.md`, plan
+   `docs/superpowers/plans/2026-11-11-ai-overlay-m5.md`; PR #9 lists rulings and deferred
+   minors. Owner's own decision for M5: **option B** = evidence (incl. pseudo-C and strings)
+   may be sent, but it is shown and confirmed before every send.
+   Open questions for the owner (asked, not answered yet): may the two stray files
+   `src/octov/ext/ghidra/manager (1).py` / `worker (1).py` be deleted (see "Other open work");
+   delete the merged remote branches?
+   Desktop (pywebview) window checked on 2026-11-13 with a throwaway script (`DesktopApi` with
+   temp settings + `webview.start(driver)` + `window.evaluate_js`): all tabs answer through the
+   bridge, Relations / Search / AI tab (remote wording) / file layout render; two layout
+   flaws found there were fixed (AI panel overflow, tabs hidden behind the tab-bar scroll).
+   Still open: deferred minors of PRs #7-#9; AZ was not looked at in the desktop window.
+   Working rules learned the hard way: stage files explicitly (never `git add -A` or
+   `git add src`: a JVM crash log and the stray copies were committed once and had to be
+   amended out); piping a gate into `tail` hides its exit code, read the output before
+   committing; the full pytest suite takes ~10 min, run it in the background.
 3. Owner priorities (2026-11-10): fast and trouble-free, PE files first, help beginners;
    later AI must show visually what it found suspicious and how parts are linked. Roadmap:
    Phase 4 relations/call graph (symbol tree, memory map, search) -> M5 AI overlay.
@@ -157,6 +182,28 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
    `Remove-Item -Recurse -Force`) and rerun.
 6. `git push` may hang in git-credential-manager (sign-in window): push with
    `git -c credential.helper= -c "credential.helper=!gh auth git-credential" push`.
+
+### AI analyst — M5 facts worth knowing
+- `core/ai/bundle.py`: `build_bundle(BundleInput, budget_chars)` -> `Bundle(doc, text, hash,
+  omitted, fact_ids, functions, iocs)`; `text` is the preview and the request, byte for byte.
+  `core/ai/client.py`: `endpoints(cfg)` (the destinations to choose from; the key only goes to
+  its own remote host), `chat` (stdlib urllib, no redirects, https or loopback http only,
+  `AIError(kind)`; there is deliberately no automatic fallback); `core/ai/report.py`: `system_prompt(lang)`,
+  `parse_report(text, bundle)` (drops citations that are not in the bundle), `cited_functions`.
+- API: `ai_status()`, `ai_preview(sha)` (text, hash, `endpoints`), `ai_analyse(sha,
+  confirmed_hash, force, endpoint)` (one destination, chosen by index),
+  `get_ai_report(sha)` (newest report + `stale`); `job_status()["ai"]`; errors `ai.no_endpoint`, `ai.preview_changed`,
+  job errors `ai.<kind>`; cache `~/.octov/cache/<sha>/ai-<model>-<bundle hash>.json.gz`.
+  The newest report is also kept as `ai-last-none.json.gz`: when the evidence changes
+  (engines finishing, renames, verdicts) it stays visible with `stale: true`.
+- Web: tab `ai` (`AiView.tsx`, `lib/ai.ts`), store `aiReport` + `loadAiReport`, overlay in
+  `RelationsView.tsx` (AI marks, dashed arcs), a line in Triage.
+- Tests use `tests/fixtures/fake_llm.py` (in-process server on 127.0.0.1); never the network.
+- First real runs (2026-11-13, synthetic injector, OpenRouter
+  `nvidia/nemotron-3-ultra-550b-a55b:free`): 3 979 characters sent; EN answer in 26.5 s, AZ in
+  44.9 s; both parsed, assessment "malicious / high", every citation valid, 1 statement
+  dropped. Only synthetic evidence was sent.
+- UI check: throwaway script with `FakeLLM` as `config.ai.base_url` + `make_server`.
 
 ### Navigation — Phase 4 facts worth knowing
 - `core/analysis/callgraph.py`: `CallGraph.build(functions, xrefs)` (direct calls + tail jumps
@@ -275,7 +322,7 @@ their tail-called body); the Strings tab has no chip for uncategorised strings (
 - Remote branches `feat/m2-static-engine`, `feat/web-ui`, `feat/assisted-triage`,
   `feat/decompiler-phase3` are merged and
   can be deleted (not done: the owner did not ask).
-- Roadmap: Phase 5 (FLIRT-like, PDB, binary diff); M3 dynamic; M5 AI.
+- Roadmap: Phase 5 (FLIRT-like, PDB, binary diff); M3 dynamic; M5 follow-up questions.
 - Two untracked copies `src/octov/ext/ghidra/manager (1).py` and `worker (1).py` (old
   snapshots, appeared 2026-11-10 12:02, not made by Claude) break local ruff/mypy; run
   `ruff ... "--extend-exclude=* (1).py"` until the owner removes them.
