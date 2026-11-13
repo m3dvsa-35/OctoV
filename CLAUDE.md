@@ -162,8 +162,11 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
    Open questions for the owner (asked, not answered yet): may the two stray files
    `src/octov/ext/ghidra/manager (1).py` / `worker (1).py` be deleted (see "Other open work");
    delete the merged remote branches?
-   Not done for Phases 3-4 and M5: visual check in the desktop (pywebview) window; the
-   remote-endpoint wording of the AI tab was not looked at; deferred minors of PRs #7-#9.
+   Desktop (pywebview) window checked on 2026-11-13 with a throwaway script (`DesktopApi` with
+   temp settings + `webview.start(driver)` + `window.evaluate_js`): all tabs answer through the
+   bridge, Relations / Search / AI tab (remote wording) / file layout render; two layout
+   flaws found there were fixed (AI panel overflow, tabs hidden behind the tab-bar scroll).
+   Still open: deferred minors of PRs #7-#9; AZ was not looked at in the desktop window.
    Working rules learned the hard way: stage files explicitly (never `git add -A` or
    `git add src`: a JVM crash log and the stray copies were committed once and had to be
    amended out); piping a gate into `tail` hides its exit code, read the output before

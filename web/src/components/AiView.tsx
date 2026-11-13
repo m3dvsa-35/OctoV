@@ -40,7 +40,7 @@ function ChipRow({ items }: { items: Chip[] }) {
 function Report({ report, names }: { report: AiReport; names: Map<number, string> }) {
   const t = useT();
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
       <section className="rounded-lg border border-line bg-panel p-4">
         <div className="flex flex-wrap items-center gap-3">
           <span className={clsx("rounded-md border px-2 py-0.5 text-[13px] font-semibold", ASSESSMENT_CLASS[report.assessment])}>
@@ -162,7 +162,7 @@ export function AiView() {
 
   return (
     <div className="h-full overflow-auto p-4" aria-label={t("ui.ai")}>
-      <div className="mx-auto grid max-w-[980px] gap-4">
+      <div className="mx-auto grid max-w-[980px] grid-cols-[minmax(0,1fr)] gap-4">
         {report && <Report report={report} names={names} />}
 
         {(problem || (job === "failed" && error)) && (
@@ -187,7 +187,7 @@ export function AiView() {
         )}
 
         {showPreview && preview && !running && (
-          <section className="rounded-lg border border-line bg-panel p-4">
+          <section className="min-w-0 rounded-lg border border-line bg-panel p-4">
             <h3 className="text-[11px] font-semibold uppercase tracking-wider text-faint">
               {t("ai.preview.title", { n: preview.chars.toLocaleString() })}
             </h3>
