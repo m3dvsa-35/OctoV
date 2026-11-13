@@ -494,6 +494,11 @@ STRINGS: dict[str, str] = {
     "ai.disclaimer": (
         "This is the AI's opinion, not an OctoV finding. Check the evidence it points at."
     ),
+    "ai.stale": (
+        "The evidence has changed since this report (new analysis results or your edits). "
+        "Ask again for an up-to-date opinion."
+    ),
+    "ai.destination": "Send to",
     "ai.overlay": "AI overlay",
     "ai.mark": "AI",
     "ai.mark_hint": "What the AI analyst said about this function:",

@@ -198,3 +198,25 @@ def test_cited_functions_collects_notes_per_function() -> None:
     notes = cited_functions(parse(reply()))
     assert notes[0x1000] == ["It prepares the target.", "Process injection", "passes the buffer"]
     assert notes[0x1100] == ["passes the buffer"]
+
+
+def test_odd_digit_strings_are_dropped_not_fatal() -> None:
+    doc = reply()
+    doc["story"][0]["functions"] = ["0x1000", "\u00b2", "9" * 5000, 1.5, True]
+    out = parse(doc)
+    assert out.story[0]["functions"] == [0x1000] and out.dropped == 4
+
+
+def test_bare_digits_are_read_as_hex_first() -> None:
+    both = Bundle(
+        doc={},
+        text="{}",
+        hash="1" * 16,
+        omitted={},
+        fact_ids=frozenset({FACT}),
+        functions=frozenset({0x4112, 4112}),  # "4112" could mean either
+        iocs=frozenset(),
+    )
+    doc = reply(links=[], points=[])
+    doc["story"] = [{"text": "x", "functions": ["4112"]}]
+    assert parse_report(json.dumps(doc), both).story[0]["functions"] == [0x4112]

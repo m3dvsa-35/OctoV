@@ -212,12 +212,57 @@ def test_raw_sample_works(tmp_path: Path, llm: FakeLLM) -> None:
     assert api.get_ai_report(sha)["assessment"] == "suspicious"  # type: ignore[index]
 
 
-def test_report_gone_after_evidence_changes(tmp_path: Path, llm: FakeLLM) -> None:
+def test_report_stays_and_is_marked_stale_when_evidence_changes(
+    tmp_path: Path, llm: FakeLLM
+) -> None:
     api = _api(tmp_path, llm)
     sha = _open(api, tmp_path)
-    assert _run(api, sha)["state"] == "done" and api.get_ai_report(sha) is not None
+    assert _run(api, sha)["state"] == "done"
+    fresh = api.get_ai_report(sha)
+    assert fresh is not None and fresh["stale"] is False
+    # background engines or the analyst change the evidence: the opinion stays, labelled
     api.annotate(sha, "comment", "writes the payload", address=0x1007)
-    assert api.get_ai_report(sha) is None  # that opinion was about different evidence
+    kept = api.get_ai_report(sha)
+    assert kept is not None and kept["stale"] is True
+    assert kept["summary"] == fresh["summary"] and kept["bundle_hash"] == fresh["bundle_hash"]
+    assert len(llm.posts) == 1  # keeping it costs no new request
+    assert _run(api, sha)["state"] == "done" and len(llm.posts) == 2
+    assert api.get_ai_report(sha)["stale"] is False  # type: ignore[index]
+
+
+def test_a_failed_endpoint_never_falls_back_by_itself(tmp_path: Path, llm: FakeLLM) -> None:
+    other = FakeLLM(json.dumps(REPLY))
+    try:
+        llm.mode = "429"
+        api = _api(tmp_path, llm, fallback_base_url=other.base_url, fallback_model="other-model")
+        sha = _open(api, tmp_path)
+        preview = api.ai_preview(sha)
+        assert [e["model"] for e in preview["endpoints"]] == ["fake-model", "other-model"]
+        assert preview["host"] == "127.0.0.1" and preview["model"] == "fake-model"
+        job = _run(api, sha)
+        assert job["state"] == "failed" and job["error"] == "ai.rate_limit"
+        assert len(llm.posts) == 1 and other.requests == []  # nobody confirmed that destination
+    finally:
+        other.close()
+
+
+def test_the_analyst_chooses_the_destination(tmp_path: Path, llm: FakeLLM) -> None:
+    other = FakeLLM(json.dumps(REPLY))
+    try:
+        api = _api(tmp_path, llm, fallback_base_url=other.base_url, fallback_model="other-model")
+        sha = _open(api, tmp_path)
+        preview = api.ai_preview(sha)
+        api.ai_analyse(sha, preview["hash"], False, 1)
+        assert _wait(api, sha)["state"] == "done"
+        assert llm.requests == [] and len(other.posts) == 1
+        assert other.posts[0]["body"]["model"] == "other-model"
+        assert api.get_ai_report(sha)["model"] == "other-model"  # type: ignore[index]
+        for bad in (2, -1):
+            with pytest.raises(ApiError, match=r"^ai\.no_endpoint$"):
+                api.ai_analyse(sha, preview["hash"], True, bad)
+        assert len(other.posts) == 1
+    finally:
+        other.close()
 
 
 def test_ignored_findings_are_not_sent(tmp_path: Path, llm: FakeLLM) -> None:

@@ -7,12 +7,12 @@ body (a gateway may echo the credential back).
 
 from __future__ import annotations
 
+import http.client
 import ipaddress
 import json
 import socket
 import urllib.error
 import urllib.request
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 from urllib.parse import urlsplit
@@ -58,16 +58,25 @@ class Endpoint:
 
 
 def endpoints(cfg: AIConfig) -> list[Endpoint]:
-    """Usable endpoints in order: the main one (needs the key unless local), then the fallback."""
+    """The destinations the analyst can choose from: the main endpoint, then the fallback.
+
+    A local endpoint needs no key and never gets one. The key goes to remote endpoints only,
+    and to one host only: a remote fallback on another host than the main endpoint is left
+    out, so one provider's key is never handed to another provider.
+    """
     out: list[Endpoint] = []
     main = Endpoint(str(cfg.base_url or ""), str(cfg.model or ""), None)
-    if main.host and main.model and (main.local or cfg.api_key):
+    main_ok = bool(main.host and main.model and (main.local or cfg.api_key))
+    if main_ok:
         out.append(Endpoint(main.base_url, main.model, None if main.local else cfg.api_key))
     if cfg.fallback_base_url and cfg.fallback_model:
         other = Endpoint(str(cfg.fallback_base_url), str(cfg.fallback_model), None)
-        if other.host and (other.local or cfg.api_key):
-            # the key is only ever sent to a remote fallback, never to a local server
-            out.append(Endpoint(other.base_url, other.model, None if other.local else cfg.api_key))
+        if other.host and other.local:
+            out.append(other)
+        elif (
+            other.host and cfg.api_key and (main.local or not main.host or other.host == main.host)
+        ):
+            out.append(Endpoint(other.base_url, other.model, cfg.api_key))
     return out
 
 
@@ -133,6 +142,8 @@ def chat(endpoint: Endpoint, system: str, user: str, timeout_s: float) -> str:
         raise AIError("network", f"cannot reach {endpoint.host}") from None
     except OSError:
         raise AIError("network", f"cannot reach {endpoint.host}") from None
+    except (http.client.HTTPException, ValueError):  # broken status line, bad URL in the config
+        raise AIError("bad_response", "the endpoint did not speak HTTP properly") from None
     if len(raw) > MAX_REPLY_BYTES:
         raise AIError("bad_response", "the reply is too large")
     try:
@@ -142,16 +153,3 @@ def chat(endpoint: Endpoint, system: str, user: str, timeout_s: float) -> str:
     if not isinstance(content, str) or not content.strip():
         raise AIError("bad_response", "the model returned an empty answer")
     return content
-
-
-def ask(
-    candidates: Sequence[Endpoint], system: str, user: str, timeout_s: float
-) -> tuple[str, Endpoint]:
-    """The first endpoint that answers; raises the last failure (``no_endpoint`` if none)."""
-    failure = AIError("no_endpoint", "no AI endpoint is configured")
-    for endpoint in candidates:
-        try:
-            return chat(endpoint, system, user, timeout_s), endpoint
-        except AIError as exc:
-            failure = exc
-    raise failure

@@ -165,13 +165,16 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 ### AI analyst — M5 facts worth knowing
 - `core/ai/bundle.py`: `build_bundle(BundleInput, budget_chars)` -> `Bundle(doc, text, hash,
   omitted, fact_ids, functions, iocs)`; `text` is the preview and the request, byte for byte.
-  `core/ai/client.py`: `endpoints(cfg)`, `chat`, `ask` (stdlib urllib, no redirects, https or
-  loopback http only, `AIError(kind)`); `core/ai/report.py`: `system_prompt(lang)`,
+  `core/ai/client.py`: `endpoints(cfg)` (the destinations to choose from; the key only goes to
+  its own remote host), `chat` (stdlib urllib, no redirects, https or loopback http only,
+  `AIError(kind)`; there is deliberately no automatic fallback); `core/ai/report.py`: `system_prompt(lang)`,
   `parse_report(text, bundle)` (drops citations that are not in the bundle), `cited_functions`.
-- API: `ai_status()`, `ai_preview(sha)`, `ai_analyse(sha, confirmed_hash, force)`,
-  `get_ai_report(sha)`; `job_status()["ai"]`; errors `ai.no_endpoint`, `ai.preview_changed`,
+- API: `ai_status()`, `ai_preview(sha)` (text, hash, `endpoints`), `ai_analyse(sha,
+  confirmed_hash, force, endpoint)` (one destination, chosen by index),
+  `get_ai_report(sha)` (newest report + `stale`); `job_status()["ai"]`; errors `ai.no_endpoint`, `ai.preview_changed`,
   job errors `ai.<kind>`; cache `~/.octov/cache/<sha>/ai-<model>-<bundle hash>.json.gz`.
-  A report belongs to one bundle hash: a rename or verdict makes `get_ai_report` return None.
+  The newest report is also kept as `ai-last-none.json.gz`: when the evidence changes
+  (engines finishing, renames, verdicts) it stays visible with `stale: true`.
 - Web: tab `ai` (`AiView.tsx`, `lib/ai.ts`), store `aiReport` + `loadAiReport`, overlay in
   `RelationsView.tsx` (AI marks, dashed arcs), a line in Triage.
 - Tests use `tests/fixtures/fake_llm.py` (in-process server on 127.0.0.1); never the network.

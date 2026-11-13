@@ -214,7 +214,11 @@ a replacement for it.
   (`ai.base_url`, `ai.model`), or point `ai.fallback_base_url` at a local OpenAI-compatible
   server (Ollama, LM Studio): then nothing leaves the machine and no key is needed. Only
   `https://` endpoints are accepted (plain `http://` only on this machine); the key is never
-  written to a file, log, error message or the cache.
+  written to a file, log, error message or the cache. If two endpoints are configured you
+  choose the destination; a failed endpoint never falls back to the other one by itself, and
+  the key is never sent to a second provider.
+- The newest report stays visible when the evidence changes later (new engine results, your
+  edits) and is then marked as out of date.
 
 ## Workbench UI
 

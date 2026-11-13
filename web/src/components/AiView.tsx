@@ -56,6 +56,7 @@ function Report({ report, names }: { report: AiReport; names: Map<number, string
         <p className="selectable mt-3 text-[13px] leading-relaxed">{report.summary}</p>
         <p className="mt-3 text-[11.5px] text-faint">{t("ai.disclaimer")}</p>
         {report.dropped > 0 && <p className="mt-1 text-[11.5px] text-sev-medium">{t("ai.dropped", { n: report.dropped })}</p>}
+        {report.stale && <p className="mt-1 text-[11.5px] font-medium text-sev-medium">{t("ai.stale")}</p>}
       </section>
 
       {report.story.length > 0 && (
@@ -112,6 +113,7 @@ export function AiView() {
   const [problem, setProblem] = useState<string | null>(null);
   const [again, setAgain] = useState(false);
   const [sending, setSending] = useState(false);
+  const [choice, setChoice] = useState(0);
   const names = useMemo(() => new Map(functions.map((f) => [f.start, f.name])), [functions]);
 
   useEffect(() => {
@@ -132,19 +134,20 @@ export function AiView() {
     return () => {
       live = false;
     };
-  }, [sha, annotations, ready, report]);
+  }, [sha, annotations, ready, report, job]);
 
   if (!status) return null;
   if (!status.configured) return <Empty icon={Sparkles} title={t("ai.setup.title")} body={t("ai.setup.body")} />;
   if (problem === "analysis.not_ready") return <Empty icon={Sparkles} title={t("ui.discovering")} />;
 
+  const target = preview?.endpoints[choice] ?? preview?.endpoints[0] ?? null;
   const running = job === "running" || sending;
   const showPreview = !report || again;
   const send = async () => {
     if (!sha || !preview || running) return;
     setSending(true);
     try {
-      await api.aiAnalyse(sha, preview.hash, report !== null);
+      await api.aiAnalyse(sha, preview.hash, report !== null, target ? choice : 0);
       setAgain(false);
       setProblem(null);
       refreshJobs();
@@ -171,7 +174,7 @@ export function AiView() {
         {running && (
           <p role="status" className="flex items-center gap-2 text-[12.5px] text-muted">
             <Loader2 size={14} className="animate-spin" aria-hidden />
-            {t("ai.running", { host: preview?.host ?? "" })}
+            {t("ai.running", { host: target?.host ?? "" })}
           </p>
         )}
 
@@ -188,8 +191,21 @@ export function AiView() {
             <h3 className="text-[11px] font-semibold uppercase tracking-wider text-faint">
               {t("ai.preview.title", { n: preview.chars.toLocaleString() })}
             </h3>
-            <p className={clsx("mt-2 text-[12.5px] font-medium", preview.local ? "text-fg" : "text-sev-medium")}>
-              {t(preview.local ? "ai.dest.local" : "ai.dest.remote", { host: preview.host ?? "", model: preview.model ?? "" })}
+            {preview.endpoints.length > 1 && (
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-[12px]" role="radiogroup" aria-label={t("ai.destination")}>
+                <span className="text-muted">{t("ai.destination")}</span>
+                {preview.endpoints.map((e, i) => (
+                  <label key={`${e.host}:${e.model}`} className="inline-flex cursor-pointer items-center gap-1.5">
+                    <input type="radio" name="ai-destination" checked={choice === i} onChange={() => setChoice(i)} />
+                    <span className="font-mono">
+                      {e.host} · {e.model}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+            <p className={clsx("mt-2 text-[12.5px] font-medium", target?.local ? "text-fg" : "text-sev-medium")}>
+              {t(target?.local ? "ai.dest.local" : "ai.dest.remote", { host: target?.host ?? "", model: target?.model ?? "" })}
             </p>
             <p className="mt-1 text-[11.5px] text-muted">{t("ai.preview.what")}</p>
             {(preview.omitted.code ?? 0) + (preview.omitted.functions ?? 0) + (preview.omitted.findings ?? 0) > 0 && (
@@ -206,7 +222,7 @@ export function AiView() {
             </pre>
             <div className="mt-3 flex items-center gap-3">
               <Button variant="primary" icon={Send} onClick={() => void send()}>
-                {t("ai.send", { host: preview.host ?? "" })}
+                {t("ai.send", { host: target?.host ?? "" })}
               </Button>
               {again && (
                 <Button variant="ghost" onClick={() => setAgain(false)}>

@@ -158,8 +158,8 @@ export const api = {
   memoryMap: (sha: string) => call<MemoryMapData>("get_memory_map", { sha }),
   aiStatus: () => call<AiStatus>("ai_status"),
   aiPreview: (sha: string) => call<AiPreview>("ai_preview", { sha }),
-  aiAnalyse: (sha: string, confirmedHash: string, force: boolean) =>
-    call<null>("ai_analyse", { sha, confirmed_hash: confirmedHash, force }),
+  aiAnalyse: (sha: string, confirmedHash: string, force: boolean, endpoint: number) =>
+    call<null>("ai_analyse", { sha, confirmed_hash: confirmedHash, force, endpoint }),
   aiReport: (sha: string) => call<AiReport | null>("get_ai_report", { sha }),
   exportYara: (sha: string) => call<string>("export_yara", { sha }),
   exportSigma: (sha: string) => call<string | null>("export_sigma", { sha }),

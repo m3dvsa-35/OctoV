@@ -1127,7 +1127,7 @@ class WorkbenchApi:
         return build_bundle(data, self._config.ai.max_chars)
 
     def ai_preview(self, sha: str) -> dict[str, Any]:
-        """Exactly what would be sent, and where. Looking sends nothing."""
+        """Exactly what would be sent, and the destinations to choose from. Sends nothing."""
         bundle = self._ai_bundle(self._get(sha))
         found = ai_client.endpoints(self._config.ai)
         first = found[0] if found else None
@@ -1139,26 +1139,38 @@ class WorkbenchApi:
             "host": first.host if first else None,
             "model": first.model if first else None,
             "local": first.local if first else None,
+            "endpoints": [{"host": e.host, "model": e.model, "local": e.local} for e in found],
         }
 
     def _ai_cache(self, s: _Sample, bundle: Bundle, model: str) -> Path:
         return ext_cache.cache_file(self._cache_dir, s.sha, "ai", model, bundle.hash)
 
-    def ai_analyse(self, sha: str, confirmed_hash: str, force: bool = False) -> None:
-        """Send the evidence the analyst just confirmed (by its hash) to the AI analyst.
+    def _ai_last(self, s: _Sample) -> Path:
+        """The newest report of a sample: kept when the evidence moves on (shown as stale)."""
+        return ext_cache.cache_file(self._cache_dir, s.sha, "ai", "last", None)
 
-        The confirmation is for one send of one bundle: if the evidence changed since the
-        preview, nothing is sent and the analyst is asked to look again.
+    def ai_analyse(
+        self, sha: str, confirmed_hash: str, force: bool = False, endpoint: int = 0
+    ) -> None:
+        """Send the evidence the analyst just confirmed (by its hash) to the chosen endpoint.
+
+        The confirmation is for one send of one bundle to one destination: if the evidence
+        changed since the preview nothing is sent, and a failed endpoint never falls back to
+        another one by itself.
         """
         s = self._get(sha)
         bundle = self._ai_bundle(s)
         if not confirmed_hash or confirmed_hash != bundle.hash:
             raise ApiError("ai.preview_changed")
         found = ai_client.endpoints(self._config.ai)
-        if not found:
+        if isinstance(endpoint, bool) or not 0 <= endpoint < len(found):
             raise ApiError("ai.no_endpoint")
-        path = self._ai_cache(s, bundle, found[0].model)
-        if not force and ext_cache.load(path) is not None:
+        target = found[endpoint]
+        path = self._ai_cache(s, bundle, target.model)
+        cached = None if force else ext_cache.load(path)
+        if cached is not None:
+            with contextlib.suppress(OSError):
+                ext_cache.store(self._ai_last(s), cached)
             s.pipeline.set_state("ai", "done", cached=True)
             return
         with self._lock:
@@ -1168,29 +1180,30 @@ class WorkbenchApi:
         s.pipeline.set_state("ai", "running")
         lang = str(self._settings["language"])
         threading.Thread(
-            target=self._ai_job, args=(s, bundle, found, path, lang), daemon=True, name="octov-ai"
+            target=self._ai_job, args=(s, bundle, target, path, lang), daemon=True, name="octov-ai"
         ).start()
 
     def _ai_job(
-        self, s: _Sample, bundle: Bundle, found: list[ai_client.Endpoint], path: Path, lang: str
+        self, s: _Sample, bundle: Bundle, target: ai_client.Endpoint, path: Path, lang: str
     ) -> None:
         """Always ends in ``done`` or ``failed`` (or drops the answer if the sample closed)."""
         start = time.monotonic()
         try:
-            text, used = ai_client.ask(
-                found, system_prompt(lang), bundle.text, float(self._config.ai.timeout_s)
+            text = ai_client.chat(
+                target, system_prompt(lang), bundle.text, float(self._config.ai.timeout_s)
             )
             report = parse_report(text, bundle)
             doc = report.to_dict() | {
-                "model": used.model,
-                "host": used.host,
-                "local": used.local,
+                "model": target.model,
+                "host": target.host,
+                "local": target.local,
                 "created": int(time.time()),
                 "bundle_hash": bundle.hash,
                 "omitted": bundle.omitted,
             }
             with contextlib.suppress(OSError):  # an unwritable cache only costs a new request
                 ext_cache.store(path, doc)
+                ext_cache.store(self._ai_last(s), doc)
             state: tuple[AnalyzerStatus, str | None] = ("done", None)
         except AIError as exc:
             state = ("failed", f"ai.{exc.kind}")  # the kind only: never a server's own text
@@ -1202,12 +1215,17 @@ class WorkbenchApi:
             s.pipeline.set_state("ai", state[0], state[1], elapsed_s=_secs(start))
 
     def get_ai_report(self, sha: str) -> dict[str, Any] | None:
-        """The AI report for the evidence as it is now, if there is one."""
+        """The newest AI report of the sample; ``stale`` when the evidence changed since.
+
+        Background engines (capa, FLOSS, Ghidra) and the analyst's own edits change the
+        evidence; the opinion that was already paid for stays visible, labelled.
+        """
         s = self._get(sha)
-        found = ai_client.endpoints(self._config.ai)
-        if not found or not s.pipeline.wait_slow(0):
+        doc = ext_cache.load(self._ai_last(s))
+        if doc is None:
             return None
-        return ext_cache.load(self._ai_cache(s, self._ai_bundle(s), found[0].model))
+        stale = s.pipeline.wait_slow(0) and self._ai_bundle(s).hash != doc.get("bundle_hash")
+        return doc | {"stale": bool(stale)}
 
     # -- exports ---------------------------------------------------------------------
 

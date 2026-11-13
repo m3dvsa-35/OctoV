@@ -5,7 +5,8 @@ from collections.abc import Iterator
 
 import pytest
 
-from octov.core.ai.client import AIError, Endpoint, ask, chat, endpoints
+from octov.core.ai import client as client_mod
+from octov.core.ai.client import AIError, Endpoint, chat, endpoints
 from octov.core.config import AIConfig
 from tests.fixtures.fake_llm import FakeLLM
 
@@ -100,25 +101,6 @@ def test_redirect_is_not_followed(llm: FakeLLM) -> None:
         other.close()
 
 
-def test_ask_falls_back_and_reports_which_endpoint_answered(llm: FakeLLM) -> None:
-    good = FakeLLM("fallback answer")
-    try:
-        llm.mode = "429"
-        first, second = Endpoint(llm.base_url, "m1", KEY), Endpoint(good.base_url, "m2", None)
-        text, used = ask([first, second], "s", "u", 10)
-        assert text == "fallback answer" and used is second
-        assert len(llm.posts) == 1 and len(good.posts) == 1
-        good.mode = "garbage"
-        with pytest.raises(AIError) as err:
-            ask([first, second], "s", "u", 10)
-        assert err.value.kind == "bad_response"  # the last failure is the one reported
-    finally:
-        good.close()
-    with pytest.raises(AIError) as none:
-        ask([], "s", "u", 10)
-    assert none.value.kind == "no_endpoint"
-
-
 def test_endpoints_order_and_key_rules() -> None:
     remote = "https://openrouter.ai/api/v1"
     cfg = AIConfig(base_url=remote, model="m", api_key=None)
@@ -139,6 +121,36 @@ def test_endpoints_order_and_key_rules() -> None:
     cfg = AIConfig(base_url="http://127.0.0.1:1234/v1", model="local", api_key=None)
     assert [e.local for e in endpoints(cfg)] == [True]
     assert KEY not in repr(first)
+
+
+def test_the_key_is_never_offered_to_another_remote_host() -> None:
+    cfg = AIConfig(
+        base_url="https://openrouter.ai/api/v1",
+        model="m",
+        api_key=KEY,
+        fallback_base_url="https://other-provider.example/v1",
+        fallback_model="x",
+    )
+    assert [e.host for e in endpoints(cfg)] == ["openrouter.ai"]  # one provider's key, one provider
+    cfg.fallback_base_url = "https://openrouter.ai/api/v1"  # the same host, another model: fine
+    assert [(e.host, e.model, e.key) for e in endpoints(cfg)] == [
+        ("openrouter.ai", "m", KEY),
+        ("openrouter.ai", "x", KEY),
+    ]
+    local_first = AIConfig(
+        base_url="http://localhost:11434/v1",
+        model="qwen",
+        api_key=KEY,
+        fallback_base_url="https://openrouter.ai/api/v1",
+        fallback_model="m",
+    )
+    first, second = endpoints(local_first)
+    assert first.local and first.key is None and second.key == KEY  # the key's own host only
+
+
+def test_there_is_no_automatic_fallback_helper() -> None:
+    # sending to an endpoint the analyst did not confirm must not be one call away
+    assert not hasattr(client_mod, "ask")
 
 
 def test_error_text_never_contains_key_or_body() -> None:

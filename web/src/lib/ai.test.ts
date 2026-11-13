@@ -31,6 +31,7 @@ const REPORT: AiReport = {
   created: 0,
   bundle_hash: "0".repeat(16),
   omitted: {},
+  stale: false,
 };
 
 describe("aiNotes", () => {

@@ -338,6 +338,7 @@ export interface AiPreview {
   host: string | null;
   model: string | null;
   local: boolean | null;
+  endpoints: { host: string; model: string; local: boolean }[];
 }
 
 export interface AiReport {
@@ -354,4 +355,6 @@ export interface AiReport {
   created: number;
   bundle_hash: string;
   omitted: Record<string, number>;
+  /** The evidence changed after this report was made. */
+  stale: boolean;
 }

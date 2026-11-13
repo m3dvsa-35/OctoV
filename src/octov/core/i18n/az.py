@@ -508,6 +508,11 @@ STRINGS: dict[str, str] = {
     "ai.points": "Əsas məqamlar",
     "ai.dropped": ("{n} iddia çıxarıldı, çünki istinad etdiyi sübut bu faylda mövcud deyil."),
     "ai.disclaimer": "Bu, AI-nin rəyidir, OctoV tapıntısı deyil. Göstərdiyi sübutu yoxlayın.",
+    "ai.stale": (
+        "Bu hesabatdan sonra sübut dəyişib (yeni analiz nəticələri və ya sizin düzəlişləriniz). "
+        "Yenilənmiş rəy üçün yenidən soruşun."
+    ),
+    "ai.destination": "Göndəriləcək ünvan",
     "ai.overlay": "AI qatı",
     "ai.mark": "AI",
     "ai.mark_hint": "AI analitik bu funksiya haqqında nə dedi:",

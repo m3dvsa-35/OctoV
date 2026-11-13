@@ -116,12 +116,15 @@ def _address(value: Any, known: frozenset[int]) -> int | None:
     if not isinstance(value, str):
         return None
     token = value.strip().lower()
-    if token.isdigit() and int(token) in known:  # plain digits: decimal first
-        return int(token)
+    if len(token) > 24 or not token.isascii():
+        return None
     match = _HEX.match(token)
-    if match:
+    if match:  # the evidence writes addresses in hex, so a bare number is read as hex first
         number = int(match[1], 16)
-        return number if number in known else None
+        if number in known:
+            return number
+    if token.isdigit() and int(token) in known:
+        return int(token)
     return None
 
 
