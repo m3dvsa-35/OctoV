@@ -111,9 +111,24 @@ A candidate becomes a library match only if all of these hold:
 
 1. **One name.** Exactly one distinct name across all signature files for that function.
 2. **Not tiny.** The function is at least `MIN_SIZE = 16` bytes.
-3. **The library is really there.** Its signature file has at least `MIN_PER_SET = 5` matches
-   that passed rules 1-2 in this sample. A lone look-alike from a library the program does not
+3. **The name is used once.** A library function exists once in a program; a name that
+   rules 1-2 give to two or more functions is dropped for all of them.
+4. **It has a neighbour.** The linker puts a library's functions next to each other. A match
+   needs another match of the same signature file within `NEIGHBOUR_REACH = 2` functions in
+   address order (over all discovered functions).
+5. **The library is really there.** Its signature file has at least `MIN_PER_SET = 5` matches
+   that passed rules 1-4 in this sample. A lone look-alike from a library the program does not
    contain (the MFC case above) is dropped.
+
+Rules 3 and 4 were added during the build (2026-11-14) after measuring big files with rules
+1, 2 and 5 only: twinui.dll (18 551 functions) got 123 ATL/MFC and 93 Crypto++ names although
+it contains neither, curl.exe 10 MFC names; several names were given to up to four different
+functions. The matcher sees only a function's first bytes and 700 000 signatures, so a big
+program collects look-alikes by chance, scattered over its own code. With rules 3-4:
+twinui.dll keeps 32 names, curl.exe 28, notepad.exe 19, all MSVC startup/runtime code from
+the runtime file; the statically linked `t64.exe` keeps 190 of 277 and `t32.exe` 158 of 243.
+The cost is coverage: a library of which only a few scattered functions match (libcurl inside
+curl.exe: 13 matches from another version's signatures) is not named.
 
 Result: `LibraryMatch(start, name, source)` where `source` is the signature file name; stored
 as `ctx.results["library"]: dict[int, LibraryMatch]`.
