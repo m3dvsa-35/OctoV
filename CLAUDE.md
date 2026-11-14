@@ -138,39 +138,33 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 ## Status / where we stopped  (updated 2026-11-13, chat 6)
 
 ### How to resume in a new chat (read this first)
-1. `main` has M1, M2, web UI, assisted-triage Phase 1, Phase 2 (capa + FLOSS, PR #6),
-   Phase 3 (Ghidra decompiler, PR #7) and **Phase 4 (relations, search, symbols, file layout,
-   PR #8 merged as `a5aa5d4`)**. Each PR description lists its rulings and deferred minors.
-2. **M5 AI analyst (first slice) is finished on `feat/ai-m5` and waits in PR #9**
-   (https://github.com/m3dvsa-35/OctoV/pull/9; all 6 plan tasks, final review + one fix pass,
-   pushed; Auto-fix was on in chat 6). **When the owner writes "davam et" in a new chat:**
-   a. `gh pr view 9 --json state,mergeStateStatus,statusCheckRollup`: if CI failed, fix it on
-      `feat/ai-m5` and push; if it is open and green, **ask the owner for a yes, then**
-      `gh pr merge 9 --merge`, `git checkout main && git pull --ff-only` (never merge
-      without that yes; if it is already merged, just update `main`).
-   b. After the merge update this section on the next feature branch (this note is only on
-      `feat/ai-m5` until PR #9 lands).
-   c. Then ask what is next (nothing is designed yet): AI follow-up questions / chat, Phase 5
-      (FLIRT-like, PDB, binary diff) or M3 dynamic. The owner usually answers "do what is
-      needed": then the builder designs (spec -> plan -> inline execution with
-      `superpowers:executing-plans` -> fresh opus review -> one fix pass -> PR), stating the
-      decisions instead of asking, except choices about what leaves the machine.
-   Spec `docs/superpowers/specs/2026-11-11-ai-overlay-m5-design.md`, plan
-   `docs/superpowers/plans/2026-11-11-ai-overlay-m5.md`; PR #9 lists rulings and deferred
-   minors. Owner's own decision for M5: **option B** = evidence (incl. pseudo-C and strings)
-   may be sent, but it is shown and confirmed before every send.
-   Open questions for the owner (asked, not answered yet): may the two stray files
+1. `main` has M1, M2, web UI, assisted-triage Phases 1-2 (PR #6), Phase 3 Ghidra decompiler
+   (PR #7), Phase 4 relations/search/symbols/file layout (PR #8) and **M5 AI analyst, first
+   slice (PR #9 merged as `ca1580e`)**. Each PR description lists its rulings and deferred minors.
+2. **M5b AI follow-up questions are implemented on `feat/ai-chat`** (4 plan tasks, final
+   review + one fix pass, pushed, PR to `main` open). **Do not merge without the owner's
+   yes.** Spec `docs/superpowers/specs/2026-11-14-ai-followup-design.md`, plan
+   `docs/superpowers/plans/2026-11-14-ai-followup.md`. **When the owner writes "davam et":**
+   `gh pr list --head feat/ai-chat --json number,state,mergeStateStatus`; if CI failed fix it
+   on the branch; if green ask for a yes, then merge and update `main`; then ask what is
+   next, recommending one: Phase 5 (FLIRT-like library recognition, PDB symbols, binary
+   diff) or M3 dynamic analysis. The owner usually answers "do what is needed": then the
+   builder designs (spec -> plan -> inline execution with `superpowers:executing-plans` ->
+   fresh opus review -> one fix pass -> PR), stating decisions instead of asking, except
+   choices about what leaves the machine (owner's option B: evidence incl. pseudo-C and
+   strings may be sent, but it is shown and confirmed before every send).
+   Open questions for the owner (asked several times, not answered): may the two stray files
    `src/octov/ext/ghidra/manager (1).py` / `worker (1).py` be deleted (see "Other open work");
    delete the merged remote branches?
    Desktop (pywebview) window checked on 2026-11-13 with a throwaway script (`DesktopApi` with
-   temp settings + `webview.start(driver)` + `window.evaluate_js`): all tabs answer through the
-   bridge, Relations / Search / AI tab (remote wording) / file layout render; two layout
-   flaws found there were fixed (AI panel overflow, tabs hidden behind the tab-bar scroll).
-   Still open: deferred minors of PRs #7-#9; AZ was not looked at in the desktop window.
+   temp settings + `webview.start(driver)` + `window.evaluate_js`). Still open: deferred
+   minors of PRs #7-#9 and of the follow-up PR; AZ and the follow-up box were not looked at
+   in the desktop window.
    Working rules learned the hard way: stage files explicitly (never `git add -A` or
-   `git add src`: a JVM crash log and the stray copies were committed once and had to be
-   amended out); piping a gate into `tail` hides its exit code, read the output before
-   committing; the full pytest suite takes ~10 min, run it in the background.
+   `git add src`); piping a gate into `tail` hides its exit code, read the output before
+   committing; the full pytest suite takes ~10 min, run it in the background; bash heredocs
+   mangle `
+` inside generated test code, use the Write/Edit tools for those.
 3. Owner priorities (2026-11-10): fast and trouble-free, PE files first, help beginners;
    later AI must show visually what it found suspicious and how parts are linked. Roadmap:
    Phase 4 relations/call graph (symbol tree, memory map, search) -> M5 AI overlay.
@@ -198,6 +192,13 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
   (engines finishing, renames, verdicts) it stays visible with `stale: true`.
 - Web: tab `ai` (`AiView.tsx`, `lib/ai.ts`), store `aiReport` + `loadAiReport`, overlay in
   `RelationsView.tsx` (AI marks, dashed arcs), a line in Triage.
+- Follow-up questions (M5b): `core/ai/chat.py` (`compose(bundle, question, history, focus)`
+  -> one user message = preview = request; `parse_answer`; `Turn`), API `ai_chat_preview(sha,
+  question, focus)`, `ai_ask(sha, question, confirmed_hash, focus, endpoint)`,
+  `get_ai_chat(sha)`, `clear_ai_chat(sha)`, `job_status()["ai_chat"]`; store
+  `ai-chat-none.json.gz` (max 50 turns, last 6 sent); one AI request per sample (`ai.busy`).
+  Web: `AiChat.tsx` inside the AI tab, store `aiChat`. First real question (2026-11-14,
+  synthetic injector, focus on the entry function): 4 149 characters, 21.6 s, all citations valid.
 - Tests use `tests/fixtures/fake_llm.py` (in-process server on 127.0.0.1); never the network.
 - First real runs (2026-11-13, synthetic injector, OpenRouter
   `nvidia/nemotron-3-ultra-550b-a55b:free`): 3 979 characters sent; EN answer in 26.5 s, AZ in

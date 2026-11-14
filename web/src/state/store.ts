@@ -4,6 +4,7 @@ import { annotationIndex, type AnnotationIndex } from "../lib/triage";
 import { invalidateFunctionCache } from "./hooks";
 import type {
   AiReport,
+  AiTurn,
   Annotation,
   Capabilities,
   EngineId,
@@ -61,6 +62,7 @@ export interface State {
   overview: Overview | null;
   triage: Triage | null;
   aiReport: AiReport | null;
+  aiChat: AiTurn[];
   findings: FindingRow[];
   mitre: MitreRow[];
   functions: FunctionSummary[];
@@ -97,6 +99,7 @@ let state: State = {
   overview: null,
   triage: null,
   aiReport: null,
+  aiChat: [],
   findings: [],
   mitre: [],
   functions: [],
@@ -245,6 +248,7 @@ export async function selectSample(sha: string): Promise<void> {
     overview: null,
     triage: null,
     aiReport: null,
+    aiChat: [],
     findings: [],
     mitre: [],
     functions: [],
@@ -358,8 +362,11 @@ export async function refreshAnalysis(sha: string): Promise<void> {
 
 /** The AI report that belongs to the evidence as it is now (none after a rename or verdict). */
 export async function loadAiReport(sha: string): Promise<void> {
-  const aiReport = await api.aiReport(sha).catch(() => null);
-  if (state.active === sha) setState({ aiReport });
+  const [aiReport, chat] = await Promise.all([
+    api.aiReport(sha).catch(() => null),
+    api.aiChat(sha).catch(() => ({ turns: [] })),
+  ]);
+  if (state.active === sha) setState({ aiReport, aiChat: chat.turns });
 }
 
 export async function setVerdict(factId: string, verdict: Verdict | null): Promise<void> {

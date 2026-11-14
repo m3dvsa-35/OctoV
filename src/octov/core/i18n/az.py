@@ -513,6 +513,22 @@ STRINGS: dict[str, str] = {
         "Yenilənmiş rəy üçün yenidən soruşun."
     ),
     "ai.destination": "Göndəriləcək ünvan",
+    "ai.chat.title": "Əlavə suallar",
+    "ai.chat.empty": (
+        "Bu nümunə haqqında öz sözlərinizlə soruşun, məsələn: bu funksiya niyə şübhəlidir və "
+        "ya bundan sonra nəyə baxmalıyam?"
+    ),
+    "ai.chat.placeholder": "Sualınız (1000 simvola qədər)",
+    "ai.chat.preview": "Nə göndəriləcəyinə bax",
+    "ai.chat.preview_title": "Bu sualla nə göndəriləcək ({n} simvol)",
+    "ai.chat.focus": "baxdığım funksiya haqqında ({name})",
+    "ai.chat.running": "Cavab gözlənilir…",
+    "ai.chat.you": "Siz",
+    "ai.chat.clear": "Söhbəti təmizlə",
+    "ai.chat.clear_confirm": "Bu nümunənin bütün sual və cavabları silinsin?",
+    "ai.error.bad_focus": "Funksiya haqqında soruşmaq üçün əvvəlcə onu açın.",
+    "ai.error.busy": "Bu nümunə üçün başqa AI sorğusu hələ işləyir. Cavabını gözləyin.",
+    "ai.error.bad_question": "1000 simvola qədər sual yazın.",
     "ai.overlay": "AI qatı",
     "ai.mark": "AI",
     "ai.mark_hint": "AI analitik bu funksiya haqqında nə dedi:",

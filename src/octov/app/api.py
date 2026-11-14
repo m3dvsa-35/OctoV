@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
+from octov.core.ai import chat as ai_chat
 from octov.core.ai import client as ai_client
 from octov.core.ai.bundle import Bundle, BundleInput, FunctionEvidence, build_bundle
 from octov.core.ai.client import AIError
@@ -1037,14 +1038,53 @@ class WorkbenchApi:
                 lines.append(f"{insn.address:x}  {insn.text()}")
         return ("\n".join(lines), "asm") if lines else (None, None)
 
+    def _ai_function(
+        self,
+        s: _Sample,
+        start: int,
+        ranking: dict[int, Any],
+        string_at: dict[int, str],
+        name_of: Callable[[int], str],
+        ahash: str,
+    ) -> FunctionEvidence:
+        """What the AI is told about one function (analysis results only)."""
+        graph = self._callgraph(s)
+        xrefs = s.ctx.results.get("xrefs")
+        ranked = ranking.get(start)
+        refs = xrefs.from_function(start) if xrefs is not None else []
+        code, kind = self._ai_code(s, start, ahash)
+        return FunctionEvidence(
+            start=start,
+            name=name_of(start),
+            score=ranked.score if ranked else 0,
+            reasons=ranked.reasons if ranked else (),
+            apis=[(a.name, a.family) for a in apis_of(xrefs, start)],
+            callers=[(c, name_of(c)) for c in graph.callers(start)],
+            callees=[(c, name_of(c)) for c in graph.callees(start)],
+            strings=list(dict.fromkeys(string_at[x.dst] for x in refs if x.dst in string_at)),
+            code=code,
+            code_kind=kind,
+        )
+
+    def _ai_focus(self, s: _Sample, focus: int | None) -> FunctionEvidence | None:
+        """The function the analyst is asking about, described like a bundle function."""
+        if focus is None:
+            return None
+        if not isinstance(focus, int) or isinstance(focus, bool) or focus not in s.functions:
+            raise ApiError("ai.bad_focus")
+        names, comments = self._decomp_annotations(s)
+        string_at = {x.rva: x.value for x in s.ctx.results.get("strings", []) if x.rva is not None}
+        ranking = {r.start: r for r in s.ctx.results.get("ranking", [])}
+        return self._ai_function(
+            s, focus, ranking, string_at, self._namer(s), annotation_hash(names, comments)
+        )
+
     def _ai_bundle(self, s: _Sample) -> Bundle:
         """The evidence the AI analyst would get right now (analysis results only)."""
         self._code_ready(s)
         verdicts = self._verdicts(s)
         facts = [f for f in list(s.ctx.facts) if verdicts.get(f.id) not in IGNORED_VERDICTS]
         score = risk_score(facts, verdicts)
-        graph = self._callgraph(s)
-        xrefs = s.ctx.results.get("xrefs")
         name_of = self._namer(s)
         names, comments = self._decomp_annotations(s)
         ahash = annotation_hash(names, comments)
@@ -1058,27 +1098,9 @@ class WorkbenchApi:
         ordered = list(
             dict.fromkeys(starts[:AI_FUNCTIONS] + ([entry] if entry is not None else []))
         )
-        functions = []
-        for start in ordered:
-            ranked = ranking.get(start)
-            refs = xrefs.from_function(start) if xrefs is not None else []
-            code, kind = self._ai_code(s, start, ahash)
-            functions.append(
-                FunctionEvidence(
-                    start=start,
-                    name=name_of(start),
-                    score=ranked.score if ranked else 0,
-                    reasons=ranked.reasons if ranked else (),
-                    apis=[(a.name, a.family) for a in apis_of(xrefs, start)],
-                    callers=[(c, name_of(c)) for c in graph.callers(start)],
-                    callees=[(c, name_of(c)) for c in graph.callees(start)],
-                    strings=list(
-                        dict.fromkeys(string_at[x.dst] for x in refs if x.dst in string_at)
-                    ),
-                    code=code,
-                    code_kind=kind,
-                )
-            )
+        functions = [
+            self._ai_function(s, start, ranking, string_at, name_of, ahash) for start in ordered
+        ]
         family_of = {api: fam for fam, apis in API_FAMILIES.items() for api in apis}
         imports: dict[str, list[str]] = {}
         for full in sorted(set(r.import_addresses.values())) if r is not None else []:
@@ -1175,7 +1197,7 @@ class WorkbenchApi:
             return
         with self._lock:
             if s.ai_running:
-                return
+                raise ApiError("ai.busy")  # one request per sample: a report or a question
             s.ai_running = True
         s.pipeline.set_state("ai", "running")
         lang = str(self._settings["language"])
@@ -1226,6 +1248,131 @@ class WorkbenchApi:
             return None
         stale = s.pipeline.wait_slow(0) and self._ai_bundle(s).hash != doc.get("bundle_hash")
         return doc | {"stale": bool(stale)}
+
+    # -- AI analyst: follow-up questions ---------------------------------------------------
+
+    def _ai_chat_path(self, s: _Sample) -> Path:
+        return ext_cache.cache_file(self._cache_dir, s.sha, "ai", "chat", None)
+
+    def _ai_chat_turns(self, s: _Sample) -> list[ai_chat.Turn]:
+        doc = ext_cache.load(self._ai_chat_path(s)) or {}
+        stored = doc.get("turns")
+        rows: list[Any] = stored if isinstance(stored, list) else []
+        turns = [ai_chat.Turn.from_dict(row) for row in rows]
+        return [t for t in turns if t is not None]
+
+    def _ai_chat_store(self, s: _Sample, turns: list[dict[str, Any]]) -> None:
+        ext_cache.store(self._ai_chat_path(s), {"turns": turns[-ai_chat.MAX_TURNS :]})
+
+    def _ai_chat_message(
+        self, s: _Sample, question: str, focus: int | None
+    ) -> tuple[ai_chat.ChatMessage, Bundle]:
+        """The whole message for this question as it would be sent right now."""
+        try:
+            asked = ai_chat.validate_question(question)
+        except ValueError as exc:
+            raise ApiError("ai.bad_question") from exc
+        bundle = self._ai_bundle(s)
+        message = ai_chat.compose(bundle, asked, self._ai_chat_turns(s), self._ai_focus(s, focus))
+        return message, bundle
+
+    def ai_chat_preview(self, sha: str, question: str, focus: int | None = None) -> dict[str, Any]:
+        """Exactly what asking this question would send, and where. Sends nothing."""
+        message, _ = self._ai_chat_message(self._get(sha), question, focus)
+        found = ai_client.endpoints(self._config.ai)
+        return {
+            "text": message.text,
+            "chars": len(message.text),
+            "hash": message.hash,
+            "endpoints": [{"host": e.host, "model": e.model, "local": e.local} for e in found],
+        }
+
+    def ai_ask(
+        self,
+        sha: str,
+        question: str,
+        confirmed_hash: str,
+        focus: int | None = None,
+        endpoint: int = 0,
+    ) -> None:
+        """Send the question the analyst just previewed (by the hash of the whole message).
+
+        Evidence, focus function, the included earlier turns and the question are all inside
+        that hash: if any of them changed since the preview, nothing is sent.
+        """
+        s = self._get(sha)
+        message, bundle = self._ai_chat_message(s, question, focus)
+        if not confirmed_hash or confirmed_hash != message.hash:
+            raise ApiError("ai.preview_changed")
+        found = ai_client.endpoints(self._config.ai)
+        if isinstance(endpoint, bool) or not 0 <= endpoint < len(found):
+            raise ApiError("ai.no_endpoint")
+        with self._lock:
+            if s.ai_running:
+                raise ApiError("ai.busy")
+            s.ai_running = True
+        s.pipeline.set_state("ai_chat", "running")
+        args = (s, ai_chat.validate_question(question), message, bundle, found[endpoint])
+        lang = str(self._settings["language"])
+        threading.Thread(
+            target=self._ai_chat_job, args=(*args, lang), daemon=True, name="octov-ai-chat"
+        ).start()
+
+    def _ai_chat_job(
+        self,
+        s: _Sample,
+        question: str,
+        message: ai_chat.ChatMessage,
+        bundle: Bundle,
+        target: ai_client.Endpoint,
+        lang: str,
+    ) -> None:
+        """Always ends in ``done`` or ``failed``; a closed sample stores nothing."""
+        start = time.monotonic()
+        try:
+            text = ai_client.chat(
+                target,
+                ai_chat.chat_system_prompt(lang),
+                message.text,
+                float(self._config.ai.timeout_s),
+            )
+            answer = ai_chat.parse_answer(text, bundle, message.functions)
+            turn = ai_chat.Turn(
+                question=question,
+                answer=answer.text,
+                functions=answer.functions,
+                findings=answer.findings,
+                iocs=answer.iocs,
+                dropped=answer.dropped,
+                model=target.model,
+                host=target.host,
+                created=int(time.time()),
+            )
+            if self._samples.get(s.sha) is s:
+                with self._lock:
+                    turns = [t.to_dict() for t in self._ai_chat_turns(s)]
+                    self._ai_chat_store(s, [*turns, turn.to_dict()])
+            state: tuple[AnalyzerStatus, str | None] = ("done", None)
+        except AIError as exc:
+            state = ("failed", f"ai.{exc.kind}")
+        except Exception:  # a bug or an unwritable cache must not leave the job "running"
+            state = ("failed", "ai.internal")
+        finally:
+            s.ai_running = False
+        if self._samples.get(s.sha) is s:
+            s.pipeline.set_state("ai_chat", state[0], state[1], elapsed_s=_secs(start))
+
+    def get_ai_chat(self, sha: str) -> dict[str, Any]:
+        """The follow-up conversation of this sample (oldest first)."""
+        return {"turns": [t.to_dict() for t in self._ai_chat_turns(self._get(sha))]}
+
+    def clear_ai_chat(self, sha: str) -> None:
+        s = self._get(sha)
+        with self._lock:  # not between a running question's read and write of the turns
+            if s.ai_running:
+                raise ApiError("ai.busy")  # its answer would reappear right after clearing
+            with contextlib.suppress(OSError):
+                self._ai_chat_path(s).unlink(missing_ok=True)
 
     # -- exports ---------------------------------------------------------------------
 

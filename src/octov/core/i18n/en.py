@@ -499,6 +499,22 @@ STRINGS: dict[str, str] = {
         "Ask again for an up-to-date opinion."
     ),
     "ai.destination": "Send to",
+    "ai.chat.title": "Follow-up questions",
+    "ai.chat.empty": (
+        "Ask about this sample in your own words, for example: why is this function "
+        "suspicious, or what should I look at next?"
+    ),
+    "ai.chat.placeholder": "Your question (up to 1000 characters)",
+    "ai.chat.preview": "Preview what will be sent",
+    "ai.chat.preview_title": "What will be sent with this question ({n} characters)",
+    "ai.chat.focus": "about the function I am looking at ({name})",
+    "ai.chat.running": "Waiting for the answer…",
+    "ai.chat.you": "You",
+    "ai.chat.clear": "Clear conversation",
+    "ai.chat.clear_confirm": "Delete all questions and answers of this sample?",
+    "ai.error.bad_focus": "Open a function first to ask about it.",
+    "ai.error.busy": "Another AI request for this sample is still running. Wait for its answer.",
+    "ai.error.bad_question": "Write a question of up to 1000 characters.",
     "ai.overlay": "AI overlay",
     "ai.mark": "AI",
     "ai.mark_hint": "What the AI analyst said about this function:",

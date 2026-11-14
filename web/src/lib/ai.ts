@@ -1,21 +1,34 @@
-import type { AiReport } from "../api/types";
+import type { AiReport, AiTurn } from "../api/types";
 
-/** Function address -> what the AI said about it (story steps, key points, links). */
-export function aiNotes(report: AiReport | null): Map<number, string[]> {
+/** The first sentence of an answer (or its beginning), short enough for a tooltip line. */
+export function firstSentence(text: string, max = 140): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  const end = flat.search(/[.!?](?:\s|$)/);
+  const sentence = end >= 0 ? flat.slice(0, end + 1) : flat;
+  return sentence.length > max ? `${sentence.slice(0, max - 1)}\u2026` : sentence;
+}
+
+/** Function address -> what the AI said about it (story, key points, links, follow-up answers). */
+export function aiNotes(report: AiReport | null, turns: AiTurn[] = []): Map<number, string[]> {
   const notes = new Map<number, string[]>();
-  if (!report) return notes;
   const add = (start: number, note: string) => {
     const list = notes.get(start) ?? [];
-    if (!list.includes(note)) list.push(note);
+    if (note && !list.includes(note)) list.push(note);
     notes.set(start, list);
   };
+  // the report first, then what follow-up answers added
+  const fromTurns = () => {
+    for (const turn of turns) for (const start of turn.functions) add(start, firstSentence(turn.answer));
+    return notes;
+  };
+  if (!report) return fromTurns();
   for (const step of report.story) for (const start of step.functions) add(start, step.text);
   for (const point of report.points) for (const start of point.functions) add(start, point.title);
   for (const link of report.links) {
     add(link.from, link.why);
     add(link.to, link.why);
   }
-  return notes;
+  return fromTurns();
 }
 
 export interface OverlayEdge {
