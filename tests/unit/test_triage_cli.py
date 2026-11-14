@@ -17,6 +17,7 @@ KEYS = {
     "recovered_strings",
     "payloads",
     "top_functions",
+    "library",
     "attack",
     "orphaned_verdicts",
     "jobs",

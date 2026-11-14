@@ -138,6 +138,7 @@ def test_auto_run_off_waits_for_run(tmp_path: Path, engines: dict[str, Any]) -> 
         "capa": False,
         "floss": True,
         "ghidra": True,
+        "library": True,
     }
     sha = api.open_sample(str(_suspicious(tmp_path)))["sha256"]
     assert _settled(api, sha)["capa"]["state"] == "idle"

@@ -217,3 +217,21 @@ def stack_string_pe(value: str) -> bytes:
 
     assert len(value) < 0x27, "stack frame holds at most 38 characters"
     return build(sorted(parse_pe(build(0)).import_addresses)[0])
+
+
+def library_like_pe(count: int = 7) -> bytes:
+    """Entry function calling ``count`` distinct 41-byte functions (stand-ins for library code)."""
+    body_size = 41
+    head = 5 * count + 1  # count calls + ret
+    first = _align(head, 16)
+    code = bytearray()
+    for i in range(count):
+        target = first + i * 48
+        code += b"\xe8" + (target - (len(code) + 5)).to_bytes(4, "little", signed=True)
+    code += b"\xc3"
+    code += b"\xcc" * (first - len(code))
+    for i in range(count):
+        body = b"".join(b"\xb8" + bytes([i + 1, k, 0x5A, 0x11]) for k in range(8)) + b"\xc3"
+        assert len(body) == body_size
+        code += body + b"\xcc" * (48 - body_size)
+    return build_pe(PESpec(sections=[SectionSpec(".text", bytes(code), TEXT)]))

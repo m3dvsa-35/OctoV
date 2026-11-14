@@ -123,3 +123,25 @@ def test_capa_reason_in_ranking() -> None:
     assert "capa: contain loop" in ranked[0].reasons
     assert "capa: inject thread" in ranked[0].reasons
     assert ranked[0].score == 20
+
+
+def _injector() -> tuple[dict[int, Function], XrefIndex]:
+    functions = {0x1000: _fn(0x1000, 0x20)}
+    imports = {0x9000: "kernel32.dll!WriteProcessMemory", 0x9008: "kernel32.dll!CreateRemoteThread"}
+    refs = [Xref(0x1004, 0x9000, "import", 0x1000), Xref(0x1008, 0x9008, "import", 0x1000)]
+    return functions, XrefIndex(refs, imports)
+
+
+def test_library_functions_are_left_out_of_the_ranking() -> None:
+    functions, xrefs = _injector()
+    low = [_fact("low", 1, rva=0x1010)]
+    assert [r.start for r in rank_functions(functions, xrefs, low, [], {})] == [0x1000]
+    assert rank_functions(functions, xrefs, low, [], {}, library={0x1000}) == []
+
+
+def test_library_function_with_a_medium_fact_stays_ranked() -> None:
+    functions, xrefs = _injector()
+    for severity in ("medium", "high"):
+        facts = [_fact(severity, 1, rva=0x1010)]
+        ranked = rank_functions(functions, xrefs, facts, [], {}, library={0x1000})
+        assert [r.start for r in ranked] == [0x1000]

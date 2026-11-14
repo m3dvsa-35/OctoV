@@ -87,14 +87,16 @@ src/octov/
   core/static/disasm.py     ImageView (RVA reads) + Disassembler (Capstone lite, IAT comments)
   core/static/cfg.py        build_function / discover_functions (basic blocks, edges)
   ext/                      optional engines: runner (Job Object, spawn_isolated), queue, cache,
-                            capa_rules, capa, floss, apply (see Phase 2 notes)
+                            capa_rules, capa, floss, apply (see Phase 2 notes), library +
+                            library_worker (FLIRT library recognition, own process)
   ext/ghidra/               decompiler: discover (JDK/Ghidra), setup, protocol, worker (the only
                             place pyghidra is imported; own process), manager, model
   core/apidoc.py            API -> `api.<Name>` explanation keys (texts: i18n/{en,az}_api.py)
   core/ai/                  AI analyst: bundle (evidence text + hash), client (OpenAI-compatible,
                             stdlib), report (prompt, parsing, citation checks)
   core/analysis/            triage pipeline: facts, pipeline, strings, iocs, xrefs, crypto,
-                            carve, packer, naming, scoring, analyzers, report, callgraph, search
+                            carve, packer, naming, scoring, analyzers, report, callgraph, search,
+                            library (which signature matches are accepted)
   core/export/              yara_gen.py, sigma_gen.py
   core/mitre.py             offline technique name/tactic table (test enforces coverage)
   core/session/session.py   .octov = SQLite + msgpack (samples, artifacts, annotations, payloads, meta; schema v2)
@@ -135,36 +137,46 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 - Installed plugins the user wants used: superpowers (TDD, verification, code review),
   caveman (commit messages, review), ui-ux-pro-max (visual panels), karpathy guidelines.
 
-## Status / where we stopped  (updated 2026-11-13, chat 6)
+## Status / where we stopped  (updated 2026-11-14, chat 7)
 
 ### How to resume in a new chat (read this first)
 1. `main` has M1, M2, web UI, assisted-triage Phases 1-2 (PR #6), Phase 3 Ghidra decompiler
-   (PR #7), Phase 4 relations/search/symbols/file layout (PR #8) and **M5 AI analyst, first
-   slice (PR #9 merged as `ca1580e`)**. Each PR description lists its rulings and deferred minors.
-2. **M5b AI follow-up questions are implemented on `feat/ai-chat`** (4 plan tasks, final
-   review + one fix pass, pushed, PR to `main` open). **Do not merge without the owner's
-   yes.** Spec `docs/superpowers/specs/2026-11-14-ai-followup-design.md`, plan
-   `docs/superpowers/plans/2026-11-14-ai-followup.md`. **When the owner writes "davam et":**
-   `gh pr list --head feat/ai-chat --json number,state,mergeStateStatus`; if CI failed fix it
-   on the branch; if green ask for a yes, then merge and update `main`; then ask what is
-   next, recommending one: Phase 5 (FLIRT-like library recognition, PDB symbols, binary
-   diff) or M3 dynamic analysis. The owner usually answers "do what is needed": then the
-   builder designs (spec -> plan -> inline execution with `superpowers:executing-plans` ->
-   fresh opus review -> one fix pass -> PR), stating decisions instead of asking, except
-   choices about what leaves the machine (owner's option B: evidence incl. pseudo-C and
-   strings may be sent, but it is shown and confirmed before every send).
-   Open questions for the owner (asked several times, not answered): may the two stray files
-   `src/octov/ext/ghidra/manager (1).py` / `worker (1).py` be deleted (see "Other open work");
-   delete the merged remote branches?
-   Desktop (pywebview) window checked on 2026-11-13 with a throwaway script (`DesktopApi` with
-   temp settings + `webview.start(driver)` + `window.evaluate_js`). Still open: deferred
-   minors of PRs #7-#9 and of the follow-up PR; AZ and the follow-up box were not looked at
-   in the desktop window.
+   (PR #7), Phase 4 relations/search/symbols/file layout (PR #8), M5 AI analyst (PR #9) and
+   **M5b AI follow-up questions (PR #10 merged as `d97eebe`)**. Each PR description lists its
+   rulings and deferred minors.
+2. **In progress: Phase 5a library-function recognition**, branch
+   `feat/library-recognition-phase5`, opened as a PR (find it with `gh pr list`); built,
+   reviewed (fresh opus review, one fix pass), all gates green. It waits for the owner's yes
+   to merge. Spec `docs/superpowers/specs/2026-11-14-library-recognition-phase5-design.md`,
+   plan `docs/superpowers/plans/2026-11-14-library-recognition-phase5.md`; the PR description
+   lists rulings and deferred minors. **When the owner writes "davam et" in a new chat:**
+   a. `git status -sb && git log --oneline -3` and `gh pr list` (if the PR is merged:
+      `git checkout main && git pull`, then branch from `main`).
+   b. If the PR is still open, ask whether to merge it. Then ask what is next, recommending
+      one (nothing is designed yet): **Phase 5b PDB symbols** from the Microsoft symbol server
+      (real names for Windows components; a download, so what is sent - only the PDB GUID/age
+      and file name - must be shown to the owner first), **Phase 5c binary diff** of two
+      samples, or **M3 dynamic analysis** (Frida 16.x, Job Object + AppContainer; much bigger
+      and riskier). Builder's recommendation: Phase 5c binary diff (fully local, builds on
+      library recognition: library functions can be skipped when comparing).
+   c. The owner usually answers "do what is needed": then the builder designs and builds
+      (spec -> plan -> inline execution with `superpowers:executing-plans` -> fresh opus
+      review -> one fix pass -> PR -> ask about Auto-fix -> merge only after the owner's yes),
+      stating decisions instead of asking, except choices about what leaves the machine
+      (owner's option B for AI: evidence incl. pseudo-C and strings may be sent, but it is
+      shown and confirmed before every send; one chosen destination, no automatic fallback).
+   Done on 2026-11-14 with the owner's yes: the two stray `(1).py` files were deleted and all
+   merged remote branches were removed (only `origin/main` was left).
+   Still open: deferred minors of PRs #7-#10 and of the library PR; the follow-up question
+   box, AZ and the new `lib` tag were not looked at in the desktop (pywebview) window (the
+   library UI was checked in the browser pane in EN and AZ with real signatures).
    Working rules learned the hard way: stage files explicitly (never `git add -A` or
    `git add src`); piping a gate into `tail` hides its exit code, read the output before
-   committing; the full pytest suite takes ~10 min, run it in the background; bash heredocs
-   mangle `
-` inside generated test code, use the Write/Edit tools for those.
+   committing; the full pytest suite takes ~12 min, run it in the background; bash heredocs
+   mangle backslash escapes and quotes inside generated code, use the Write/Edit tools (or a
+   script written with Write) for those; UI checks never touch `~/.octov/ui.json` (throwaway
+   server with temp settings); after adding an engine or a triage key, grep the tests for
+   exact key sets (`extensions_auto_run`, `KEYS`, `QUEUES`, extension lists).
 3. Owner priorities (2026-11-10): fast and trouble-free, PE files first, help beginners;
    later AI must show visually what it found suspicious and how parts are linked. Roadmap:
    Phase 4 relations/call graph (symbol tree, memory map, search) -> M5 AI overlay.
@@ -176,6 +188,40 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
    `Remove-Item -Recurse -Force`) and rerun.
 6. `git push` may hang in git-credential-manager (sign-in window): push with
    `git -c credential.helper= -c "credential.helper=!gh auth git-credential" push`.
+
+### Library recognition — Phase 5a facts worth knowing
+- `core/analysis/library.py`: `Candidate(rva, set, names, count)`, `LibraryMatch(start, name,
+  source)`, `accept(candidates, sizes)` (pure policy; `sizes` = all discovered functions).
+  A name is accepted only if: one possible name, size >= 16, the name is used once, a match
+  of the same signature file within 2 functions in address order, and >= 5 such matches per
+  signature file. **Why so strict:** with only "one name + >= 5 per file" twinui.dll got
+  123 MFC and 93 Crypto++ names and curl.exe 10 MFC names (700 000 signatures, the matcher
+  sees only the first bytes). With the rules: twinui 32, curl 28, notepad 19 (all MSVC
+  runtime), pip's `t64.exe` 190 of 277, `t32.exe` 158 of 243.
+- `ext/library_worker.py` is the only `flirt` import (child process; `match_file`, reads
+  file-backed bytes only via `ImageView.read_raw`); `ext/library.py`: `library_status`,
+  `library_sigs_dir`, `library_command`, `parse_library`, `WORKER_VERSION`.
+  `python-flirt` is a core dependency. Signatures = the FLARE files of
+  `~/.octov/capa-sigs/<ver>` (`octov ext setup library` or `ext setup capa`).
+  The compiled sets take ~660 MB: never import `flirt` in the app process.
+- API: engine id `library` (`job_status`, `run_extension`, `get_extensions`,
+  `extensions_auto_run.library`); it starts after the slow lane (`_schedule_library` ->
+  `_library_after_functions` -> `QUEUES["library"]`), cache
+  `~/.octov/cache/<sha>/library-1-<sig folder>.json.gz` (raw candidates; the policy runs on
+  load, so tuning it needs no cache reset; a foreign document is deleted and matched again).
+  `list_functions` rows have `library: bool`; `_names()` merges library names over suggested
+  ones (order: analyst > export > library > suggested > `sub_`); `rank_functions(...,
+  library=)` leaves library functions out unless a medium/high fact points into them;
+  `get_triage()["library"] = {functions, total}`. No fact, no score change; the triage CLI
+  and the baseline sweep keep it off. Engine results are applied under `_Sample.apply_lock`.
+- Speed (2026-11-14): worker 4.4-5.6 s whatever the file size (t64.exe, notepad, curl,
+  twinui 5 MB, wmp 10 MB); cached reopen adds nothing. Limits: 120 s, 2048 MB, 64 MB.
+- Tests: `tests/samples/builder.py::library_like_pe`, `.pat` signature files written by the
+  tests (`flirt.parse_pat`), the API tests fake the worker; `test_library_real.py` runs only
+  with the FLARE files installed (3 tests, ~17 s). `tests/conftest.py` stubs
+  `api.library_status` to "not installed".
+- Web: `lib` tag + "Hide library (N)" in `Sidebar.tsx` (`lib/triage.ts::visibleFunctions`,
+  store `hideLibrary`), one line in the Triage "Most suspicious functions" card.
 
 ### AI analyst — M5 facts worth knowing
 - `core/ai/bundle.py`: `build_bundle(BundleInput, budget_chars)` -> `Bundle(doc, text, hash,
@@ -320,13 +366,9 @@ their tail-called body); the Strings tab has no chip for uncategorised strings (
 - Re-run the engine calibration with
   `scripts/baseline_sweep.py out.jsonl --ext --stride 22 --cache-dir ~/.octov/calib-cache`
   (~1.5 h; the cache makes reruns after scoring changes fast).
-- Remote branches `feat/m2-static-engine`, `feat/web-ui`, `feat/assisted-triage`,
-  `feat/decompiler-phase3` are merged and
-  can be deleted (not done: the owner did not ask).
-- Roadmap: Phase 5 (FLIRT-like, PDB, binary diff); M3 dynamic; M5 follow-up questions.
-- Two untracked copies `src/octov/ext/ghidra/manager (1).py` and `worker (1).py` (old
-  snapshots, appeared 2026-11-10 12:02, not made by Claude) break local ruff/mypy; run
-  `ruff ... "--extend-exclude=* (1).py"` until the owner removes them.
+- Roadmap: Phase 5b PDB symbols, 5c binary diff; M3 dynamic; AI guided workflows.
+- Library recognition ideas not built: C++ name demangling, validating a signature's
+  referenced names (as capa/viv does), Ghidra Function ID as a second source.
 - Phase 3 not done: desktop-window (pywebview) visual check of the Pseudo-C tab; it was
   checked in the browser pane (`octov serve`) in EN and AZ with real Ghidra.
 

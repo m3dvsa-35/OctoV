@@ -278,7 +278,7 @@ def test_worker_crash_is_reported_and_can_be_rerun(env: Env) -> None:
 
 def test_extensions_list_includes_ghidra(env: Env) -> None:
     exts = {e["id"]: e for e in env.api.get_extensions()}
-    assert list(exts) == ["floss", "capa", "ghidra"]
+    assert list(exts) == ["floss", "capa", "ghidra", "library"]
     assert exts["ghidra"]["ready"] and exts["ghidra"]["version"] == "12.2"
     assert exts["ghidra"]["auto_run"] is True
     assert exts["ghidra"]["setup_cmd"] == "octov ext setup ghidra"
@@ -307,4 +307,5 @@ def test_old_settings_file_gets_ghidra_default(tmp_path: Path) -> None:
         "capa": False,
         "floss": True,
         "ghidra": True,
+        "library": True,
     }

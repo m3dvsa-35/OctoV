@@ -6,6 +6,7 @@ import { api } from "../api/client";
 import type { Symbols } from "../api/types";
 import { symbolRows } from "../lib/search";
 import { formatBytes, hex } from "../lib/format";
+import { libraryCount, visibleFunctions } from "../lib/triage";
 import { closeSample, navigate, selectSample, setState, useStore, useT } from "../state/store";
 import { openAnnotateMenu } from "./AnnotateMenu";
 import { Tabs } from "./ui";
@@ -90,7 +91,8 @@ function SampleList() {
 
 function FunctionList() {
   const t = useT();
-  const { functions, discovery, current, findings } = useStore((s) => ({
+  const { functions, discovery, current, findings, hideLibrary } = useStore((s) => ({
+    hideLibrary: s.hideLibrary,
     functions: s.functions,
     discovery: s.discovery,
     current: s.nav?.fn ?? null,
@@ -105,10 +107,8 @@ function FunctionList() {
     return counts;
   }, [findings]);
   const [query, setQuery] = useState("");
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return q ? functions.filter((f) => f.name.toLowerCase().includes(q) || hex(f.start).includes(q)) : functions;
-  }, [functions, query]);
+  const filtered = useMemo(() => visibleFunctions(functions, query, hideLibrary), [functions, query, hideLibrary]);
+  const libraries = useMemo(() => libraryCount(functions), [functions]);
   const parent = useRef<HTMLDivElement>(null);
   const rows = useVirtualizer({
     count: filtered.length,
@@ -136,6 +136,16 @@ function FunctionList() {
           className="w-full bg-transparent text-[12.5px] text-fg outline-none placeholder:text-faint"
         />
       </label>
+      {libraries > 0 && (
+        <label className="mx-2 mb-1.5 flex cursor-pointer items-center gap-1.5 text-[11.5px] text-muted">
+          <input
+            type="checkbox"
+            checked={hideLibrary}
+            onChange={(e) => setState({ hideLibrary: e.target.checked })}
+          />
+          {t("functions.hide_library", { n: libraries })}
+        </label>
+      )}
       <div ref={parent} className="min-h-0 flex-1 overflow-auto px-1.5 pb-2">
         <div style={{ height: rows.getTotalSize(), position: "relative" }}>
           {rows.getVirtualItems().map((row) => {
@@ -147,14 +157,21 @@ function FunctionList() {
                 type="button"
                 onClick={() => void navigate(fn.start)}
                 onContextMenu={(e) => openAnnotateMenu(e, fn.start, fn.start)}
-                title={fn.suggested ? t("functions.suggested_hint") : undefined}
+                title={fn.library ? t("functions.library_hint") : fn.suggested ? t("functions.suggested_hint") : undefined}
                 style={{ transform: `translateY(${row.start}px)`, height: row.size }}
                 className={clsx(
                   "absolute inset-x-0 flex cursor-pointer items-center gap-2 rounded-md px-2 text-left font-mono text-[12px] transition-colors",
                   fn.start === current ? "bg-accent/15 text-fg" : "text-muted hover:bg-raised/60 hover:text-fg",
                 )}
               >
-                <span className={clsx("truncate", fn.suggested && "italic")}>{fn.name}</span>
+                <span className={clsx("truncate", fn.suggested && "italic", fn.library && fn.start !== current && "text-faint")}>
+                  {fn.name}
+                </span>
+                {fn.library && (
+                  <span className="shrink-0 rounded border border-line px-1 text-[10px] text-faint">
+                    {t("functions.library")}
+                  </span>
+                )}
                 {fn.suggested && <span className="text-[10px] text-faint">{t("functions.suggested")}</span>}
                 {fn.is_entry && (
                   <span className="rounded bg-accent/15 px-1 text-[10px] text-accent">

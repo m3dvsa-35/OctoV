@@ -25,6 +25,7 @@ and turn findings into defender artifacts (YARA, Sigma, STIX 2.1, IOCs).
 | M4 | MIL (SSA IL) decompiler MVP → pseudo-C, synced asm/pseudo/graph views | planned |
 | **M5 (first slice)** | AI analyst: one confirmed request with a previewed evidence bundle, cited and validated report, overlay on the Relations graph (OpenRouter / any OpenAI-compatible endpoint) | ✅ |
 | **M5b** | Follow-up questions to the AI analyst, each previewed and confirmed, with cited answers | ✅ |
+| **Knowledge P5a** | Library-function recognition: known runtime/library functions get their real names (FLIRT signatures), a `lib` mark and are left out of the ranking | ✅ |
 | M5 (later) | Guided workflows | planned |
 | M6 | Reports (HTML/PDF), STIX 2.1, MISP, Snort, plugin API, `compare` CLI | planned |
 
@@ -139,6 +140,23 @@ without internet. The workbench itself never downloads anything.
   behaviours that rarely appear in benign software (process injection, persistence, keylogging,
   anti-VM, obfuscation, impact, C2) count towards the risk score.
 - Carved payloads are never written to disk to be scanned: engines run on files only.
+
+## Library-function recognition
+
+A statically linked program is mostly code nobody needs to read (C runtime, C++ standard
+library). OctoV names those functions (`memcpy`, `_initptd`, `__security_check_cookie`), marks
+them `lib` in the function list ("Hide library" removes them) and leaves them out of the
+"most suspicious functions" ranking, so attention goes to the sample's own code.
+
+```bash
+uv run octov ext setup library   # one-time: pinned FLIRT signature files (sha256-checked)
+```
+
+(`ext setup capa` installs the same files.) Matching runs in a short-lived separate process
+a few seconds after a PE is opened and is cached per sample. A name is accepted only when it
+is the function's single possible name, no other function got it, and neighbouring functions
+are library code too: a wrong name would hide the sample's own code, so precision wins over
+coverage. It adds no finding and does not change the risk score.
 
 ## Optional decompiler: Ghidra
 

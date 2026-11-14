@@ -417,6 +417,20 @@ STRINGS: dict[str, str] = {
     "ext.reason.no_ghidra": "Ghidra tapılmadı (işə salın: octov ext setup ghidra)",
     "ext.reason.ghidra_version": "dəstəklənməyən Ghidra versiyası (12.x lazımdır)",
     "ext.reason.no_jdk": "JDK 21 və ya daha yenisi tapılmadı",
+    "ext.reason.no_signatures": "imza faylları yoxdur (işə salın: octov ext setup library)",
+    "ext.library.adds": (
+        "Kitabxana tanıma məlum kitabxana funksiyalarına (C runtime, MFC, zlib, OpenSSL...) "
+        "əsl adlarını verir ki, müəllifin yazmadığı kodu ötürə biləsiniz."
+    ),
+    "functions.library": "lib",
+    "functions.library_hint": (
+        "Məlum kitabxana funksiyası (imza ilə tanınıb); adətən ötürmək olar"
+    ),
+    "functions.hide_library": "Kitabxananı gizlət ({n})",
+    "triage.library": (
+        "Məlum kitabxana kodu: {m} funksiyadan {n}-i. Onlara ad verilib və sıralamaya daxil "
+        "edilməyib."
+    ),
     "ext.reason.pe_only": "yalnız PE faylları üçün",
     "ext.ghidra.adds": (
         "Ghidra hər funksiyanın maşın kodunu oxunaqlı psevdo-C-yə çevirir; disassembly və qrafla "

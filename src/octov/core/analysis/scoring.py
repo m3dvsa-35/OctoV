@@ -7,7 +7,7 @@ sample scored 72 or why a function is at the top of the list.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -78,10 +78,18 @@ def rank_functions(
     facts: Sequence[Fact],
     strings: Sequence[FoundString],
     names: Mapping[int, str],
+    library: Collection[int] = (),
 ) -> list[RankedFunction]:
+    """Functions worth reading first, with reasons.
+
+    Known library functions (``library``) are left out: nobody needs to read ``memcpy``.
+    The exception is a medium or high severity fact inside one, which is never hidden
+    because of a name.
+    """
     index = FunctionIndex(dict(functions))
     points: dict[int, int] = defaultdict(int)
     reasons: dict[int, list[str]] = defaultdict(list)
+    strong: set[int] = set()  # functions holding a medium / high fact
 
     for fact in facts:
         rank = SEVERITY_RANK[fact.severity]
@@ -93,6 +101,8 @@ def rank_functions(
             # Data evidence (crypto tables, IOC strings) counts for the code that reads it.
             owners += [index.lookup(x.src) for x in xrefs.to(ev.rva)]
             hit |= {fn.start for fn in owners if fn is not None}
+        if rank >= SEVERITY_RANK["medium"]:
+            strong |= hit
         for start in hit:
             points[start] += 10 * rank if fact.kind != "crypto_constant" else 4
             reasons[start].append(
@@ -122,7 +132,7 @@ def rank_functions(
     ranked = [
         RankedFunction(start, names.get(start, f"sub_{start:x}"), score, tuple(reasons[start]))
         for start, score in points.items()
-        if score > 0 and start in functions
+        if score > 0 and start in functions and (start not in library or start in strong)
     ]
     ranked.sort(key=lambda r: (-r.score, r.start))
     return ranked[:TOP_FUNCTIONS]
