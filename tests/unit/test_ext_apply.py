@@ -62,3 +62,45 @@ def test_apply_capa_adds_facts_and_reranks(tmp_path: Path) -> None:
     assert thread.evidence[0].rva == 0x1000  # attached to the containing function
     assert len(ctx.results["capa"]) == 2
     assert pipeline.status()["ranking"]["state"] == "done"
+
+
+def _library_doc(ctx: AnalysisContext) -> dict[str, Any]:
+    assert ctx.report is not None
+    starts = sorted(s for s in ctx.functions if s != ctx.report.entry_point)
+    return {
+        "engine": "library",
+        "version": 1,
+        "sets": [{"file": "test.pat", "signatures": len(starts)}],
+        "candidates": [
+            {"rva": s, "set": "test.pat", "names": [f"lib_{s:x}"], "count": 1} for s in starts
+        ],
+    }
+
+
+def test_apply_library_names_functions_and_reranks() -> None:
+    from octov.core.analysis.library import LibraryMatch
+    from octov.ext.apply import apply_library
+    from tests.samples.builder import library_like_pe
+
+    ctx, pipeline = _analysed(library_like_pe())
+    doc = _library_doc(ctx)
+    apply_library(ctx, pipeline, doc)
+    first = doc["candidates"][0]["rva"]
+    assert len(ctx.results["library"]) == 7
+    assert ctx.results["library"][first] == LibraryMatch(first, f"lib_{first:x}", "test.pat")
+    assert pipeline.status()["ranking"]["state"] == "done"
+
+
+def test_library_results_change_neither_facts_nor_score() -> None:
+    from octov.core.analysis.report import build_triage
+    from octov.ext.apply import apply_library
+    from tests.samples.builder import library_like_pe
+
+    ctx, pipeline = _analysed(library_like_pe())
+    before = build_triage(ctx, {}, {})
+    assert before["library"] == {"functions": 0, "total": 8}
+    apply_library(ctx, pipeline, _library_doc(ctx))
+    after = build_triage(ctx, {}, {})
+    assert after["library"] == {"functions": 7, "total": 8}
+    assert after["score"] == before["score"]
+    assert after["capabilities"] == before["capabilities"]

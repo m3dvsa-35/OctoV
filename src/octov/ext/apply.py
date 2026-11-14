@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from octov.core.analysis.library import accept
 from octov.core.analysis.pipeline import AnalysisContext, Pipeline
 from octov.core.analysis.strings import FoundString
 from octov.ext.capa import capa_facts, parse_capa
 from octov.ext.floss import floss_facts, merge_strings, parse_floss
+from octov.ext.library import parse_library
 
 
 def image_span(ctx: AnalysisContext) -> tuple[int, int]:
@@ -38,5 +40,13 @@ def apply_capa(ctx: AnalysisContext, pipeline: Pipeline, doc: dict[str, Any]) ->
     matches = parse_capa(doc, base, size)
     ctx.results["capa"] = matches
     ctx.add(capa_facts(matches, ctx.index))
+    if ctx.functions:
+        pipeline.rerun(["naming", "ranking"], ctx)
+
+
+def apply_library(ctx: AnalysisContext, pipeline: Pipeline, doc: dict[str, Any]) -> None:
+    """Call after the slow lane finished: known library functions get names, ranking skips them."""
+    sizes = {start: fn.size for start, fn in ctx.functions.items()}
+    ctx.results["library"] = accept(parse_library(doc), sizes)
     if ctx.functions:
         pipeline.rerun(["naming", "ranking"], ctx)

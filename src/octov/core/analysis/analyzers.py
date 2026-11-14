@@ -8,6 +8,7 @@ from octov.core.analysis.carve import carve_payloads, payload_facts
 from octov.core.analysis.crypto import find_crypto
 from octov.core.analysis.facts import Evidence, Fact, facts_from_findings, facts_from_indicators
 from octov.core.analysis.iocs import build_iocs
+from octov.core.analysis.library import LibraryMatch
 from octov.core.analysis.naming import suggest_name, suggest_name_from_capa
 from octov.core.analysis.packer import packer_fact, packer_verdict
 from octov.core.analysis.pipeline import AnalysisContext, Analyzer
@@ -164,12 +165,14 @@ class Ranking(_Base):
         super().__init__("ranking", cost="slow", depends_on=("naming", "strings", "crypto"))
 
     def run(self, ctx: AnalysisContext) -> None:
+        library: dict[int, LibraryMatch] = ctx.results.get("library", {})
         ctx.results["ranking"] = rank_functions(
             ctx.functions,
             ctx.results["xrefs"],
             ctx.facts,
             ctx.results.get("strings", []),
-            ctx.results.get("names", {}),
+            ctx.results.get("names", {}) | {s: m.name for s, m in library.items()},
+            library=library.keys(),
         )
 
 

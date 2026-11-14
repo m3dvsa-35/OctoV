@@ -131,6 +131,10 @@ def build_triage(
             }
             for r in ranking
         ],
+        "library": {
+            "functions": len(ctx.results.get("library", {})),
+            "total": len(ctx.functions),
+        },
         "attack": sorted(attack.values(), key=lambda r: (_ORDER[r["severity"]], r["technique"])),
         "orphaned_verdicts": [
             {"fact_id": fid, "verdict": v} for fid, v in verdicts.items() if fid not in by_id
