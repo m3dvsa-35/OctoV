@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Any
 
 ENGINES = ("floss", "capa")  # lane order: strings first, they are cheaper
-ALL_EXTENSIONS = (*ENGINES, "ghidra")  # engines + the decompiler (own worker model)
+# engines + the decompiler (own worker model) + library recognition (after the slow lane)
+ALL_EXTENSIONS = (*ENGINES, "ghidra", "library")
 _MODULE = {"capa": "capa", "floss": "floss"}
 _DISTRIBUTION = {"capa": "flare-capa", "floss": "flare-floss"}
 _VERSION_DIR = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")

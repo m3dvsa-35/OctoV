@@ -75,7 +75,14 @@ class ExtensionConfig:
     max_memory_mb: int = 4096
 
 
-EXTENSION_IDS = ("capa", "floss")
+EXTENSION_IDS = ("capa", "floss", "library")
+
+
+def _default_extensions() -> dict[str, ExtensionConfig]:
+    limits = {e: ExtensionConfig() for e in EXTENSION_IDS}
+    # signature matching takes seconds; its memory is the compiled signature sets
+    limits["library"] = ExtensionConfig(timeout_s=120, max_size_mb=64, max_memory_mb=2048)
+    return limits
 
 
 @dataclass
@@ -100,9 +107,7 @@ class Config:
     static: StaticConfig = field(default_factory=StaticConfig)
     dynamic: DynamicConfig = field(default_factory=DynamicConfig)
     rules: RulesConfig = field(default_factory=RulesConfig)
-    extensions: dict[str, ExtensionConfig] = field(
-        default_factory=lambda: {e: ExtensionConfig() for e in EXTENSION_IDS}
-    )
+    extensions: dict[str, ExtensionConfig] = field(default_factory=_default_extensions)
     ghidra: GhidraConfig = field(default_factory=GhidraConfig)
 
 

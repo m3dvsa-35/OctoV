@@ -51,7 +51,7 @@ def test_missing_explicit_file_rejected(tmp_path: Path) -> None:
 
 def test_extension_defaults() -> None:
     cfg = load_config(None, env={})
-    assert set(cfg.extensions) == {"capa", "floss"}
+    assert set(cfg.extensions) == {"capa", "floss", "library"}
     capa = cfg.extensions["capa"]
     assert (capa.timeout_s, capa.max_size_mb, capa.max_memory_mb) == (600, 64, 4096)
 
@@ -87,7 +87,7 @@ def test_ghidra_config(tmp_path: Path) -> None:
     cfg = load_config(path, env={})
     assert cfg.ghidra.max_workers == 1 and cfg.ghidra.java_home == Path("C:/jdk")
     assert cfg.ghidra.max_memory_mb == 4096 and cfg.ghidra.install_dir is None
-    assert set(cfg.extensions) == {"capa", "floss"}
+    assert set(cfg.extensions) == {"capa", "floss", "library"}
 
 
 def test_ghidra_config_unknown_key(tmp_path: Path) -> None:

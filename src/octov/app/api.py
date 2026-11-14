@@ -18,7 +18,9 @@ import base64
 import contextlib
 import hashlib
 import json
+import os
 import shutil
+import tempfile
 import threading
 import time
 from collections.abc import Callable
@@ -79,7 +81,8 @@ from octov.ext import (
 from octov.ext import cache as ext_cache
 from octov.ext import capa as capa_ext
 from octov.ext import floss as floss_ext
-from octov.ext.apply import apply_capa, apply_floss
+from octov.ext import library as library_ext
+from octov.ext.apply import apply_capa, apply_floss, apply_library
 from octov.ext.ghidra.discover import ghidra_status
 from octov.ext.ghidra.manager import (
     GhidraManager,
@@ -96,6 +99,7 @@ from octov.ext.ghidra.model import (
 )
 from octov.ext.ghidra.model import cache_path as decomp_cache_path
 from octov.ext.ghidra.protocol import GhidraError
+from octov.ext.library import library_sigs_dir, library_status
 from octov.ext.queue import QUEUES
 from octov.ext.runner import EngineError, parse_json, run_engine
 
@@ -132,6 +136,9 @@ class _Sample:
     callgraph: CallGraph | None = field(default=None, repr=False)  # built on first use
     memory_map: dict[str, Any] | None = field(default=None, repr=False)
     ai_running: bool = False  # one AI request per sample at a time
+    # engine results that re-run naming / ranking are applied one at a time
+    apply_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    library_pending: bool = False  # library recognition is waiting, queued or running
 
     @property
     def hashes(self) -> Hashes:
@@ -345,6 +352,7 @@ class WorkbenchApi:
         pipeline.start_slow(ctx)
         self._schedule_extensions(sample)
         self._schedule_ghidra(sample)
+        self._schedule_library(sample)
         return self._summary(sample)
 
     def _persist(self, session: Session, sample: _Sample) -> None:
@@ -415,7 +423,7 @@ class WorkbenchApi:
         return [self._summary(s) for s in samples]
 
     def close_sample(self, sha: str) -> None:
-        for engine in ENGINES:
+        for engine in (*ENGINES, "library"):
             QUEUES[engine].cancel(sha)
         with self._lock:
             sample = self._samples.pop(sha, None)
@@ -493,9 +501,13 @@ class WorkbenchApi:
         return {a.target: a.value for a in self._annotations(s, "verdict") if a.target}
 
     def _names(self, s: _Sample) -> tuple[dict[int, str], dict[int, str]]:
-        """(analyst names, suggested names) by function start."""
+        """(analyst names, suggested names) by function start.
+
+        A recognised library function's real name replaces its suggested name.
+        """
         own = {a.address: a.value for a in self._annotations(s, "name") if a.address is not None}
-        return own, dict(s.ctx.results.get("names", {}))
+        library = {start: m.name for start, m in s.ctx.results.get("library", {}).items()}
+        return own, dict(s.ctx.results.get("names", {})) | library
 
     def annotate(
         self,
@@ -699,14 +711,17 @@ class WorkbenchApi:
         exports = {rva: n for n, rva in s.report.export_rvas.items()} if s.report else {}
         own, suggested = self._names(s)
         name_of = self._namer(s)
+        library = s.ctx.results.get("library", {})
         out = []
         for start, fn in sorted(s.functions.items()):
             name = name_of(start)
+            named = start not in own and start not in exports  # the name is OctoV's
             out.append(
                 {
                     "start": start,
                     "name": name,
-                    "suggested": start not in own and start not in exports and start in suggested,
+                    "suggested": named and start not in library and start in suggested,
+                    "library": named and start in library,
                     "blocks": len(fn.blocks),
                     "size": fn.size,
                     "is_entry": start == entry,
@@ -715,7 +730,7 @@ class WorkbenchApi:
         return out
 
     def _namer(self, s: _Sample) -> Callable[[int], str]:
-        """Function name as every view shows it: analyst, export, suggested, ``sub_…``."""
+        """Function name as every view shows it: analyst, export, library, suggested, ``sub_…``."""
         exports = {rva: n for n, rva in s.report.export_rvas.items()} if s.report else {}
         own, suggested = self._names(s)
 
@@ -1407,12 +1422,19 @@ class WorkbenchApi:
 
     def get_extensions(self) -> list[dict[str, Any]]:
         auto = self._settings["extensions_auto_run"]
-        statuses = [*extension_status(self._rules_root), ghidra_status(self._config.ghidra)]
+        statuses = [
+            *extension_status(self._rules_root),
+            ghidra_status(self._config.ghidra),
+            library_status(self._sigs_root),
+        ]
         return [st.to_dict() | {"auto_run": auto[st.id]} for st in statuses]
 
     def run_extension(self, sha: str, ext_id: str, force: bool = False) -> None:
         if ext_id == "ghidra":
             self._schedule_ghidra(self._get(sha), explicit=True, force=force)
+            return
+        if ext_id == "library":
+            self._schedule_library(self._get(sha), explicit=True, force=force)
             return
         if ext_id not in ENGINES:
             raise ApiError(f"unknown extension {ext_id!r}")
@@ -1547,7 +1569,9 @@ class WorkbenchApi:
                         return  # closed while waiting
             if self._samples.get(s.sha) is not s:
                 return  # closed meanwhile: drop the result
-            (apply_capa if engine == "capa" else apply_floss)(s.ctx, s.pipeline, doc)
+            apply = {"capa": apply_capa, "floss": apply_floss, "library": apply_library}[engine]
+            with s.apply_lock:
+                apply(s.ctx, s.pipeline, doc)
         except EngineError as exc:
             s.pipeline.set_state(engine, "failed", exc.reason, elapsed_s=elapsed)
             return
@@ -1559,6 +1583,109 @@ class WorkbenchApi:
             with contextlib.suppress(OSError):
                 ext_cache.store(cache_path, doc)
         s.pipeline.set_state(engine, "done", elapsed_s=elapsed, cached=cached)
+
+    # -- library-function recognition (FLIRT worker) -----------------------------------
+
+    def _schedule_library(self, s: _Sample, explicit: bool = False, force: bool = False) -> None:
+        """Queue signature matching; it starts once the functions are discovered."""
+        st = library_status(self._sigs_root)
+        reason: str | None = None
+        if not st.ready:
+            reason = st.reason_key or "ext.reason.not_installed"
+        elif s.report is None:
+            reason = "ext.reason.pe_only"
+        elif s.parent is not None or not s.path.is_file():
+            reason = "ext.reason.in_memory"
+        elif len(s.data) > self._config.extensions["library"].max_size_mb * 1024 * 1024:
+            reason = "ext.reason.too_large"
+        if reason is not None:
+            s.pipeline.set_state("library", "unavailable", reason)
+            return
+        if not explicit and not self._settings["extensions_auto_run"]["library"]:
+            s.pipeline.set_state("library", "idle")
+            return
+        with self._lock:
+            if s.library_pending:
+                return  # already waiting, queued or running for this sample
+            s.library_pending = True
+        s.pipeline.set_state("library", "queued")
+        threading.Thread(
+            target=self._library_after_functions,
+            args=(s, st, force),
+            daemon=True,
+            name="octov-library-wait",
+        ).start()
+
+    def _library_after_functions(self, s: _Sample, st: ExtensionStatus, force: bool) -> None:
+        """Wait for the slow lane (outside the queue), then use the cache or queue the worker."""
+        queued = False
+        try:
+            while not s.pipeline.wait_slow(0.5):
+                if self._samples.get(s.sha) is not s:
+                    return  # closed while waiting
+            if self._samples.get(s.sha) is not s:
+                return
+            if s.pipeline.status().get("functions", {}).get("state") != "done":
+                s.pipeline.set_state("library", "unavailable", "needs functions")
+                return
+            path = ext_cache.cache_file(
+                self._cache_dir, s.sha, "library", st.version or "?", st.rules_version
+            )
+            doc = None if force else ext_cache.load(path)
+            if doc is not None:
+                s.pipeline.set_state("library", "running")
+                self._finish_engine(s, "library", doc, None, True, None)
+                return
+            queued = QUEUES["library"].submit(s.sha, self._library_job(s, path), owner=s)
+        except Exception as exc:  # every job must end in a terminal state
+            s.pipeline.set_state("library", "failed", f"internal error: {exc}")
+        finally:
+            if not queued:
+                s.library_pending = False
+
+    def _library_job(self, s: _Sample, cache_path: Path) -> Any:
+        limits = self._config.extensions["library"]
+
+        def job(cancel: threading.Event) -> None:
+            starts_file: Path | None = None
+            start = time.monotonic()
+            try:
+                if self._samples.get(s.sha) is not s:
+                    return  # closed while queued
+                s.pipeline.set_state("library", "running")
+                if not self._file_unchanged(s):
+                    raise EngineError("crash", "file changed on disk")
+                sigs = library_sigs_dir(self._sigs_root)
+                if sigs is None:
+                    raise EngineError("crash", "signature files missing")
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                fd, name = tempfile.mkstemp(
+                    dir=cache_path.parent, prefix="library-starts-", suffix=".json"
+                )
+                starts_file = Path(name)
+                with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                    json.dump(sorted(s.functions), fh)
+                run = run_engine(
+                    library_ext.library_command(s.path, sigs[1], starts_file),
+                    timeout_s=limits.timeout_s,
+                    max_memory_mb=limits.max_memory_mb,
+                    cancel=cancel,
+                )
+                doc = parse_json(run)
+                if not self._file_unchanged(s):
+                    raise EngineError("crash", "file changed on disk")
+                self._finish_engine(s, "library", doc, cache_path, False, _secs(start))
+            except EngineError as exc:
+                s.pipeline.set_state("library", "failed", exc.reason, elapsed_s=_secs(start))
+            except Exception as exc:  # every job must end in a terminal state
+                s.pipeline.set_state("library", "failed", f"internal error: {exc}")
+            finally:
+                s.library_pending = False
+                if starts_file is not None:
+                    with contextlib.suppress(OSError):
+                        starts_file.unlink()
+
+        return job
 
     # -- decompiler (Ghidra worker) -----------------------------------------------------
 

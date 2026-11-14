@@ -63,4 +63,4 @@ class EngineQueue:
                     self._running = None
 
 
-QUEUES: dict[str, EngineQueue] = {"capa": EngineQueue("capa"), "floss": EngineQueue("floss")}
+QUEUES: dict[str, EngineQueue] = {e: EngineQueue(e) for e in ("capa", "floss", "library")}

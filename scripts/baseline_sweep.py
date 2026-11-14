@@ -41,7 +41,7 @@ def _init(with_ext: bool, cache_dir: str | None) -> None:
         cache_dir=Path(cache_dir) if cache_dir else d / "cache",
     )
     # Ghidra adds no facts and no score: never start it in a sweep
-    auto = {"capa": with_ext, "floss": with_ext, "ghidra": False}
+    auto = {"capa": with_ext, "floss": with_ext, "ghidra": False, "library": False}
     _api.set_settings({"extensions_auto_run": auto})
 
 
