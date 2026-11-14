@@ -16,7 +16,7 @@ def _wait(predicate, timeout: float = 5.0) -> bool:  # type: ignore[no-untyped-d
 
 
 def test_module_queues() -> None:
-    assert set(QUEUES) == {"capa", "floss"}
+    assert set(QUEUES) == {"capa", "floss", "library"}
 
 
 def test_one_job_at_a_time() -> None:
