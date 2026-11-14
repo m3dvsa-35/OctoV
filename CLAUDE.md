@@ -135,36 +135,43 @@ tests/samples/corpus.py     builds a sample per rule (detection-rate tests)
 - Installed plugins the user wants used: superpowers (TDD, verification, code review),
   caveman (commit messages, review), ui-ux-pro-max (visual panels), karpathy guidelines.
 
-## Status / where we stopped  (updated 2026-11-13, chat 6)
+## Status / where we stopped  (updated 2026-11-14, chat 6)
 
 ### How to resume in a new chat (read this first)
 1. `main` has M1, M2, web UI, assisted-triage Phases 1-2 (PR #6), Phase 3 Ghidra decompiler
-   (PR #7), Phase 4 relations/search/symbols/file layout (PR #8) and **M5 AI analyst, first
-   slice (PR #9 merged as `ca1580e`)**. Each PR description lists its rulings and deferred minors.
-2. **M5b AI follow-up questions are implemented on `feat/ai-chat`** (4 plan tasks, final
-   review + one fix pass, pushed, PR to `main` open). **Do not merge without the owner's
-   yes.** Spec `docs/superpowers/specs/2026-11-14-ai-followup-design.md`, plan
-   `docs/superpowers/plans/2026-11-14-ai-followup.md`. **When the owner writes "davam et":**
-   `gh pr list --head feat/ai-chat --json number,state,mergeStateStatus`; if CI failed fix it
-   on the branch; if green ask for a yes, then merge and update `main`; then ask what is
-   next, recommending one: Phase 5 (FLIRT-like library recognition, PDB symbols, binary
-   diff) or M3 dynamic analysis. The owner usually answers "do what is needed": then the
-   builder designs (spec -> plan -> inline execution with `superpowers:executing-plans` ->
-   fresh opus review -> one fix pass -> PR), stating decisions instead of asking, except
-   choices about what leaves the machine (owner's option B: evidence incl. pseudo-C and
-   strings may be sent, but it is shown and confirmed before every send).
-   Open questions for the owner (asked several times, not answered): may the two stray files
+   (PR #7), Phase 4 relations/search/symbols/file layout (PR #8), M5 AI analyst (PR #9) and
+   **M5b AI follow-up questions (PR #10 merged as `d97eebe`)**. Each PR description lists its
+   rulings and deferred minors.
+2. **Nothing is in progress and nothing is designed for the next step.** This note is only on
+   the local branch `docs/status-m5b-merged` (one commit on top of `main`, not pushed; the
+   repo was left checked out on it): create the next feature branch from it so the note
+   travels along. **When the owner writes "davam et" in a new chat:**
+   a. `git status -sb && git log --oneline -3` (expect `docs/status-m5b-merged`, clean except
+      the two stray files below).
+   b. Ask what is next, recommending one (nothing is designed yet): **Phase 5** (FLIRT-like
+      library-function recognition so analysts skip known code, PDB symbols from the Microsoft
+      symbol server, binary diff of two samples) or **M3 dynamic analysis** (Frida 16.x,
+      Job Object + AppContainer; a much bigger and riskier step). Builder's recommendation:
+      Phase 5, starting with library recognition.
+   c. The owner usually answers "do what is needed": then the builder designs and builds
+      (spec -> plan -> inline execution with `superpowers:executing-plans` -> fresh opus
+      review -> one fix pass -> PR -> ask about Auto-fix -> merge only after the owner's yes),
+      stating decisions instead of asking, except choices about what leaves the machine
+      (owner's option B for AI: evidence incl. pseudo-C and strings may be sent, but it is
+      shown and confirmed before every send; one chosen destination, no automatic fallback).
+   Open questions for the owner (asked several times, never answered): may the two stray files
    `src/octov/ext/ghidra/manager (1).py` / `worker (1).py` be deleted (see "Other open work");
-   delete the merged remote branches?
-   Desktop (pywebview) window checked on 2026-11-13 with a throwaway script (`DesktopApi` with
-   temp settings + `webview.start(driver)` + `window.evaluate_js`). Still open: deferred
-   minors of PRs #7-#9 and of the follow-up PR; AZ and the follow-up box were not looked at
-   in the desktop window.
+   delete the merged remote branches (`feat/decompiler-phase3`, `feat/relations-phase4`,
+   `feat/ai-m5`, `feat/ai-chat` and older ones)?
+   Still open: deferred minors of PRs #7-#10; the follow-up question box and AZ were not
+   looked at in the desktop (pywebview) window (the other new tabs were, on 2026-11-13, with a
+   throwaway script: `DesktopApi` with temp settings + `webview.start(driver)` +
+   `window.evaluate_js`).
    Working rules learned the hard way: stage files explicitly (never `git add -A` or
    `git add src`); piping a gate into `tail` hides its exit code, read the output before
    committing; the full pytest suite takes ~10 min, run it in the background; bash heredocs
-   mangle `
-` inside generated test code, use the Write/Edit tools for those.
+   mangle backslash escapes inside generated code, use the Write/Edit tools for those; UI
+   checks never touch `~/.octov/ui.json` (throwaway server with temp settings).
 3. Owner priorities (2026-11-10): fast and trouble-free, PE files first, help beginners;
    later AI must show visually what it found suspicious and how parts are linked. Roadmap:
    Phase 4 relations/call graph (symbol tree, memory map, search) -> M5 AI overlay.
@@ -323,7 +330,7 @@ their tail-called body); the Strings tab has no chip for uncategorised strings (
 - Remote branches `feat/m2-static-engine`, `feat/web-ui`, `feat/assisted-triage`,
   `feat/decompiler-phase3` are merged and
   can be deleted (not done: the owner did not ask).
-- Roadmap: Phase 5 (FLIRT-like, PDB, binary diff); M3 dynamic; M5 follow-up questions.
+- Roadmap: Phase 5 (FLIRT-like, PDB, binary diff); M3 dynamic; AI guided workflows.
 - Two untracked copies `src/octov/ext/ghidra/manager (1).py` and `worker (1).py` (old
   snapshots, appeared 2026-11-10 12:02, not made by Claude) break local ruff/mypy; run
   `ruff ... "--extend-exclude=* (1).py"` until the owner removes them.
