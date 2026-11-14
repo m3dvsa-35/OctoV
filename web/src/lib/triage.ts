@@ -103,3 +103,22 @@ export function jobLabel(job: JobInfo, t: (key: string) => string): string {
 export function offsetLabel(offset: number): string {
   return offset < 0 ? "—" : hex(offset, 6);
 }
+
+/** The sidebar function list: search by name or hex address, optionally without library code. */
+export function visibleFunctions<T extends { start: number; name: string; library: boolean }>(
+  functions: T[],
+  query: string,
+  hideLibrary: boolean,
+): T[] {
+  const q = query.trim().toLowerCase();
+  if (!q && !hideLibrary) return functions;
+  return functions.filter(
+    (f) => !(hideLibrary && f.library) && (!q || f.name.toLowerCase().includes(q) || hex(f.start).includes(q)),
+  );
+}
+
+export function libraryCount(functions: { library: boolean }[]): number {
+  let n = 0;
+  for (const f of functions) if (f.library) n += 1;
+  return n;
+}

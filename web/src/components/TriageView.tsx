@@ -195,7 +195,7 @@ export function TriageView() {
                     >
                       {busy ? <Loader2 size={10} className="animate-spin" aria-hidden /> : j.state === "failed" ? <X size={10} aria-hidden /> : <Check size={10} aria-hidden />}
                       {id} · {jobLabel(j, t)}
-                      {(id === "capa" || id === "floss" || id === "ghidra") && !busy && j.state !== "unavailable" && (
+                      {(id === "capa" || id === "floss" || id === "ghidra" || id === "library") && !busy && j.state !== "unavailable" && (
                         <button
                           type="button"
                           title={j.state === "idle" ? t("ext.run") : t("ext.rerun")}
@@ -318,6 +318,11 @@ export function TriageView() {
           </Card>
 
           <Card title={`${t("triage.top_functions")} (${tri.top_functions.length})`}>
+            {tri.library.functions > 0 && (
+              <p className="mb-2 text-[12px] text-muted">
+                {t("triage.library", { n: tri.library.functions, m: tri.library.total })}
+              </p>
+            )}
             <ul className="space-y-1.5">
               {tri.top_functions.slice(0, 10).map((f) => (
                 <li key={f.start} className="text-[12.5px]">

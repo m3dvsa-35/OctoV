@@ -68,6 +68,8 @@ export interface State {
   functions: FunctionSummary[];
   discovery: DiscoveryStatus | null;
   nav: Nav | null;
+  /** Sidebar: leave recognised library functions out of the function list. */
+  hideLibrary: boolean;
   history: Nav[];
   future: Nav[];
   main: MainView;
@@ -90,7 +92,7 @@ export interface State {
 
 let state: State = {
   ready: false,
-  settings: { language: "en", theme: "dark", compact: false, extensions_auto_run: { capa: true, floss: true, ghidra: true } },
+  settings: { language: "en", theme: "dark", compact: false, extensions_auto_run: { capa: true, floss: true, ghidra: true, library: true } },
   extensions: [],
   strings: {},
   caps: { native_dialogs: false },
@@ -105,6 +107,7 @@ let state: State = {
   functions: [],
   discovery: null,
   nav: null,
+  hideLibrary: false,
   history: [],
   future: [],
   main: "triage",
@@ -354,7 +357,7 @@ export async function refreshAnalysis(sha: string): Promise<void> {
   setState({ triage, findings, mitre, samples });
   void loadAiReport(sha);
   if (state.discovery?.state === "done") {
-    // capa can rename functions (suggested names) after the code views loaded
+    // capa and library recognition can rename functions after the code views loaded
     const functions = await api.functions(sha);
     if (state.active === sha) setState({ functions });
   }

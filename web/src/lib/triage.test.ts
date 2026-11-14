@@ -7,9 +7,11 @@ import {
   groupByNamespace,
   groupContributions,
   jobLabel,
+  libraryCount,
   offsetLabel,
   positiveContributions,
   verdictCounts,
+  visibleFunctions,
 } from "./triage";
 
 describe("bandOf", () => {
@@ -131,5 +133,26 @@ describe("offsetLabel", () => {
   it("shows a dash for strings with no file offset (recovered at run time)", () => {
     expect(offsetLabel(-1)).toBe("—");
     expect(offsetLabel(0x40)).toBe("000040");
+  });
+});
+
+describe("visibleFunctions", () => {
+  const fn = (start: number, name: string, library = false) => ({ start, name, library });
+  const rows = [fn(0x1000, "sub_1000"), fn(0x2000, "memcpy", true), fn(0x3000, "net_http_3000")];
+
+  it("returns everything without a query or filter", () => {
+    expect(visibleFunctions(rows, "", false)).toBe(rows);
+  });
+  it("filters by name or hex address, case-insensitively", () => {
+    expect(visibleFunctions(rows, " MEM ", false).map((f) => f.start)).toEqual([0x2000]);
+    expect(visibleFunctions(rows, "3000", false).map((f) => f.start)).toEqual([0x3000]);
+  });
+  it("hides library functions on request", () => {
+    expect(visibleFunctions(rows, "", true).map((f) => f.start)).toEqual([0x1000, 0x3000]);
+    expect(visibleFunctions(rows, "mem", true)).toEqual([]);
+  });
+  it("counts library functions", () => {
+    expect(libraryCount(rows)).toBe(1);
+    expect(libraryCount([])).toBe(0);
   });
 });

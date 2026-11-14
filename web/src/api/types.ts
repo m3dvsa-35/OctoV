@@ -107,6 +107,7 @@ export interface Triage {
   iocs_total: number;
   payloads: { offset: number; size: number; kind: string; where: string; sha256: string }[];
   top_functions: { start: number; name: string; score: number; reasons: string[] }[];
+  library: { functions: number; total: number };
   attack: MitreRow[];
   orphaned_verdicts: { fact_id: string; verdict: Verdict }[];
   jobs: Record<string, JobState>;
@@ -119,7 +120,7 @@ export interface JobState {
   cached: boolean;
 }
 
-export type EngineId = "capa" | "floss" | "ghidra";
+export type EngineId = "capa" | "floss" | "ghidra" | "library";
 
 export interface Extension {
   id: EngineId;
@@ -152,6 +153,8 @@ export interface FunctionSummary {
   start: number;
   name: string;
   suggested: boolean;
+  /** Recognised library code (its name comes from a signature). */
+  library: boolean;
   blocks: number;
   size: number;
   is_entry: boolean;
