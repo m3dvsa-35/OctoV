@@ -1,4 +1,4 @@
-"""`octov ext`: status of the optional engines and one-time capa rules setup."""
+"""`octov ext`: status of the optional engines and their one-time setup."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from typing import Any
 from octov.core.config import ConfigError, load_config
 from octov.ext import DEFAULT_RULES_ROOT, DEFAULT_SIGS_ROOT, extension_status
 from octov.ext.ghidra.discover import ghidra_status
+from octov.ext.library import library_status
 
 EXIT_SETUP_FAILED = 2
 
@@ -19,7 +20,7 @@ def add_parser(sub: Any) -> None:
     ext_sub = ext.add_subparsers(dest="ext_command", required=True)
     status = ext_sub.add_parser("status", help="show installed engines and capa rules")
     setup = ext_sub.add_parser("setup", help="install the capa rule set (one-time download)")
-    setup.add_argument("engine", choices=("capa", "ghidra"))
+    setup.add_argument("engine", choices=("capa", "ghidra", "library"))
     setup.add_argument("--from-zip", type=Path, help="install from a local rules archive")
     setup.add_argument(
         "--allow-unpinned", action="store_true", help="accept a rules archive with another hash"
@@ -49,9 +50,12 @@ def run(args: argparse.Namespace) -> int:
                 state = f"installed {st.version}, rules missing: {st.setup_cmd}"
             print(f"{st.id:<6} {state}")
         print(_ghidra_line(args))
+        print(_library_line(args))
         return 0
     if args.engine == "ghidra":
         return _setup_ghidra(args)
+    if args.engine == "library":
+        return _setup_library(args)
 
     from octov.ext.capa_rules import RulesError, install_rules, install_sigs
 
@@ -67,6 +71,33 @@ def run(args: argparse.Namespace) -> int:
     except (RulesError, OSError) as exc:
         print(f"capa rules setup failed: {exc}", file=sys.stderr)
         return EXIT_SETUP_FAILED
+    return 0
+
+
+def _sigs_root(args: argparse.Namespace) -> Path:
+    root: Path = args.sigs_root or DEFAULT_SIGS_ROOT
+    return root.expanduser()
+
+
+def _library_line(args: argparse.Namespace) -> str:
+    st = library_status(_sigs_root(args))
+    if st.ready:
+        return f"library ready (signatures {st.rules_version})"
+    if not st.installed:
+        return f"library not installed: {st.install_cmd}"
+    return f"library signatures missing: {st.setup_cmd}"
+
+
+def _setup_library(args: argparse.Namespace) -> int:
+    """Only the pinned signature files (library recognition works without capa)."""
+    from octov.ext.capa_rules import RulesError, install_sigs
+
+    try:
+        sigs = install_sigs(_sigs_root(args), from_dir=args.sigs_from)
+    except (RulesError, OSError) as exc:
+        print(f"library signatures setup failed: {exc}", file=sys.stderr)
+        return EXIT_SETUP_FAILED
+    print(f"library signatures installed in {sigs}")
     return 0
 
 

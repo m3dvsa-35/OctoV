@@ -131,3 +131,51 @@ def test_status_lists_ghidra(
     monkeypatch.setattr(ext_cli, "ghidra_status", lambda cfg, **kw: ready)
     assert main(["ext", "status", "--rules-root", str(tmp_path)]) == 0
     assert "ghidra ready (Ghidra 12.2, JDK 25.0.1)" in capsys.readouterr().out
+
+
+def _fake_sigs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, dict[str, str]]:
+    sigs = tmp_path / "sigs-src"
+    sigs.mkdir()
+    pins = {}
+    for name in capa_rules.CAPA_SIGS:
+        (sigs / name).write_bytes(name.encode())
+        pins[name] = hashlib.sha256(name.encode()).hexdigest()
+    monkeypatch.setattr(capa_rules, "CAPA_SIGS", pins)
+    return sigs, pins
+
+
+def test_setup_library_installs_only_signatures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    sigs, pins = _fake_sigs(tmp_path, monkeypatch)
+    rules, target = tmp_path / "rules", tmp_path / "s"
+    args = ["ext", "setup", "library", "--sigs-from", str(sigs)]
+    assert main([*args, "--rules-root", str(rules), "--sigs-root", str(target)]) == 0
+    assert "signatures installed" in capsys.readouterr().out
+    assert sorted(p.name for p in (target / "v10.0.0").iterdir()) == sorted(pins)
+    assert not rules.exists()  # no capa rules were touched
+
+
+def test_setup_library_bad_checksum_exits_2(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    sigs, pins = _fake_sigs(tmp_path, monkeypatch)
+    (sigs / next(iter(pins))).write_bytes(b"tampered")
+    args = ["ext", "setup", "library", "--sigs-from", str(sigs), "--sigs-root", str(tmp_path / "s")]
+    assert main(args) == 2
+    assert "checksum mismatch" in capsys.readouterr().err
+    assert not (tmp_path / "s" / "v10.0.0").exists()
+
+
+def test_status_lists_library(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _probe(monkeypatch, installed=True)
+    root = tmp_path / "s"
+    base = ["ext", "status", "--rules-root", str(tmp_path), "--sigs-root", str(root)]
+    assert main(base) == 0
+    assert "library signatures missing: octov ext setup library" in capsys.readouterr().out
+    (root / "v10.0.0").mkdir(parents=True)
+    (root / "v10.0.0" / "a.sig").write_bytes(b"")
+    assert main(base) == 0
+    assert "library ready (signatures v10.0.0)" in capsys.readouterr().out

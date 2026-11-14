@@ -403,6 +403,17 @@ STRINGS: dict[str, str] = {
     "ext.reason.no_ghidra": "Ghidra not found (run: octov ext setup ghidra)",
     "ext.reason.ghidra_version": "unsupported Ghidra version (12.x is needed)",
     "ext.reason.no_jdk": "no JDK 21 or newer found",
+    "ext.reason.no_signatures": "signature files missing (run: octov ext setup library)",
+    "ext.library.adds": (
+        "Library recognition gives known library functions (C runtime, MFC, zlib, OpenSSL...) "
+        "their real names, so you can skip code the author did not write."
+    ),
+    "functions.library": "lib",
+    "functions.library_hint": "Known library function (matched by signature); usually safe to skip",
+    "functions.hide_library": "Hide library ({n})",
+    "triage.library": (
+        "Known library code: {n} of {m} functions. They are named and left out of the ranking."
+    ),
     "ext.reason.pe_only": "PE files only",
     "ext.ghidra.adds": (
         "Ghidra turns each function's machine code into readable pseudo-C, in sync with the "
