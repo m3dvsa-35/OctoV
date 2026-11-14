@@ -122,6 +122,18 @@ class ImageView:
             raw = self.data[start : start + min(size, sec.raw_size - delta)]
         return raw.ljust(size, b"\x00")
 
+    def read_raw(self, rva: int, size: int) -> bytes:
+        """Like ``read`` but only bytes the file really has: no zero padding for the virtual
+        part of a section (signature matching must not see padding as code)."""
+        sec = self._section_for(rva)
+        if sec is None:
+            return b""
+        delta = rva - sec.virtual_address
+        if delta >= sec.raw_size:
+            return b""
+        start = sec.raw_offset + delta
+        return self.data[start : start + min(size, sec.raw_size - delta)]
+
 
 _RIP_SLOT = re.compile(r"\[rip ([+-]) 0x([0-9a-f]+)\]")
 _ABS_SLOT = re.compile(r"(?:ptr |^)\[0x([0-9a-f]+)\]")

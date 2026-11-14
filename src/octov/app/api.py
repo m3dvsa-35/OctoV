@@ -1631,7 +1631,18 @@ class WorkbenchApi:
             path = ext_cache.cache_file(
                 self._cache_dir, s.sha, "library", st.version or "?", st.rules_version
             )
+            if not s.functions:  # nothing to match: no need to load the signature sets
+                s.pipeline.set_state("library", "done")
+                return
             doc = None if force else ext_cache.load(path)
+            if doc is not None:
+                try:
+                    library_ext.parse_library(doc)
+                except EngineError:
+                    # not this worker's document (edited, or another version): match again
+                    with contextlib.suppress(OSError):
+                        path.unlink()
+                    doc = None
             if doc is not None:
                 s.pipeline.set_state("library", "running")
                 self._finish_engine(s, "library", doc, None, True, None)

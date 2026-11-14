@@ -32,13 +32,6 @@ def _no_machine_engines(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         api,
-        "library_status",
-        lambda root: ExtensionStatus(
-            "library", False, False, None, None, "ext.reason.not_installed", "", None
-        ),
-    )
-    monkeypatch.setattr(
-        api,
         "ghidra_status",
         lambda cfg: ExtensionStatus(
             "ghidra", False, False, None, None, "ext.reason.not_installed", "", None

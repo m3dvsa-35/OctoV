@@ -57,7 +57,8 @@ def match_file(sample: Path, sigs_dir: Path, starts: Sequence[int]) -> dict[str,
         matcher = flirt.compile(signatures)
         del signatures
         for start in sorted(set(starts)):
-            buf = view.read(start, WINDOW) if start >= 0 and view.is_executable(start) else b""
+            ok = start >= 0 and view.is_executable(start)
+            buf = view.read_raw(start, WINDOW) if ok else b""  # file bytes only, no padding
             names = _names(matcher.match(buf)) if buf else []
             if names:
                 candidates.append(

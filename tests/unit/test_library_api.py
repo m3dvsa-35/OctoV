@@ -216,3 +216,66 @@ def test_capa_and_library_results_both_apply(
 def test_config_has_library_limits() -> None:
     lib = Config().extensions["library"]
     assert (lib.timeout_s, lib.max_size_mb, lib.max_memory_mb) == (120, 64, 2048)
+
+
+def test_a_bad_cache_file_is_replaced_not_trusted(tmp_path: Path, library: dict[str, Any]) -> None:
+    import hashlib
+
+    from octov.ext import cache as ext_cache
+
+    path = _sample(tmp_path)
+    sha = hashlib.sha256(path.read_bytes()).hexdigest()
+    cached = ext_cache.cache_file(tmp_path / "cache", sha, "library", "1", "v1.0.0")
+    ext_cache.store(cached, {"engine": "something else"})
+    api = _api(tmp_path)
+    assert _open(api, path) == sha
+    job = _settled(api, sha)["library"]
+    assert (job["state"], job["cached"], library["started"]) == ("done", False, 1)
+    assert sum(r["library"] for r in api.list_functions(sha)) == 7
+    api.close_sample(sha)
+    _open(api, path)
+    job = _settled(api, sha)["library"]
+    assert (job["state"], job["cached"], library["started"]) == ("done", True, 1)
+
+
+def test_closing_while_functions_are_discovered_then_reopening(
+    tmp_path: Path, library: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import threading
+
+    gate = threading.Event()
+    real = analyzers.Functions.run
+
+    def slow(self: Any, ctx: Any) -> None:
+        assert gate.wait(30)
+        real(self, ctx)
+
+    monkeypatch.setattr(analyzers.Functions, "run", slow)
+    api = _api(tmp_path)
+    path = _sample(tmp_path)
+    sha = _open(api, path)
+    assert api.job_status(sha)["library"]["state"] == "queued"
+    api.close_sample(sha)  # the first sample's job is still waiting for its functions
+    assert _open(api, path) == sha
+    gate.set()
+    assert _settled(api, sha)["library"]["state"] == "done"
+    time.sleep(1.2)  # the closed sample's waiter has woken up by now
+    assert library["started"] == 1
+    assert sum(r["library"] for r in api.list_functions(sha)) == 7
+
+
+def test_no_functions_means_done_without_starting_the_worker(
+    tmp_path: Path, library: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from octov.core.static.cfg import FunctionIndex
+
+    def nothing(self: Any, ctx: Any) -> None:
+        ctx.functions = {}
+        ctx.index = FunctionIndex({})
+
+    monkeypatch.setattr(analyzers.Functions, "run", nothing)
+    api = _api(tmp_path)
+    sha = _open(api, _sample(tmp_path))
+    job = _settled(api, sha)["library"]
+    assert (job["state"], library["started"]) == ("done", 0)
+    assert api.get_triage(sha)["library"] == {"functions": 0, "total": 0}

@@ -138,3 +138,28 @@ def test_newest_signature_folder_wins(tmp_path: Path) -> None:
         (tmp_path / name / "x.sig").write_bytes(b"")
     (tmp_path / "v11.0.0").mkdir()  # no signature file inside
     assert library_sigs_dir(tmp_path) == ("v10.0.0", tmp_path / "v10.0.0")
+
+
+def test_worker_ignores_bytes_the_file_does_not_have(tmp_path: Path) -> None:
+    # An executable section without raw data (UPX0-like) reads as zero padding, not code:
+    # a signature that zeros satisfy must not name "functions" there.
+    from tests.samples.builder import TEXT, PESpec, SectionSpec, build_pe
+
+    data = build_pe(
+        PESpec(
+            sections=[
+                SectionSpec(".text", b"\xc3" + b"\x90" * 15, TEXT),
+                SectionSpec("UPX0", b"", TEXT, virtual_size=0x1000),
+            ]
+        )
+    )
+    report = parse_pe(data)
+    empty = next(s for s in report.sections if s.name.startswith("UPX0"))
+    assert empty.raw_size == 0 and empty.executable
+    sample = tmp_path / "packed.exe"
+    sample.write_bytes(data)
+    sigs = tmp_path / "sigs" / "v1.0.0"
+    sigs.mkdir(parents=True)
+    (sigs / "zero.pat").write_bytes(("00" * 32 + " 00 0000 0020 :0000 zero_fn\n---\n").encode())
+    starts = [empty.virtual_address, empty.virtual_address + 0x100]
+    assert parse_library(match_file(sample, sigs, starts)) == []
